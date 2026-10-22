@@ -9,6 +9,16 @@ public class FormatCatalogTests
     [InlineData(@"C:\a\노트.markdown", "md")] [InlineData(@"C:\a\noext", null)]
     public void FormatOf_NormalizesAliases(string path, string? expected) => Assert.Equal(expected, FormatCatalog.FormatOf(path));
 
+    [Fact]
+    public void FormatOf_ExistingDirectory_IsNull()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "limewin-" + Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(dir, "사진.png");
+        Directory.CreateDirectory(folder);
+        try { Assert.Null(FormatCatalog.FormatOf(folder)); }
+        finally { Directory.Delete(dir, true); }
+    }
+
     [Fact] public void TargetsFor_Png_IsImageTargetsWithoutPng() =>
         Assert.Equal(new[] { "jpg", "webp", "heic", "tiff", "avif", "bmp", "pdf" }, FormatCatalog.TargetsFor("png", Capabilities.All));
     [Fact] public void TargetsFor_Svg_IsInputOnly_NotATarget() => Assert.DoesNotContain("svg", FormatCatalog.TargetsFor("png", Capabilities.All));

@@ -35,9 +35,10 @@ public static class FormatCatalog
         ["htm"] = "html", ["xhtml"] = "html",
     };
 
-    /// <summary>Normalized lowercase format of a file path, or null for no/empty extension.</summary>
+    /// <summary>Normalized lowercase format of a file path, or null for no/empty extension or an existing directory.</summary>
     public static string? FormatOf(string path)
     {
+        if (Directory.Exists(path)) return null;
         var ext = Path.GetExtension(path);
         if (string.IsNullOrEmpty(ext) || ext.Length < 2) return null;
         var e = ext[1..].ToLowerInvariant();
