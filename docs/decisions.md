@@ -9,3 +9,5 @@ Decisions made at the implementer's discretion while building Lime for Windows; 
 - Task 2: `FormatOf` returns null for an existing directory (so a folder named `x.png` is not treated as an image); a folder among the dragged paths empties Convert and Tools, Actions stay at 5.
 - Task 2: Crop appears only when exactly one image is dragged (multi-image drops omit it).
 - Task 2: Convert offers the intersection of every file's targets in the first file's order; any unknown format or folder yields an empty list. Tools: raster images only (jpg png webp heic tiff avif bmp; svg excluded), or PDFs only; mixed yields empty.
+- Task 3: Drag threshold is per-axis (`|dx| > px || |dy| > px`, strictly greater), following the Windows SM_CXDRAG convention, not Euclidean distance.
+- Task 3: `WheelGeometry.PetalAt` treats the Inner and Outer radii as inclusive; gutters are constant-width strips (angular half-gutter = asin(Gap/2/r)); `BearingOf` returns the petal's centre in radians.
