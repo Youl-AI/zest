@@ -1,6 +1,18 @@
 using ImageMagick;
+using PdfSharp.Drawing;
+using PdfSharp.Fonts;
+using PdfSharp.Pdf;
 
 namespace LimeWin.Core.Tests.Fixtures;
+
+internal sealed class MalgunFontResolver : IFontResolver
+{
+    public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic) =>
+        new("MalgunGothic");
+
+    public byte[]? GetFont(string faceName) =>
+        File.ReadAllBytes(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", "malgun.ttf"));
+}
 
 internal static class FixtureFactory
 {
@@ -33,6 +45,33 @@ internal static class FixtureFactory
             "bmp" => MagickFormat.Bmp,
             _ => throw new ArgumentException($"Unsupported fixture extension '{ext}'."),
         });
+        return path;
+    }
+
+    /// <summary>
+    /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
+    /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
+    /// </summary>
+    public static string Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null)
+    {
+        // The core PDFsharp build has no Windows font access; resolve the one font we need ourselves.
+        GlobalFontSettings.FontResolver ??= new MalgunFontResolver();
+        var path = Path.Combine(dir, name);
+        using var doc = new PdfDocument();
+        var font = new XFont("Malgun Gothic", 24, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+        for (var i = 1; i <= pages; i++)
+        {
+            var page = doc.AddPage();
+            using var gfx = XGraphics.FromPdfPage(page);
+            if (withText) gfx.DrawString($"Page {i} 페이지", font, XBrushes.Black, new XPoint(72, 100));
+            else gfx.DrawRectangle(XBrushes.SteelBlue, 72, 100, 200, 100);
+        }
+        if (userPassword is not null)
+        {
+            doc.SecuritySettings.UserPassword = userPassword;
+            doc.SecuritySettings.OwnerPassword = userPassword + "-owner";
+        }
+        doc.Save(path);
         return path;
     }
 }

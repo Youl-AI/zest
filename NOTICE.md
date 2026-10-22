@@ -34,5 +34,8 @@ SOFTWARE.
 Libraries are listed here as later tasks add them (name, version, license).
 
 - Magick.NET-Q8-AnyCPU 15.0.0 — Apache-2.0 (Magick.NET); bundles ImageMagick under the ImageMagick License
-- PdfPig 0.1.16 — Apache-2.0 (writes image-to-PDF output)
+- PdfPig 0.1.16 — Apache-2.0 (writes image-to-PDF output, extracts PDF text)
 - PDFsharp 6.2.4 — MIT; test-only dependency (not shipped). 6.5.0+ is AGPL-3.0-only and must not be used.
+- PDFtoImage 5.4.0 — MIT (renders PDF pages)
+- PDFium (bblanchon.PDFium.Win32 152.0.7961 binaries, pulled in by PDFtoImage) — Apache-2.0 per the NuGet package metadata (upstream PDFium is BSD-3-Clause/Apache-2.0 licensed)
+- SkiaSharp 4.150.1 — MIT (transitive via PDFtoImage; encodes rendered pages)
