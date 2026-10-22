@@ -32,3 +32,7 @@ SOFTWARE.
 ## Third-party
 
 Libraries are listed here as later tasks add them (name, version, license).
+
+- Magick.NET-Q8-AnyCPU 15.0.0 — Apache-2.0 (Magick.NET); bundles ImageMagick under the ImageMagick License
+- PdfPig 0.1.16 — Apache-2.0 (writes image-to-PDF output)
+- PDFsharp 6.2.4 — MIT; test-only dependency (not shipped). 6.5.0+ is AGPL-3.0-only and must not be used.

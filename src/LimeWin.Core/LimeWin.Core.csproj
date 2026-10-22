@@ -1,2 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
+    <PackageReference Include="PdfPig" />
+  </ItemGroup>
 </Project>
