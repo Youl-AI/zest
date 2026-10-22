@@ -1,3 +1,4 @@
+using LimeWin.Core.Convert;
 using ImageMagick;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
@@ -16,6 +17,38 @@ internal sealed class MalgunFontResolver : IFontResolver
 
 internal static class FixtureFactory
 {
+    static readonly HashSet<string> AudioExtensions = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"];
+
+    /// <summary>
+    /// Writes a test clip with ffmpeg (lavfi testsrc 320x240@25 + 440 Hz sine); format follows the extension.
+    /// Audio extensions get audio only, gif gets video only.
+    /// </summary>
+    public static string Media(string dir, string name, int seconds = 2)
+    {
+        var ffmpeg = FfmpegLocator.Locate() ?? throw new InvalidOperationException("ffmpeg is not on PATH.");
+        var path = Path.Combine(dir, name);
+        var ext = Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        var psi = new System.Diagnostics.ProcessStartInfo(ffmpeg)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        string[] args = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25",
+            "-f", "lavfi", "-i", "sine=frequency=440", "-t", seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        if (AudioExtensions.Contains(ext)) psi.ArgumentList.Add("-vn");
+        else if (ext == "gif") psi.ArgumentList.Add("-an");
+        psi.ArgumentList.Add(path);
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        var err = p.StandardError.ReadToEndAsync();
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        if (p.ExitCode != 0) throw new InvalidOperationException($"ffmpeg fixture failed: {err.Result}");
+        return path;
+    }
+
     /// <summary>
     /// Writes a w x h image whose format follows the extension. SVG sources are written at half size
     /// (user units) because the converter rasterizes at 192 DPI (2x), so every source yields w x h pixels.

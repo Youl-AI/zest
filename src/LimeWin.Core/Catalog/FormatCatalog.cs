@@ -3,7 +3,8 @@ namespace LimeWin.Core.Catalog;
 public enum FormatCategory { Image, Gif, Audio, Video, Pdf, Document, Slides, Spreadsheet }
 
 /// <summary>Optional engines/codecs available on this machine; unavailable ones drop their targets.</summary>
-public sealed record Capabilities(bool Office, bool Ffmpeg, bool HeicWrite, bool AvifWrite, bool Ocr, bool BackgroundRemoval)
+public sealed record Capabilities(bool Office, bool Ffmpeg, bool HeicWrite, bool AvifWrite, bool Ocr, bool BackgroundRemoval,
+    IReadOnlySet<string>? UnavailableTargets = null)
 {
     public static Capabilities All { get; } = new(true, true, true, true, true, true);
 }
@@ -85,6 +86,7 @@ public static class FormatCatalog
     {
         if (target == "heic" && !caps.HeicWrite) return false;
         if (target == "avif" && !caps.AvifWrite) return false;
+        if (caps.UnavailableTargets?.Contains(target) == true) return false;
 
         // Ffmpeg: Gif, Audio, Video sources entirely.
         if (category is FormatCategory.Gif or FormatCategory.Audio or FormatCategory.Video && !caps.Ffmpeg) return false;

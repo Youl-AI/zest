@@ -18,7 +18,10 @@ public static class Services
     public static void Start()
     {
         _capabilities = CapabilityDetector.Detect();
-        _router = new ConversionRouter([new ImageConverter(), new PdfConverter()]);
+        List<IConverter> converters = [new ImageConverter(), new PdfConverter()];
+        if (_capabilities.Ffmpeg && FfmpegLocator.Locate() is { } ffmpeg)
+            converters.Add(new FfmpegConverter(ffmpeg));
+        _router = new ConversionRouter(converters);
         _jobs = new JobRunner(new ProgressCardHost());
     }
 

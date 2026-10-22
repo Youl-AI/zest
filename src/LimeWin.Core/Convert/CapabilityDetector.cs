@@ -8,13 +8,18 @@ public static class CapabilityDetector
 {
     static readonly string[] OfficeProgIds = ["Word.Application", "PowerPoint.Application", "Excel.Application"];
 
-    public static Capabilities Detect() => new(
-        Office: OfficeProgIds.All(IsProgIdRegistered),
-        Ffmpeg: FindOnPath("ffmpeg.exe", Environment.GetEnvironmentVariable("PATH")),
-        HeicWrite: CapabilityProbe.CanWrite("heic"),
-        AvifWrite: CapabilityProbe.CanWrite("avif"),
-        Ocr: false,
-        BackgroundRemoval: false);
+    public static Capabilities Detect()
+    {
+        var ffmpeg = FfmpegLocator.Locate();
+        return new(
+            Office: OfficeProgIds.All(IsProgIdRegistered),
+            Ffmpeg: ffmpeg is not null,
+            HeicWrite: CapabilityProbe.CanWrite("heic"),
+            AvifWrite: CapabilityProbe.CanWrite("avif"),
+            Ocr: false,
+            BackgroundRemoval: false,
+            UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg));
+    }
 
     /// <summary>True when <paramref name="fileName"/> exists in one of the folders of a PATH-style list.</summary>
     public static bool FindOnPath(string fileName, string? pathList)
