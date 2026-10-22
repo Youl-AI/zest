@@ -35,6 +35,16 @@ public class FfmpegArgsTests
 
     [Fact] public void Args_Mov_UsesCrf17_Mp4Uses20() { Assert.Contains("17", FfmpegArgs.For("a", "mp4", "mov", "b")); Assert.Contains("20", FfmpegArgs.For("a", "mov", "mp4", "b")); }
 
+    [Theory]
+    [InlineData("mp4")]
+    [InlineData("mov")]
+    [InlineData("mkv")]
+    public void Args_X264Targets_RoundToEvenDimensions(string target)
+    {
+        var a = FfmpegArgs.For("in.gif", "gif", target, "out." + target).ToList();
+        Assert.Equal("scale=trunc(iw/2)*2:trunc(ih/2)*2", a[a.IndexOf("-vf") + 1]);
+    }
+
     [Fact]
     public void UnknownTarget_Throws() => Assert.Throws<LimeException>(() => FfmpegArgs.For("a.mp4", "mp4", "webm", "a.webm"));
 
@@ -129,6 +139,27 @@ public class FfmpegConverterTests : IDisposable
             if (to != "gif" && from != "gif") Assert.Contains("audio", streams);
         }
         Assert.Equal(before, SHA256.HashData(File.ReadAllBytes(src)));
+    }
+
+    [Theory]
+    [InlineData("gif")]
+    [InlineData("avi")]
+    public async Task OddSizedSource_ToMp4_HasEvenDimensions(string from)
+    {
+        var src = FixtureFactory.Media(Dir, $"odd.{from}", 2, 321, 241);
+        var output = Assert.Single(await Router.ConvertAsync(src, "mp4", new OperationContext(CancellationToken.None)));
+
+        var psi = new ProcessStartInfo(FfmpegLocator.LocateProbe(FfmpegPath)!)
+        {
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var a in new[] { "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", output }) psi.ArgumentList.Add(a);
+        using var p = Process.Start(psi)!;
+        var size = p.StandardOutput.ReadToEnd().Trim().Split(',').Select(int.Parse).ToArray();
+        p.WaitForExit();
+        Assert.Equal(new[] { 320, 240 }, size);
     }
 
     [Fact]

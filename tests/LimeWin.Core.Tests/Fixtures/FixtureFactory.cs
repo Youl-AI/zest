@@ -23,7 +23,7 @@ internal static class FixtureFactory
     /// Writes a test clip with ffmpeg (lavfi testsrc 320x240@25 + 440 Hz sine); format follows the extension.
     /// Audio extensions get audio only, gif gets video only.
     /// </summary>
-    public static string Media(string dir, string name, int seconds = 2)
+    public static string Media(string dir, string name, int seconds = 2, int width = 320, int height = 240)
     {
         var ffmpeg = FfmpegLocator.Locate() ?? throw new InvalidOperationException("ffmpeg is not on PATH.");
         var path = Path.Combine(dir, name);
@@ -35,7 +35,7 @@ internal static class FixtureFactory
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        string[] args = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25",
+        string[] args = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", $"testsrc=size={width}x{height}:rate=25",
             "-f", "lavfi", "-i", "sine=frequency=440", "-t", seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)];
         foreach (var a in args) psi.ArgumentList.Add(a);
         if (AudioExtensions.Contains(ext)) psi.ArgumentList.Add("-vn");

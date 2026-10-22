@@ -6,6 +6,9 @@ public static class FfmpegArgs
     const string GifFilter =
         "[0:v:0]fps=15,scale='min(960,iw)':-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=sierra2_4a";
 
+    /// <summary>libx264 with yuv420p needs even width and height.</summary>
+    static readonly string[] EvenSize = ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"];
+
     static readonly Dictionary<string, string[]> Targets = new()
     {
         ["mp3"] = ["-vn", "-c:a", "libmp3lame", "-b:a", "256k"],
@@ -16,9 +19,9 @@ public static class FfmpegArgs
         ["ogg"] = ["-vn", "-c:a", "libvorbis", "-q:a", "6"],
         ["opus"] = ["-vn", "-c:a", "libopus", "-b:a", "192k"],
         ["wma"] = ["-vn", "-c:a", "wmav2", "-b:a", "192k"],
-        ["mp4"] = ["-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart"],
-        ["mov"] = ["-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k"],
-        ["mkv"] = ["-c:v", "libx264", "-crf", "20", "-preset", "medium", "-c:a", "aac", "-b:a", "256k"],
+        ["mp4"] = [.. EvenSize, "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart"],
+        ["mov"] = [.. EvenSize, "-c:v", "libx264", "-crf", "17", "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k"],
+        ["mkv"] = [.. EvenSize, "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-c:a", "aac", "-b:a", "256k"],
         ["avi"] = ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "libmp3lame", "-b:a", "256k"],
         ["wmv"] = ["-c:v", "wmv2", "-q:v", "3", "-c:a", "wmav2", "-b:a", "192k"],
         ["gif"] = ["-filter_complex", GifFilter, "-an"],
