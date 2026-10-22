@@ -23,12 +23,10 @@ public static class Services
         List<IConverter> converters = [new ImageConverter(), new PdfConverter()];
         if (_capabilities.Ffmpeg && FfmpegLocator.Locate() is { } ffmpeg)
             converters.Add(new FfmpegConverter(ffmpeg));
-        if (_capabilities.Office)
-        {
-            // One shared Word; the host starts its thread and Word itself only on the first Word conversion.
-            _word = new OfficeHost("Word.Application", "WINWORD");
-            converters.Add(new WordConverter(_word));
-        }
+        // Always registered so md<->html works without Office; FormatCatalog hides the routes that need Word.
+        // One shared Word; the host starts its thread and Word itself only on the first Word conversion.
+        _word = new OfficeHost("Word.Application", "WINWORD");
+        converters.Add(new WordConverter(_word));
         _router = new ConversionRouter(converters);
         _jobs = new JobRunner(new ProgressCardHost());
     }

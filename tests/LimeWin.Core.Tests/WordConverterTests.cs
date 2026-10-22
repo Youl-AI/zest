@@ -14,7 +14,7 @@ namespace LimeWin.Core.Tests;
 public class WordConverterHandlesTests
 {
     [Fact]
-    public void Handles_DocumentRoutes_AndPdfToDocxOnly()
+    public void Handles_DocumentRoutes_ButNotPdf()
     {
         using var host = new OfficeHost("Word.Application", "WINWORD"); // never started: Handles does not touch Word
         var c = new WordConverter(host);
@@ -22,7 +22,7 @@ public class WordConverterHandlesTests
         Assert.True(c.Handles("doc", "docx"));
         Assert.True(c.Handles("md", "docx"));
         Assert.True(c.Handles("html", "md"));
-        Assert.True(c.Handles("pdf", "docx"));
+        Assert.False(c.Handles("pdf", "docx")); // hidden Word never finishes opening a PDF (Task 8)
         Assert.False(c.Handles("pdf", "txt"));  // PdfConverter's route
         Assert.False(c.Handles("docx", "docx"));
         Assert.False(c.Handles("docx", "doc")); // input only
@@ -135,20 +135,6 @@ public class WordConverterTests(WordFixture fx) : IClassFixture<WordFixture>, ID
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(src)));
         Assert.Equal(new[] { Path.GetFileName(src), Path.GetFileName(output) }.Order(), Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
-    }
-
-    // Measured on this machine (Office not activated): Documents.Open of a PDF never returns while Word is hidden
-    // (DisplayAlerts=0 + ConfirmConversions:false; no dialog window exists) and the 2 min timeout kills our Word.
-    // A visible, minimized Word opens the same PDF in about 5 s. Showing Word breaks spec §2, so this waits for a decision.
-    [Fact(Skip = "PDF→DOCX: 숨긴 Word에서 PDF 열기가 끝나지 않음 — 결정 대기 (task-8-report.md)")]
-    public async Task Pdf_ToDocx_ContainsText()
-    {
-        var src = FixtureFactory.Pdf(Dir, "보고서.pdf", 1);
-        var sw = Stopwatch.StartNew();
-        var output = Assert.Single(await Router.ConvertAsync(src, "docx", Ctx)); // a conversion notice would hang until the 2 min timeout
-        Assert.True(sw.Elapsed < TimeSpan.FromMinutes(1), $"took {sw.Elapsed}");
-        Assert.Equal(Path.Combine(Dir, "보고서.docx"), output);
-        Assert.Contains("페이지", ZipXmlText(output, "word/document.xml"));
     }
 
     [Fact]

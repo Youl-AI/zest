@@ -9,7 +9,8 @@ using LimeWin.Core.Output;
 namespace LimeWin.Core.Office;
 
 /// <summary>
-/// Document conversion through Word (docx doc rtf odt txt html md, and pdf to docx). md↔html never starts Word.
+/// Document conversion through Word (docx doc rtf odt txt html md). md↔html never starts Word.
+/// PDF is not a source: a hidden Word never finishes opening a PDF on the target machine (Task 8).
 /// Word reads and writes only inside a private temp folder; finished files are then moved next to the source.
 /// </summary>
 public sealed class WordConverter(OfficeHost word) : IConverter
@@ -19,8 +20,7 @@ public sealed class WordConverter(OfficeHost word) : IConverter
     static readonly HashSet<string> Targets = ["docx", "odt", "txt", "md", "html", "pdf"];
     static readonly UTF8Encoding Utf8 = new(false);
 
-    public bool Handles(string from, string to) =>
-        from == "pdf" ? to == "docx" : Sources.Contains(from) && Targets.Contains(to) && from != to;
+    public bool Handles(string from, string to) => Sources.Contains(from) && Targets.Contains(to) && from != to;
 
     public async Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx)
     {

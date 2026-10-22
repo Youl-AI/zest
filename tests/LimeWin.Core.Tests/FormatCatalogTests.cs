@@ -23,7 +23,10 @@ public class FormatCatalogTests
         Assert.Equal(new[] { "jpg", "webp", "heic", "tiff", "avif", "bmp", "pdf" }, FormatCatalog.TargetsFor("png", Capabilities.All));
     [Fact] public void TargetsFor_Svg_IsInputOnly_NotATarget() => Assert.DoesNotContain("svg", FormatCatalog.TargetsFor("png", Capabilities.All));
     [Fact] public void TargetsFor_Webm_ExcludesWebm_IncludesGifMp3() { var t = FormatCatalog.TargetsFor("webm", Capabilities.All); Assert.DoesNotContain("webm", t); Assert.Contains("gif", t); Assert.Contains("mp3", t); }
-    [Fact] public void TargetsFor_Pdf_WithoutOffice_DropsDocx() => Assert.Equal(new[] { "jpg", "png", "txt" }, FormatCatalog.TargetsFor("pdf", Capabilities.All with { Office = false }));
+    // A hidden Word never finishes opening a PDF (Task 8), so pdf -> docx is never offered, with or without Office.
+    [Theory, InlineData(true), InlineData(false)]
+    public void TargetsFor_Pdf_NeverOffersDocx(bool office) =>
+        Assert.Equal(new[] { "jpg", "png", "txt" }, FormatCatalog.TargetsFor("pdf", Capabilities.All with { Office = office }));
     [Fact] public void TargetsFor_Png_WithoutHeicWrite_DropsHeic() => Assert.DoesNotContain("heic", FormatCatalog.TargetsFor("png", Capabilities.All with { HeicWrite = false }));
     [Fact] public void TargetsFor_Ppt_IncludesPptx_ButPptxDoesNot() { Assert.Contains("pptx", FormatCatalog.TargetsFor("ppt", Capabilities.All)); Assert.DoesNotContain("pptx", FormatCatalog.TargetsFor("pptx", Capabilities.All)); }
     [Fact] public void TargetsFor_Md_WithoutOffice_KeepsHtmlOnly() => Assert.Equal(new[] { "html" }, FormatCatalog.TargetsFor("md", Capabilities.All with { Office = false }));

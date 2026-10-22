@@ -23,7 +23,8 @@ public static class FormatCatalog
     static readonly string[] SlideTargets = ["pdf", "jpg", "png"];
     static readonly string[] Spreadsheets = ["xlsx", "xls", "ods", "csv", "tsv"];
     static readonly string[] SpreadsheetTargets = ["xlsx", "ods", "csv", "tsv", "pdf"];
-    static readonly string[] PdfTargets = ["jpg", "png", "docx", "txt"];
+    // No docx: a hidden Word never finishes opening a PDF, and a visible one breaks spec §2 (Task 8).
+    static readonly string[] PdfTargets = ["jpg", "png", "txt"];
 
     static readonly HashSet<string> InputOnly = ["svg", "webm", "doc", "rtf", "xls", "ppt", "odp"];
 
@@ -91,12 +92,11 @@ public static class FormatCatalog
         // Ffmpeg: Gif, Audio, Video sources entirely.
         if (category is FormatCategory.Gif or FormatCategory.Audio or FormatCategory.Video && !caps.Ffmpeg) return false;
 
-        // Office: Pdf->docx, all Slides, all Spreadsheets, all Documents except md<->html.
+        // Office: all Slides, all Spreadsheets, all Documents except md<->html.
         if (!caps.Office)
         {
             switch (category)
             {
-                case FormatCategory.Pdf: return target != "docx";
                 case FormatCategory.Slides:
                 case FormatCategory.Spreadsheet: return false;
                 case FormatCategory.Document:
