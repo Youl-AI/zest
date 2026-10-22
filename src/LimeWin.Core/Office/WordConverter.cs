@@ -11,7 +11,7 @@ namespace LimeWin.Core.Office;
 /// <summary>
 /// Document conversion through Word (docx doc rtf odt txt html md). md↔html never starts Word.
 /// PDF is not a source: a hidden Word never finishes opening a PDF on the target machine (Task 8).
-/// Word reads and writes only inside a private temp folder; finished files are then moved next to the source.
+/// Word reads (a copy of the source) and writes only inside a private temp folder; finished files are then moved next to the source.
 /// </summary>
 public sealed class WordConverter(OfficeHost word) : IConverter
 {
@@ -49,13 +49,24 @@ public sealed class WordConverter(OfficeHost word) : IConverter
         var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "LimeWin", Guid.NewGuid().ToString("N"))).FullName;
         try
         {
-            var input = source;
+            // Word only ever opens a private copy. Opening the user's path would hand back their own Document if it is
+            // already open in that instance (Revert:=False), and SaveAs2 + Close would then take it from them.
+            var inDir = Directory.CreateDirectory(Path.Combine(work, "in")).FullName;
+            string input;
             if (from == "md")
             {
-                var inDir = Directory.CreateDirectory(Path.Combine(work, "in")).FullName;
-                input = Path.Combine(inDir, OutputNaming.Stem(source) + ".html");
+                input = Path.Combine(inDir, $"{Guid.NewGuid():N}.html");
                 var md = await ReadSourceAsync(source, ctx.Token);
                 await File.WriteAllTextAsync(input, MarkdownBridge.ToHtmlDocument(md, OutputNaming.Stem(source)), Utf8, ctx.Token);
+            }
+            else
+            {
+                input = Path.Combine(inDir, $"{Guid.NewGuid():N}{Path.GetExtension(source)}");
+                try { File.Copy(source, input); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    throw new LimeException("원본 파일을 열 수 없습니다.");
+                }
             }
 
             // Word saves under the output's own name so HTML image folders ("<stem>_files") keep matching links.

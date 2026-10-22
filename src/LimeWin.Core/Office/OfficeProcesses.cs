@@ -27,9 +27,13 @@ public static class OfficeProcesses
     /// <summary>The one process that appeared between the snapshots; null when none or several did (then it is not provably ours).</summary>
     public static OfficeProcess? Launched(IReadOnlySet<OfficeProcess> before, IReadOnlySet<OfficeProcess> after)
     {
-        var added = after.Except(before).ToList();
+        var added = Added(before, after);
         return added.Count == 1 ? added[0] : null;
     }
+
+    /// <summary>Processes in <paramref name="after"/> that were not in <paramref name="before"/>.</summary>
+    public static IReadOnlyList<OfficeProcess> Added(IReadOnlySet<OfficeProcess> before, IReadOnlySet<OfficeProcess> after) =>
+        after.Except(before).ToList();
 
     public static bool IsAlive(OfficeProcess p)
     {

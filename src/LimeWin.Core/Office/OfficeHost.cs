@@ -5,9 +5,10 @@ namespace LimeWin.Core.Office;
 
 /// <summary>
 /// Runs Office automation work items one at a time on a dedicated STA thread (spec §7), late bound through <c>dynamic</c>.
-/// The app is acquired on the first work item. A process that appeared across <c>CreateInstance</c> is ours; if none did,
-/// we attached to someone else's instance (<c>attachedToUser</c>): we never hide, quit or kill it, and only switch its
-/// alerts and macro security off for the duration of each work item.
+/// The app is acquired on the first work item. Exactly one process appearing across <c>CreateInstance</c> is ours; none
+/// means we attached to someone else's instance (<c>attachedToUser</c>): we never hide, quit or kill it, and only switch
+/// its alerts and macro security off for the duration of each work item. An instance of ours that is found holding a
+/// document we did not open is from then on treated the same way.
 /// The thread waits for work with a CLR wait, which on an STA thread pumps COM messages (CoWaitForMultipleHandles);
 /// "busy" rejections are retried by <see cref="OfficeMessageFilter"/>.
 /// </summary>
@@ -18,6 +19,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     const string TimeoutMessage = "Office 응답이 없어 중단했습니다.";
     // Office here is unactivated but automatable; if that ever stops, starting it is where it fails.
     const string UnavailableMessage = "Office를 사용할 수 없습니다. 정품 인증 상태를 확인하세요.";
+    const string AmbiguousStartMessage = "Office를 시작하지 못했습니다. 잠시 후 다시 시도하세요.";
 
     readonly bool _isExcel = progId.StartsWith("Excel.", StringComparison.OrdinalIgnoreCase);
     readonly bool _isPowerPoint = progId.StartsWith("PowerPoint.", StringComparison.OrdinalIgnoreCase);
@@ -27,11 +29,14 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     Thread? _thread;
     Timer? _idleTimer;
     bool _disposed;
+    int _nextItemId;
 
     // Guarded by _gate (read from any thread, written on the STA thread).
     OfficeProcess? _launched;
     bool _attachedToUser;
     bool _killed;
+    IReadOnlySet<OfficeProcess>? _acquiringSince; // process snapshot taken before a CreateInstance still in progress
+    int _runningItem; // id of the work item executing now, 0 when none
 
     // STA thread only.
     object? _app;
@@ -43,7 +48,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     /// <summary>How long the app may sit unused before it is released (quit if ours and empty).</summary>
     internal TimeSpan IdleDelay { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>The Office process this host started and still owns, if any.</summary>
+    /// <summary>The Office process this host started and is still connected to, if any.</summary>
     public OfficeProcess? LaunchedProcess { get { lock (_gate) return _launched; } }
 
     /// <summary>
@@ -57,6 +62,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         ct.ThrowIfCancellationRequested();
         const int Queued = 0, Running = 1, Abandoned = 2;
         var state = Queued;
+        var id = Interlocked.Increment(ref _nextItemId);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var done = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         // A result that arrives after we gave up is never awaited; observe it so it is not reported as unobserved.
@@ -65,6 +71,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         Enqueue(() =>
         {
             if (Interlocked.CompareExchange(ref state, Running, Queued) != Queued) { done.TrySetCanceled(); return; }
+            lock (_gate) _runningItem = id; // before 'started', so a timeout always finds it
             started.TrySetResult();
             try { done.TrySetResult(Execute(work, timeout)); }
             catch (Exception e) { done.TrySetException(e); }
@@ -84,7 +91,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         }
         if (done.Task.IsCompleted) return await done.Task;
 
-        AbortRunning();
+        AbortRunning(id);
         if (ct.IsCancellationRequested) throw new OperationCanceledException(ct);
         throw new LimeException(TimeoutMessage);
     }
@@ -142,9 +149,17 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         finally
         {
             bool killed;
-            lock (_gate) killed = _killed;
+            lock (_gate)
+            {
+                _runningItem = 0;
+                killed = _killed;
+            }
             if (killed) Forget();
-            else ArmIdle();
+            else
+            {
+                StopOwningIfShared();
+                ArmIdle();
+            }
         }
     }
 
@@ -152,11 +167,34 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     {
         if (_app is not null) return _app;
         var type = Type.GetTypeFromProgID(progId) ?? throw new LimeException("Office를 찾을 수 없습니다.");
+
         var before = OfficeProcesses.Snapshot(processName);
-        object app;
-        try { app = Activator.CreateInstance(type) ?? throw new LimeException(UnavailableMessage); }
-        catch (COMException) { throw new LimeException(UnavailableMessage); }
-        var launched = OfficeProcesses.Launched(before, OfficeProcesses.Snapshot(processName));
+        lock (_gate) _acquiringSince = before;
+        object? app;
+        try { app = Activator.CreateInstance(type); }
+        catch (Exception e) when (e is COMException or UnauthorizedAccessException) { app = null; } // e.g. E_ACCESSDENIED, CO_E_SERVER_EXEC_FAILURE
+        var added = OfficeProcesses.Added(before, OfficeProcesses.Snapshot(processName));
+        bool aborted;
+        lock (_gate)
+        {
+            _acquiringSince = null;
+            aborted = _killed; // the caller timed out or cancelled while CreateInstance ran
+        }
+
+        if (app is null || aborted)
+        {
+            if (app is not null) Marshal.FinalReleaseComObject(app);
+            if (added.Count == 1) OfficeProcesses.Kill(added[0]); // started for us but never usable: do not orphan it
+            throw new LimeException(app is null ? UnavailableMessage : TimeoutMessage);
+        }
+        if (added.Count > 1)
+        {
+            // One of them is probably ours, but which is unknowable: kill nothing, keep nothing.
+            Marshal.FinalReleaseComObject(app);
+            throw new LimeException(AmbiguousStartMessage);
+        }
+
+        var launched = added.Count == 1 ? added[0] : (OfficeProcess?)null;
         lock (_gate)
         {
             _launched = launched;
@@ -186,6 +224,27 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         return app;
     }
 
+    /// <summary>
+    /// Our work items close what they open, so a document still open after one belongs to someone else (a file the user
+    /// double-clicked that joined our instance). From then on the instance is not ours to quit or kill.
+    /// </summary>
+    void StopOwningIfShared()
+    {
+        if (_app is null) return;
+        lock (_gate)
+        {
+            if (_attachedToUser || _launched is null) return;
+        }
+        int count;
+        try { count = OpenDocumentCount(_app); }
+        catch (COMException) { return; }
+        if (count == 0) return;
+        lock (_gate) _attachedToUser = true;
+        _job?.Release();
+        _job?.Dispose();
+        _job = null;
+    }
+
     void ArmIdle()
     {
         if (_app is null) return;
@@ -207,17 +266,22 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     }
 
     /// <summary>
-    /// Lets go of the app. Quits it only when we started it and it has no open document; otherwise just disconnects,
-    /// so a document someone opened in the meantime is never closed.
+    /// Lets go of the app. Quits it only when we started it, still own it and it has no open document; otherwise just
+    /// disconnects, so a document someone opened in the meantime is never closed.
     /// </summary>
     void Release(bool waitForQuit)
     {
         if (_app is null) return;
         dynamic app = _app;
         OfficeProcess? launched;
-        lock (_gate) launched = _launched;
+        bool attached;
+        lock (_gate)
+        {
+            launched = _launched;
+            attached = _attachedToUser;
+        }
         var quit = false;
-        if (launched is not null)
+        if (launched is not null && !attached)
         {
             try
             {
@@ -228,7 +292,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
                     else app.Quit(SaveChanges: WordConst.DoNotSaveChanges);
                 }
             }
-            catch (COMException) { /* unreachable app: leave it to the kill fallback only if we decided to quit */ }
+            catch (COMException) { /* document state unknown: leave it running, without kill-on-close */ }
         }
         var job = _job;
         _job = null;
@@ -279,16 +343,30 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
 
     // ---- any thread ----
 
-    void AbortRunning()
+    /// <summary>
+    /// Kills our Office so a stuck call returns. With <paramref name="itemId"/>, only while that item is still running
+    /// (it may have finished as the timeout fired, and Word may already be serving the next item).
+    /// During acquisition the process that appeared since the snapshot is killed if it is exactly one.
+    /// </summary>
+    void AbortRunning(int? itemId)
     {
         OfficeProcess? target = null;
+        IReadOnlySet<OfficeProcess>? acquiringSince;
         lock (_gate)
         {
-            if (!_attachedToUser && _launched is { } p)
+            if (itemId is { } id && _runningItem != id) return;
+            acquiringSince = _acquiringSince;
+            if (acquiringSince is not null) _killed = true;
+            else if (!_attachedToUser && _launched is { } p)
             {
                 target = p;
                 _killed = true;
             }
+        }
+        if (acquiringSince is not null)
+        {
+            var added = OfficeProcesses.Added(acquiringSince, OfficeProcesses.Snapshot(processName));
+            if (added.Count == 1) target = added[0];
         }
         if (target is { } t) OfficeProcesses.Kill(t); // the stuck call then fails and the STA thread moves on
     }
@@ -311,7 +389,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         if (thread is null) return;
         if (!thread.Join(DisposeJoin))
         {
-            AbortRunning(); // the STA thread is stuck inside a call into our own Office
+            AbortRunning(null); // the STA thread is stuck inside a call into our own Office
             thread.Join(TimeSpan.FromSeconds(5));
         }
     }

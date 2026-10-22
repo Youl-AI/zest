@@ -134,7 +134,78 @@ public class WordConverterTests(WordFixture fx) : IClassFixture<WordFixture>, ID
             Assert.False(b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF, "no BOM");
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(src)));
+        using (File.Open(src, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { } // nothing holds the source
         Assert.Equal(new[] { Path.GetFileName(src), Path.GetFileName(output) }.Order(), Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
+    }
+
+    [Fact]
+    public async Task SourceAlreadyOpenInOurWord_IsNeitherClosedNorRepointed()
+    {
+        // Stands in for a user's document that joined our instance (double-click while our hidden Word ran):
+        // Documents.Open(source) would hand back that very document, and SaveAs2 + Close would take it from the user.
+        var src = await fx.SourceAsync("docx", Dir);
+        OfficeProcess? ours = null;
+        KillOnExitJob? job = null;
+        try
+        {
+            using var host = new OfficeHost("Word.Application", "WINWORD");
+            await host.RunAsync(app =>
+            {
+                dynamic docs = app.Documents;
+                Marshal.FinalReleaseComObject(docs.Open(FileName: src, Visible: false));
+                Marshal.FinalReleaseComObject(docs);
+                return 0;
+            }, TimeSpan.FromMinutes(1), CancellationToken.None);
+            ours = host.LaunchedProcess;
+            job = ours is { } o ? KillOnExitJob.TryCreate(o) : null; // test-owned leftover must not survive an aborted run
+
+            Assert.Single(await new ConversionRouter([new WordConverter(host)]).ConvertAsync(src, "pdf", Ctx));
+
+            var open = await host.RunAsync(app =>
+            {
+                dynamic docs = app.Documents;
+                try
+                {
+                    var names = new List<string>();
+                    foreach (dynamic d in docs) { names.Add((string)d.FullName); Marshal.FinalReleaseComObject(d); }
+                    return names;
+                }
+                finally { Marshal.FinalReleaseComObject(docs); }
+            }, TimeSpan.FromMinutes(1), CancellationToken.None);
+            Assert.Equal(new[] { src }, open);
+
+            await host.RunAsync(app =>
+            {
+                dynamic docs = app.Documents;
+                foreach (dynamic d in docs) { d.Close(SaveChanges: WordConst.DoNotSaveChanges); Marshal.FinalReleaseComObject(d); }
+                Marshal.FinalReleaseComObject(docs);
+                return 0;
+            }, TimeSpan.FromMinutes(1), CancellationToken.None);
+        }
+        finally
+        {
+            // The host treats an instance holding a document it did not open as not its own and never quits it.
+            if (ours is { } p) OfficeProcesses.Kill(p);
+            job?.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task AcquisitionTimeout_KillsTheWordItWasStarting()
+    {
+        var before = OfficeProcesses.Snapshot("WINWORD");
+        using var host = new OfficeHost("Word.Application", "WINWORD");
+        var e = await Assert.ThrowsAsync<LimeException>(() =>
+            host.RunAsync(app => 0, TimeSpan.FromMilliseconds(200), CancellationToken.None)); // Word takes seconds to start
+        Assert.Equal("Office 응답이 없어 중단했습니다.", e.Message);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (OfficeProcesses.Added(before, OfficeProcesses.Snapshot("WINWORD")).Count > 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(250);
+        Assert.Empty(OfficeProcesses.Added(before, OfficeProcesses.Snapshot("WINWORD")));
+
+        await host.RunAsync(app => 0, TimeSpan.FromMinutes(1), CancellationToken.None); // recovers
+        Assert.NotNull(host.LaunchedProcess);
     }
 
     [Fact]
