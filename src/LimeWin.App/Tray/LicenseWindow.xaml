@@ -1,0 +1,16 @@
+<ui:FluentWindow x:Class="LimeWin.App.Tray.LicenseWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Lime 라이선스" Width="720" Height="600" WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Title="Lime 라이선스" ShowMinimize="False" ShowMaximize="False" />
+        <TextBox x:Name="NoticeText" Grid.Row="1" Margin="16,8,16,16" IsReadOnly="True" TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" />
+    </Grid>
+</ui:FluentWindow>

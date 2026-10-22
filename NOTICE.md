@@ -39,3 +39,5 @@ Libraries are listed here as later tasks add them (name, version, license).
 - PDFtoImage 5.4.0 — MIT (renders PDF pages)
 - PDFium (bblanchon.PDFium.Win32 152.0.7961 binaries, pulled in by PDFtoImage) — Apache-2.0 per the NuGet package metadata (upstream PDFium is BSD-3-Clause/Apache-2.0 licensed)
 - SkiaSharp 4.150.1 — MIT (transitive via PDFtoImage; encodes rendered pages)
+- WPF-UI 4.3.0 (with WPF-UI.Abstractions 4.3.0) — MIT (Fluent theme and controls for cards and windows)
+- H.NotifyIcon.Wpf 2.4.1 (with H.NotifyIcon 2.4.1) — MIT (notification-area icon and menu)
