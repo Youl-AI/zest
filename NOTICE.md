@@ -41,6 +41,9 @@ Libraries are listed here as later tasks add them (name, version, license).
 - SkiaSharp 4.150.1 — MIT (transitive via PDFtoImage; encodes rendered pages)
 - WPF-UI 4.3.0 (with WPF-UI.Abstractions 4.3.0) — MIT (Fluent theme and controls for cards and windows)
 - H.NotifyIcon.Wpf 2.4.1 (with H.NotifyIcon 2.4.1) — MIT (notification-area icon and menu)
+- Markdig 1.4.2 — BSD-2-Clause (Markdown to HTML)
+- ReverseMarkdown 6.3.0 — MIT (HTML to Markdown)
+- AngleSharp 1.5.2 — MIT (transitive via ReverseMarkdown; parses HTML)
 - Pretendard 1.3.9 (Pretendard-SemiBold.otf, embedded) — SIL Open Font License 1.1, full text below (Korean petal labels)
 
 ### Pretendard license

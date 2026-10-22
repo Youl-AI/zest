@@ -105,6 +105,7 @@ public partial class App : Application
             _hooks?.Dispose(); // ends the hook thread
             _wheel?.Close();
             _tray?.Dispose();
+            Services.Stop();
         }
         finally
         {

@@ -3,5 +3,10 @@
     <PackageReference Include="Magick.NET-Q8-AnyCPU" />
     <PackageReference Include="PdfPig" />
     <PackageReference Include="PDFtoImage" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="ReverseMarkdown" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LimeWin.Core.Tests" />
   </ItemGroup>
 </Project>
