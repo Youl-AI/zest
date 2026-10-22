@@ -7,9 +7,10 @@ namespace LimeWin.App.Jobs;
 /// <summary>A borderless topmost window that stacks progress cards in the bottom-right of the work area of the monitor under the cursor.</summary>
 public sealed class ProgressCardHost
 {
-    const double MarginDip = 12;
+    // Each card carries 12 DIP of transparent padding for its shadow, which also keeps it 12 DIP off the work-area edge.
+    const double MarginDip = 0;
 
-    readonly StackPanel _stack = new();
+    readonly StackPanel _stack = new() { Margin = new Thickness(0, 12, 0, 0) }; // shadow room above the top card
     readonly Window _window;
     Native.POINT _anchor; // a point on the monitor the stack lives on while visible
 
@@ -47,6 +48,7 @@ public sealed class ProgressCardHost
             _window.Show();
         }
         Reposition();
+        card.AnimateIn();
         return card;
     }
 
@@ -62,11 +64,11 @@ public sealed class ProgressCardHost
         Native.MoveTo(_window, work.Right - w - margin, work.Bottom - h - margin);
     }
 
-    void Remove(ProgressCard card)
+    void Remove(ProgressCard card) => card.AnimateOut(() =>
     {
         _stack.Children.Remove(card);
         if (_stack.Children.Count == 0) _window.Hide();
-    }
+    });
 
     void Reposition()
     {

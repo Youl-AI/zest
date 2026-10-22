@@ -1,5 +1,4 @@
 using System.Windows.Controls;
-using System.Windows.Media;
 using H.NotifyIcon;
 
 namespace LimeWin.App.Tray;
@@ -10,6 +9,7 @@ public sealed class TrayIcon : IDisposable
     readonly TaskbarIcon _icon;
     readonly MenuItem _wheel;
     LicenseWindow? _licenses;
+    bool _lightTaskbar;
 
     /// <param name="wheelEnabled">Called with the new state when "휠 켜기" is toggled.</param>
     /// <param name="quit">Called for "종료".</param>
@@ -34,21 +34,26 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(new Separator());
         menu.Items.Add(exit);
 
+        _lightTaskbar = TrayIconArt.LightTaskbar();
         _icon = new TaskbarIcon
         {
             ToolTipText = "Lime",
-            // Placeholder until the real lime-slice artwork exists (Task 6B).
-            IconSource = new GeneratedIconSource
-            {
-                Text = "L",
-                Foreground = Brushes.White,
-                Background = new SolidColorBrush(Color.FromRgb(0x6F, 0xA8, 0x3A)),
-                FontWeight = System.Windows.FontWeights.Bold,
-            },
+            Icon = TrayIconArt.Icon(_lightTaskbar),
             ContextMenu = menu,
         };
         // Efficiency Mode would lower the process priority and slow the hooks and conversions, so keep it off.
         _icon.ForceCreate(enablesEfficiencyMode: false);
+    }
+
+    /// <summary>Swaps the glyph when the taskbar switches between light and dark.</summary>
+    public void RefreshIcon()
+    {
+        var light = TrayIconArt.LightTaskbar();
+        if (light == _lightTaskbar) return;
+        _lightTaskbar = light;
+        var old = _icon.Icon;
+        _icon.Icon = TrayIconArt.Icon(light);
+        old?.Dispose();
     }
 
     /// <summary>Reflects the real wheel state, e.g. after the hooks failed to install.</summary>
@@ -71,6 +76,8 @@ public sealed class TrayIcon : IDisposable
     public void Dispose()
     {
         _licenses?.Close();
+        var art = _icon.Icon;
         _icon.Dispose();
+        art?.Dispose();
     }
 }

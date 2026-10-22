@@ -28,6 +28,7 @@ public sealed class WheelController
     IReadOnlyList<string>? _files;
     IReadOnlyList<WheelItem> _items = [];
     bool _fallbackArmed;
+    bool _droppedOnPetal; // decides between an instant close (drop) and the cancel fade
 
     /// <summary>An item was dropped on: the item, the dropped files, and the drop point in physical screen pixels.</summary>
     public event Action<WheelItem, IReadOnlyList<string>, Point>? ItemDropped;
@@ -90,6 +91,9 @@ public sealed class WheelController
         _items = [];
         _rules.Reset();
         _fallbackArmed = false;
+        _droppedOnPetal = false;
+        HideWheel(); // a previous wheel may still be fading out
+        _view.Palette = WheelStyle.SystemPalette();
         _overlay.ShowOverVirtualScreen();
         _safety.Start();
     }
@@ -102,7 +106,14 @@ public sealed class WheelController
         if (_files is not null) DrawWheel();
     }
 
-    public void Close()
+    /// <summary>Closes at once (app shutdown, wheel turned off, error recovery).</summary>
+    public void Close() => Close(fade: false);
+
+    /// <summary>
+    /// The overlay always goes at once so input is never blocked; a cancelled wheel fades out (100 ms) instead of vanishing,
+    /// while a drop on a petal closes instantly and lets the progress card take over.
+    /// </summary>
+    void Close(bool fade)
     {
         if (!IsOpen) return;
         IsOpen = false;
@@ -110,8 +121,15 @@ public sealed class WheelController
         _dropFallback.Stop();
         _files = null;
         _items = [];
-        _wheelWindow.Hide();
         _overlay.Hide();
+        if (fade && _wheelWindow.IsVisible) _view.FadeOut(HideWheel);
+        else HideWheel();
+    }
+
+    void HideWheel()
+    {
+        _view.StopFade();
+        _wheelWindow.Hide();
     }
 
     /// <summary>The hook saw the button go up.</summary>
@@ -132,7 +150,7 @@ public sealed class WheelController
         switch (action)
         {
             case OverlayAction.Close:
-                Close();
+                Close(fade: !_droppedOnPetal);
                 break;
             case OverlayAction.AwaitDrop when !_fallbackArmed:
                 _fallbackArmed = true; // once per drag; the 100 ms safety tick covers a timer that fires a hair early
@@ -151,17 +169,22 @@ public sealed class WheelController
 
     void DrawWheel()
     {
+        var x = (int)_anchor.X;
+        var y = (int)_anchor.Y;
+        var showing = !_wheelWindow.IsVisible;
+        if (showing)
+        {
+            // Place while hidden so it does not flash at its old spot, then grab the screen it will cover for the glass.
+            // A mode switch keeps the first capture: the wheel itself is on screen by then.
+            var area = Native.CenterOn(_wheelWindow, x, y);
+            _view.SetBackdrop(BackdropCapture.Capture(area));
+        }
+
         _items = WheelCatalog.Items(_files!, _mode, _caps);
         if (_items.Count == 0) _view.ShowEmpty();
         else _view.SetItems(_items);
 
-        var x = (int)_anchor.X;
-        var y = (int)_anchor.Y;
-        if (!_wheelWindow.IsVisible)
-        {
-            Native.CenterOn(_wheelWindow, x, y); // place while hidden so it does not flash at its old spot
-            _wheelWindow.Show();
-        }
+        if (showing) _wheelWindow.Show();
         var rect = Native.CenterOn(_wheelWindow, x, y);
         var center = new Point(rect.Left + rect.Width / 2.0, rect.Top + rect.Height / 2.0);
         _overlay.SetWheel(center, rect.Width / WheelGeometry.CanvasSide, _items.Count);
@@ -171,6 +194,7 @@ public sealed class WheelController
     {
         var item = petal is { } i && i < _items.Count ? _items[i] : null;
         var files = _files;
+        _droppedOnPetal = item is not null;
         var at = Native.CursorPos();
         try
         {

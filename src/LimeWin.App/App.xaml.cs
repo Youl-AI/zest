@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using LimeWin.App.Input;
+using LimeWin.App.Render;
 using LimeWin.App.Tray;
 using LimeWin.App.Wheel;
 using LimeWin.Core;
@@ -31,6 +32,13 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (e.Args is ["--render", var folder, ..])
+        {
+            // Review renders only: no mutex, tray, hooks or windows.
+            Shutdown(RenderHarness.Run(folder));
+            return;
+        }
 
         _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName, out var createdNew);
         if (!createdNew)
@@ -195,6 +203,12 @@ public partial class App : Application
     void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.Color)
-            Dispatcher.BeginInvoke(() => ApplicationThemeManager.ApplySystemTheme());
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                ApplicationThemeManager.ApplySystemTheme();
+                _tray?.RefreshIcon(); // the taskbar may have switched between light and dark
+            });
+        }
     }
 }
