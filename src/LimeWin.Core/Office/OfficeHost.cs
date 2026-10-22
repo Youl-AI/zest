@@ -13,6 +13,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
     static readonly TimeSpan DisposeJoin = TimeSpan.FromSeconds(20);
 
     readonly object _gate = new();
+    readonly AttachedSettings _attachedSettings = new(); // shared by successive workers on the same instance
     OfficeWorker? _worker; // guarded by _gate
     bool _disposed;
     int _nextItemId;
@@ -86,7 +87,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            _worker ??= new OfficeWorker(progId, processName, IdleDelay);
+            _worker ??= new OfficeWorker(progId, processName, IdleDelay, _attachedSettings);
             _worker.Add(item);
         }
     }
@@ -100,7 +101,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
             _worker = null;
             foreach (var item in stuck.Abandon())
             {
-                _worker ??= new OfficeWorker(progId, processName, IdleDelay);
+                _worker ??= new OfficeWorker(progId, processName, IdleDelay, _attachedSettings);
                 _worker.Add(item);
             }
         }
@@ -117,10 +118,7 @@ public sealed class OfficeHost(string progId, string processName) : IDisposable
             worker?.Shutdown();
         }
         if (worker is null) return;
-        if (!worker.Join(DisposeJoin))
-        {
-            worker.AbortRunning(null); // the STA thread is stuck inside a call into our own Office
-            worker.Join(TimeSpan.FromSeconds(5));
-        }
+        // Stuck inside a call: killing our Office ends it; an instance that is not ours to kill is left to it.
+        if (!worker.Join(DisposeJoin) && worker.AbortRunning(null)) worker.Join(TimeSpan.FromSeconds(5));
     }
 }

@@ -70,7 +70,8 @@ sealed class UserPowerPoint : IDisposable
     public required OfficeProcess Process { get; init; }
     KillOnExitJob? _job;
 
-    public static async Task<UserPowerPoint> StartAsync()
+    /// <summary>Waits for every PowerPoint to be gone (ours idles out); skips the test if one stays (then it is the user's).</summary>
+    public static async Task WaitForNoPowerPointAsync()
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
         while (OfficeProcesses.Snapshot("POWERPNT").Count > 0)
@@ -78,6 +79,11 @@ sealed class UserPowerPoint : IDisposable
             if (DateTime.UtcNow > deadline) Assert.Skip("PowerPoint가 이미 실행 중이라 사용자 PowerPoint 시험을 할 수 없음");
             await Task.Delay(250);
         }
+    }
+
+    public static async Task<UserPowerPoint> StartAsync()
+    {
+        await WaitForNoPowerPointAsync();
         var before = OfficeProcesses.Snapshot("POWERPNT");
         dynamic app = Activator.CreateInstance(Type.GetTypeFromProgID("PowerPoint.Application")!)!;
         var launched = OfficeProcesses.Launched(before, OfficeProcesses.Snapshot("POWERPNT"));
@@ -170,6 +176,18 @@ public class PowerPointConverterTests(PowerPointFixture fx) : IClassFixture<Powe
                 Assert.Equal(Path.Combine(Dir, "발표 (1).pptx"), output);
                 using (var zip = ZipFile.OpenRead(output))
                     Assert.Equal(3, zip.Entries.Count(e => e.FullName.StartsWith("ppt/slides/slide", StringComparison.Ordinal) && e.FullName.EndsWith(".xml", StringComparison.Ordinal)));
+                Assert.Equal(3, await fx.PowerPoint.RunAsync(app => // and PowerPoint opens it
+                {
+                    dynamic list = app.Presentations;
+                    dynamic pres = list.Open(FileName: output, ReadOnly: MsoConst.True, Untitled: MsoConst.False, WithWindow: MsoConst.False);
+                    try { dynamic s = pres.Slides; int n = s.Count; Marshal.FinalReleaseComObject(s); return n; }
+                    finally
+                    {
+                        pres.Close();
+                        Marshal.FinalReleaseComObject(pres);
+                        Marshal.FinalReleaseComObject(list);
+                    }
+                }, TimeSpan.FromMinutes(1), CancellationToken.None));
                 break;
             default:
                 Assert.Equal(Path.Combine(Dir, "발표 (1) (pages)"), output);
@@ -279,5 +297,83 @@ public class PowerPointConverterTests(PowerPointFixture fx) : IClassFixture<Powe
         Assert.Equal(0, count);
         Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"next job waited {sw.Elapsed} behind the stuck one");
         Assert.True(OfficeProcesses.IsAlive(user.Process), "the user's PowerPoint was killed");
+    }
+
+    [Fact]
+    public async Task AttachedSettings_AreRestored_AfterOverlappingItems()
+    {
+        // Item A times out and its worker is abandoned; item B on the replacement worker starts while A still runs,
+        // A finishes first. B must not mistake A's off-values for the user's and put them back last.
+        using var user = await UserPowerPoint.StartAsync();
+        user.App.DisplayAlerts = 2;      // ppAlertsAll
+        user.App.AutomationSecurity = 2; // msoAutomationSecurityByUI
+        using var host = new OfficeHost("PowerPoint.Application", "POWERPNT");
+
+        var sw = Stopwatch.StartNew();
+        await Assert.ThrowsAsync<LimeException>(() =>
+            host.RunAsync<int>(app => { Thread.Sleep(3000); return 0; }, TimeSpan.FromMilliseconds(300), CancellationToken.None));
+        await host.RunAsync<int>(app => { Thread.Sleep(5000); return 0; }, TimeSpan.FromMinutes(1), CancellationToken.None);
+        Assert.True(sw.Elapsed > TimeSpan.FromSeconds(3.5), "A should have finished while B ran");
+
+        Assert.Equal(2, (int)user.App.DisplayAlerts);
+        Assert.Equal(2, (int)user.App.AutomationSecurity);
+    }
+
+    /// <summary>
+    /// Starts a PowerPoint through <paramref name="host"/> (ours), then has the "user" join that process, as PowerPoint
+    /// is single-instance, and show it. Returns our process and the user's connection.
+    /// </summary>
+    static async Task<(OfficeProcess Ours, dynamic User, KillOnExitJob? Job)> UserJoinsOurPowerPointAsync(OfficeHost host)
+    {
+        await UserPowerPoint.WaitForNoPowerPointAsync();
+        await host.RunAsync(app => 0, TimeSpan.FromMinutes(1), CancellationToken.None);
+        var ours = host.LaunchedProcess!.Value;
+        var job = KillOnExitJob.TryCreate(ours); // test-owned once the host lets go: must not survive an aborted run
+        var before = OfficeProcesses.Snapshot("POWERPNT");
+        dynamic user = Activator.CreateInstance(Type.GetTypeFromProgID("PowerPoint.Application")!)!;
+        Assert.Empty(OfficeProcesses.Added(before, OfficeProcesses.Snapshot("POWERPNT"))); // joined ours
+        user.Visible = MsoConst.True; // the user's PowerPoint window (start screen, no presentation)
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (OfficeProcesses.VisibleWindowCount(ours) == 0 && DateTime.UtcNow < deadline) await Task.Delay(100);
+        return (ours, user, job);
+    }
+
+    static void CloseTestPowerPoint(OfficeProcess ours, dynamic user, KillOnExitJob? job)
+    {
+        try { Marshal.FinalReleaseComObject(user); } catch (ArgumentException) { }
+        OfficeProcesses.Kill(ours); // a visible unactivated PowerPoint may sit behind the activation wizard: do not call in
+        job?.Dispose();
+    }
+
+    [Fact]
+    public async Task UserJoinedOurPowerPoint_Dispose_DoesNotQuitIt()
+    {
+        var host = new OfficeHost("PowerPoint.Application", "POWERPNT");
+        var (ours, user, job) = await UserJoinsOurPowerPointAsync(host);
+        try
+        {
+            host.Dispose(); // no presentation open, but the user is in it
+            Assert.False(OfficeProcesses.WaitForExit(ours, TimeSpan.FromSeconds(4)), "the user's PowerPoint was quit");
+        }
+        finally
+        {
+            host.Dispose();
+            CloseTestPowerPoint(ours, user, job);
+        }
+    }
+
+    [Fact]
+    public async Task UserJoinedOurPowerPoint_Cancel_DoesNotKillIt()
+    {
+        using var host = new OfficeHost("PowerPoint.Application", "POWERPNT");
+        var (ours, user, job) = await UserJoinsOurPowerPointAsync(host);
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                host.RunAsync<int>(app => { Thread.Sleep(4000); return 0; }, TimeSpan.FromMinutes(1), cts.Token));
+            Assert.False(OfficeProcesses.WaitForExit(ours, TimeSpan.FromSeconds(3)), "the user's PowerPoint was killed");
+        }
+        finally { CloseTestPowerPoint(ours, user, job); }
     }
 }

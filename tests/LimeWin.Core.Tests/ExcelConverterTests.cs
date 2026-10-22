@@ -133,20 +133,35 @@ public class ExcelConverterTests(ExcelFixture fx) : IClassFixture<ExcelFixture>,
         Assert.Equal(new[] { Path.GetFileName(src), Path.GetFileName(output) }.Order(), Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
     }
 
-    delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
-    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
-    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
-
-    static int VisibleWindowCount(OfficeProcess p)
+    public static TheoryData<string, string> TextEncodings() => new()
     {
-        var n = 0;
-        EnumWindows((h, _) =>
+        { "csv", "utf8-bom" },
+        { "csv", "cp949" },    // Korean Excel's default "CSV (쉼표로 분리)"
+        { "tsv", "utf16le" },  // Excel's own "유니코드 텍스트"
+        { "tsv", "utf8-bom" },
+    };
+
+    [Theory, MemberData(nameof(TextEncodings))]
+    public async Task TextSource_EncodingIsDetected(string ext, string encoding)
+    {
+        var sep = ext == "csv" ? "," : "\t";
+        var content = $"이름{sep}\r\n{sep}42\r\n";
+        System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var bytes = encoding switch
         {
-            if (GetWindowThreadProcessId(h, out var pid) != 0 && pid == p.Id && IsWindowVisible(h)) n++;
-            return true;
-        }, IntPtr.Zero);
-        return n;
+            "utf8-bom" => [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(content)],
+            "utf16le" => [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(content)],
+            "cp949" => Encoding.GetEncoding(949).GetBytes(content),
+            _ => throw new ArgumentException(encoding),
+        };
+        var src = Path.Combine(Dir, $"가계부.{ext}");
+        File.WriteAllBytes(src, bytes);
+
+        var output = Assert.Single(await Router.ConvertAsync(src, "xlsx", Ctx));
+
+        var (_, a1, b2) = await fx.ReadFirstSheetAsync(output);
+        Assert.Equal("이름", a1); // no mojibake, no U+FEFF
+        Assert.Equal(42d, b2);
     }
 
     [Fact]
@@ -158,7 +173,7 @@ public class ExcelConverterTests(ExcelFixture fx) : IClassFixture<ExcelFixture>,
         var p = host.LaunchedProcess!.Value;
         for (var i = 0; i < 12; i++)
         {
-            Assert.Equal(0, VisibleWindowCount(p));
+            Assert.Equal(0, OfficeProcesses.VisibleWindowCount(p));
             await Task.Delay(250);
         }
     }

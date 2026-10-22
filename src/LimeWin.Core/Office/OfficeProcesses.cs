@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace LimeWin.Core.Office;
 
@@ -60,6 +61,33 @@ public static class OfficeProcesses
         }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException or NotSupportedException) { }
     }
+
+    /// <summary>
+    /// Visible top-level windows of this process instance (0 when it is gone). Needs no COM call, so it works from any
+    /// thread and on an instance that is busy.
+    /// </summary>
+    public static int VisibleWindowCount(OfficeProcess p)
+    {
+        if (!IsAlive(p)) return 0;
+        var n = 0;
+        EnumWindows((hwnd, _) =>
+        {
+            if (GetWindowThreadProcessId(hwnd, out var pid) != 0 && pid == p.Id && IsWindowVisible(hwnd)) n++;
+            return true;
+        }, IntPtr.Zero);
+        return n;
+    }
+
+    delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+
+    [DllImport("user32.dll")]
+    static extern bool IsWindowVisible(IntPtr hwnd);
 
     static Process? Open(OfficeProcess p)
     {

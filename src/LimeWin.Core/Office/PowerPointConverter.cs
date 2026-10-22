@@ -38,11 +38,7 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
             ctx.Track(output);
             await ppt.RunAsync(app =>
             {
-                WithPresentation((object)app, input, from, pres =>
-                {
-                    try { pres.SaveAs(saved, format); }
-                    catch (COMException e) { throw new LimeException($"변환 실패: {e.Message}"); }
-                });
+                WithPresentation((object)app, input, saved, from, pres => pres.SaveAs(saved, format));
                 return 0;
             }, Timeout, ctx.Token);
             ctx.Token.ThrowIfCancellationRequested();
@@ -52,12 +48,23 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
         }
 
         var filter = to == "jpg" ? "JPG" : "PNG";
-        var count = await ppt.RunAsync(app =>
+        // Once RunAsync has given up (timeout, cancel), an item still running on an abandoned thread stops at the next
+        // slide and reports nothing more.
+        int count;
+        using (var stop = CancellationTokenSource.CreateLinkedTokenSource(ctx.Token))
         {
-            var n = 0;
-            WithPresentation((object)app, input, from, pres => n = ExportSlides(pres, work.Out, to, filter, ctx));
-            return n;
-        }, Timeout, ctx.Token);
+            var stopToken = stop.Token; // read now: the item may run on after the source is disposed
+            try
+            {
+                count = await ppt.RunAsync(app =>
+                {
+                    var n = 0;
+                    WithPresentation((object)app, input, null, from, pres => n = ExportSlides(pres, work.Out, to, filter, stopToken, ctx));
+                    return n;
+                }, Timeout, ctx.Token);
+            }
+            finally { stop.Cancel(); }
+        }
         ctx.Token.ThrowIfCancellationRequested();
 
         var stem = OutputNaming.Stem(source);
@@ -82,7 +89,7 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
     static string SlideFile(string dir, int index1, string ext) => Path.Combine(dir, $"{index1}.{ext}");
 
     /// <summary>Runs on the Office STA thread: one PNG/JPG per slide into <paramref name="dir"/>; returns the slide count.</summary>
-    static int ExportSlides(dynamic pres, string dir, string ext, string filter, OperationContext ctx)
+    static int ExportSlides(dynamic pres, string dir, string ext, string filter, CancellationToken stop, OperationContext ctx)
     {
         dynamic setup = pres.PageSetup;
         double width = setup.SlideWidth, height = setup.SlideHeight;
@@ -96,12 +103,11 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
             if (count == 0) throw new LimeException("슬라이드가 없는 프레젠테이션입니다.");
             for (var i = 1; i <= count; i++)
             {
-                ctx.Token.ThrowIfCancellationRequested();
+                stop.ThrowIfCancellationRequested();
                 dynamic slide = slides.Item(i);
                 try { slide.Export(SlideFile(dir, i, ext), filter, ImageWidth, imageHeight); }
-                catch (COMException e) { throw new LimeException($"변환 실패: {e.Message}"); }
                 finally { Marshal.FinalReleaseComObject(slide); }
-                ctx.Report(0.05 + 0.9 * i / count);
+                if (!stop.IsCancellationRequested) ctx.Report(0.05 + 0.9 * i / count);
             }
             return count;
         }
@@ -110,9 +116,9 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
 
     /// <summary>
     /// Runs on the Office STA thread: opens the private copy read-only and without a window, refuses macros, runs
-    /// <paramref name="use"/>, and closes only that presentation.
+    /// <paramref name="use"/>, and closes only that presentation. COM failures after opening become "변환 실패: …".
     /// </summary>
-    static void WithPresentation(dynamic app, string input, string from, Action<dynamic> use)
+    static void WithPresentation(dynamic app, string input, string? savedAs, string from, Action<dynamic> use)
     {
         dynamic presentations = app.Presentations;
         dynamic? pres = null;
@@ -134,18 +140,43 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
                 throw new LimeException("문서를 열 수 없습니다.");
             }
 
-            if ((bool)pres!.HasVBProject) throw new LimeException("매크로가 들어 있는 문서는 변환하지 않습니다.");
-            use(pres);
+            try
+            {
+                if ((bool)pres!.HasVBProject) throw new LimeException("매크로가 들어 있는 문서는 변환하지 않습니다.");
+                use(pres);
+            }
+            catch (COMException e) { throw new LimeException($"변환 실패: {e.Message}"); }
         }
         finally
         {
             if (pres is not null)
             {
                 try { pres.Close(); }
-                catch (COMException) { }
+                catch (COMException) { CloseOurCopy(presentations, input, savedAs); }
                 Marshal.FinalReleaseComObject(pres);
             }
             Marshal.FinalReleaseComObject(presentations);
         }
+    }
+
+    /// <summary>Best effort: closes any open presentation that is our private copy (by its path before or after SaveAs).</summary>
+    static void CloseOurCopy(dynamic presentations, string input, string? savedAs)
+    {
+        try
+        {
+            foreach (dynamic p in presentations)
+            {
+                try
+                {
+                    var path = (string)p.FullName;
+                    if (string.Equals(path, input, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(path, savedAs, StringComparison.OrdinalIgnoreCase))
+                        p.Close();
+                }
+                catch (COMException) { }
+                finally { Marshal.FinalReleaseComObject(p); }
+            }
+        }
+        catch (COMException) { }
     }
 }

@@ -7,8 +7,9 @@ namespace LimeWin.Core.Office;
 /// One STA thread and the Office app it is connected to (spec §7), late bound through <c>dynamic</c>. Work items run one
 /// at a time. The app is acquired on the first item. Exactly one process appearing across <c>CreateInstance</c> is ours;
 /// none means we attached to someone else's instance (<c>attachedToUser</c>): we never hide, quit or kill it, and only
-/// switch its alerts and macro security off for the duration of each item. An instance of ours that is found holding a
-/// document we did not open is from then on treated the same way.
+/// switch its alerts and macro security off while our items run (<see cref="AttachedSettings"/>). An instance of ours
+/// that is found holding a document we did not open, or for PowerPoint (single-instance) showing any window, has the
+/// user in it and is from then on treated the same way.
 /// The thread waits for work with a CLR wait, which on an STA thread pumps COM messages (CoWaitForMultipleHandles);
 /// "busy" rejections are retried by <see cref="OfficeMessageFilter"/>.
 /// </summary>
@@ -23,6 +24,7 @@ sealed class OfficeWorker
     readonly string _progId;
     readonly string _processName;
     readonly TimeSpan _idleDelay;
+    readonly AttachedSettings _settings;
     readonly bool _isExcel;
     readonly bool _isPowerPoint;
     readonly BlockingCollection<Action<OfficeWorker>> _queue = new();
@@ -31,25 +33,26 @@ sealed class OfficeWorker
     Timer? _idleTimer;
     bool _closed; // shut down or abandoned: no more idle timers
 
-    // Guarded by _gate (read from any thread, written on the STA thread).
+    // Guarded by _gate (read from any thread, written on the STA thread unless noted).
     OfficeProcess? _launched;
-    bool _attachedToUser;
-    bool _killed;
+    bool _attachedToUser; // also set by AbortRunning when the user turns out to be in our PowerPoint
+    bool _killed;         // the running item was given up: what it holds or still acquires is let go, never kept
     IReadOnlySet<OfficeProcess>? _acquiringSince; // process snapshot taken before a CreateInstance still in progress
     int _runningItem; // id of the work item executing now, 0 when none
+    KillOnExitJob? _job; // our launched process dies with us, even if we are killed; let go by AbortRunning too
 
     // STA thread only.
     object? _app;
-    KillOnExitJob? _job; // our launched process dies with us, even if we are killed
     int _generation;
     int _retryLimitMs = int.MaxValue;
     volatile int _armedGeneration;
 
-    public OfficeWorker(string progId, string processName, TimeSpan idleDelay)
+    public OfficeWorker(string progId, string processName, TimeSpan idleDelay, AttachedSettings settings)
     {
         _progId = progId;
         _processName = processName;
         _idleDelay = idleDelay;
+        _settings = settings;
         _isExcel = progId.StartsWith("Excel.", StringComparison.OrdinalIgnoreCase);
         _isPowerPoint = progId.StartsWith("PowerPoint.", StringComparison.OrdinalIgnoreCase);
         _thread = new Thread(Loop) { IsBackground = true, Name = $"LimeWin Office ({processName})" };
@@ -94,17 +97,15 @@ sealed class OfficeWorker
             lock (_gate) attached = _attachedToUser;
             if (!attached) return work(app);
 
-            // Someone else's instance: switch prompts and macros off only while we work, then put them back.
-            object alerts = app.DisplayAlerts;
-            object security = app.AutomationSecurity;
-            app.DisplayAlerts = AlertsOff;
-            app.AutomationSecurity = MsoConst.AutomationSecurityForceDisable;
-            try { return work(app); }
-            finally
+            // Someone else's instance: prompts and macros are off only while items of ours run on it.
+            _settings.Enter(app);
+            try
             {
-                try { app.DisplayAlerts = alerts; app.AutomationSecurity = security; }
-                catch (COMException) { }
+                app.DisplayAlerts = AlertsOff;
+                app.AutomationSecurity = MsoConst.AutomationSecurityForceDisable;
+                return work(app);
             }
+            finally { _settings.Exit(app); }
         }
         finally
         {
@@ -129,23 +130,39 @@ sealed class OfficeWorker
         var type = Type.GetTypeFromProgID(_progId) ?? throw new LimeException("Office를 찾을 수 없습니다.");
 
         var before = OfficeProcesses.Snapshot(_processName);
-        lock (_gate) _acquiringSince = before;
+        lock (_gate)
+        {
+            if (_killed) throw new LimeException(TimeoutMessage); // given up before it started: start nothing
+            _acquiringSince = before;
+        }
         object? app;
         try { app = Activator.CreateInstance(type); }
         catch (Exception e) when (e is COMException or UnauthorizedAccessException) { app = null; } // e.g. E_ACCESSDENIED, CO_E_SERVER_EXEC_FAILURE
         var added = OfficeProcesses.Added(before, OfficeProcesses.Snapshot(_processName));
+        var launched = added.Count == 1 ? added[0] : (OfficeProcess?)null;
         bool aborted;
         lock (_gate)
         {
             _acquiringSince = null;
             aborted = _killed; // the caller timed out or cancelled while CreateInstance ran
+            if (!aborted && app is not null && added.Count <= 1)
+            {
+                _launched = launched;
+                _attachedToUser = launched is null;
+            }
         }
 
-        if (app is null || aborted)
+        if (aborted)
         {
+            // AbortRunning already killed the one process it could identify at that moment. A process that appeared
+            // since may belong to the worker that replaced this one, so nothing more is killed here.
             if (app is not null) Marshal.FinalReleaseComObject(app);
-            if (added.Count == 1) OfficeProcesses.Kill(added[0]); // started for us but never usable: do not orphan it
-            throw new LimeException(app is null ? UnavailableMessage : TimeoutMessage);
+            throw new LimeException(TimeoutMessage);
+        }
+        if (app is null)
+        {
+            if (launched is { } orphan) OfficeProcesses.Kill(orphan); // started for us but never usable: do not orphan it
+            throw new LimeException(UnavailableMessage);
         }
         if (added.Count > 1)
         {
@@ -154,15 +171,10 @@ sealed class OfficeWorker
             throw new LimeException(AmbiguousStartMessage);
         }
 
-        var launched = added.Count == 1 ? added[0] : (OfficeProcess?)null;
-        lock (_gate)
-        {
-            _launched = launched;
-            _attachedToUser = launched is null;
-        }
         _app = app;
         if (launched is null) return app;
-        _job = KillOnExitJob.TryCreate(launched.Value);
+        var job = KillOnExitJob.TryCreate(launched.Value);
+        lock (_gate) _job = job;
 
         try
         {
@@ -194,7 +206,8 @@ sealed class OfficeWorker
 
     /// <summary>
     /// Our work items close what they open, so a document still open after one belongs to someone else (a file the user
-    /// double-clicked that joined our instance). From then on the instance is not ours to quit or kill.
+    /// double-clicked that joined our instance); in PowerPoint the user may also be in it with no presentation yet.
+    /// From then on the instance is not ours to quit or kill, and it must outlive us.
     /// </summary>
     void StopOwningIfShared()
     {
@@ -203,14 +216,40 @@ sealed class OfficeWorker
         {
             if (_attachedToUser || _launched is null) return;
         }
-        int count;
-        try { count = OpenDocumentCount(_app); }
+        bool shared;
+        try { shared = UserInside(_app) || OpenDocumentCount(_app) > 0; }
         catch (COMException) { return; }
-        if (count == 0) return;
-        lock (_gate) _attachedToUser = true;
-        _job?.Release();
-        _job?.Dispose();
-        _job = null;
+        if (shared) MarkShared();
+    }
+
+    void MarkShared()
+    {
+        KillOnExitJob? job;
+        lock (_gate)
+        {
+            _attachedToUser = true;
+            job = _job;
+            _job = null;
+        }
+        job?.Release();
+        job?.Dispose();
+    }
+
+    /// <summary>
+    /// PowerPoint only (single-instance: a user who starts PowerPoint joins our process): the user is in our instance
+    /// when it shows any window, is visible, or has a document window, even with no presentation open (start screen,
+    /// Backstage). Windows are counted first, without calling in, so a busy instance is recognized too.
+    /// </summary>
+    bool UserInside(dynamic app)
+    {
+        if (!_isPowerPoint) return false;
+        OfficeProcess? launched;
+        lock (_gate) launched = _launched;
+        if (launched is { } p && OfficeProcesses.VisibleWindowCount(p) > 0) return true;
+        if ((int)app.Visible == MsoConst.True) return true;
+        dynamic windows = app.Windows;
+        try { return (int)windows.Count > 0; }
+        finally { Marshal.FinalReleaseComObject(windows); }
     }
 
     void ArmIdle()
@@ -234,8 +273,8 @@ sealed class OfficeWorker
     }
 
     /// <summary>
-    /// Lets go of the app. Quits it only when we started it, still own it and it has no open document; otherwise just
-    /// disconnects, so a document someone opened in the meantime is never closed.
+    /// Lets go of the app. Quits it only when we started it, still own it, nobody is in it and it has no open document;
+    /// otherwise just disconnects, so nothing someone opened in the meantime is ever closed.
     /// </summary>
     void Release(bool waitForQuit)
     {
@@ -253,17 +292,21 @@ sealed class OfficeWorker
         {
             try
             {
-                quit = OpenDocumentCount(app) == 0;
+                quit = !UserInside(app) && OpenDocumentCount(app) == 0;
                 if (quit)
                 {
                     if (_isExcel || _isPowerPoint) app.Quit();
                     else app.Quit(SaveChanges: WordConst.DoNotSaveChanges);
                 }
             }
-            catch (COMException) { /* document state unknown: leave it running, without kill-on-close */ }
+            catch (COMException) { /* state unknown: leave it running, without kill-on-close */ }
         }
-        var job = _job;
-        _job = null;
+        KillOnExitJob? job;
+        lock (_gate)
+        {
+            job = _job;
+            _job = null;
+        }
         if (!quit) job?.Release(); // left running on purpose: it must outlive us
         Forget();
         if (quit && launched is { } p)
@@ -296,14 +339,16 @@ sealed class OfficeWorker
             catch (Exception e) when (e is ArgumentException or InvalidComObjectException) { }
             _app = null;
         }
-        _job?.Dispose(); // only still set when the process was killed or failed to start
-        _job = null;
+        KillOnExitJob? job;
         lock (_gate)
         {
+            job = _job; // only still set when the process was killed or failed to start
+            _job = null;
             _launched = null;
             _attachedToUser = false;
             _killed = false;
         }
+        job?.Dispose();
         // Collect any runtime callable wrappers a work item left behind so the server sees no outstanding references.
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -312,27 +357,30 @@ sealed class OfficeWorker
     // ---- any thread ----
 
     /// <summary>
-    /// Kills our Office so a stuck call returns. With <paramref name="itemId"/>, only while that item is still running
-    /// (it may have finished as the timeout fired, and Office may already be serving the next item).
-    /// During acquisition the process that appeared since the snapshot is killed if it is exactly one.
-    /// Returns false when the item is still running and nothing could be killed (the instance is someone else's, or the
-    /// starting process is not identifiable): the thread then stays stuck for as long as Office does.
+    /// Gives up the running item and kills our Office so a stuck call returns. With <paramref name="itemId"/>, only
+    /// while that item is still running (it may have finished as the timeout fired, and Office may already be serving the
+    /// next item). During acquisition the process that appeared since the snapshot is killed if it is exactly one.
+    /// A PowerPoint of ours that shows any window has the user in it: it is not killed, and its kill-on-close is
+    /// released. Returns false when the item is still running and nothing was killed (the instance is someone else's,
+    /// or the starting process is not identifiable): the thread then stays stuck for as long as Office does.
     /// </summary>
     public bool AbortRunning(int? itemId)
     {
         OfficeProcess? target = null;
         IReadOnlySet<OfficeProcess>? acquiringSince;
+        var userInside = false;
         lock (_gate)
         {
             if (itemId is { } id && _runningItem != id) return true;
+            _killed = true;
             acquiringSince = _acquiringSince;
-            if (acquiringSince is not null) _killed = true;
-            else if (!_attachedToUser && _launched is { } p)
+            if (acquiringSince is null && !_attachedToUser && _launched is { } p)
             {
-                target = p;
-                _killed = true;
+                userInside = _isPowerPoint && OfficeProcesses.VisibleWindowCount(p) > 0;
+                if (!userInside) target = p;
             }
         }
+        if (userInside) MarkShared();
         if (acquiringSince is not null)
         {
             var added = OfficeProcesses.Added(acquiringSince, OfficeProcesses.Snapshot(_processName));
