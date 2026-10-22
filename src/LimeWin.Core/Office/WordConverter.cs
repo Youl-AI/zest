@@ -43,34 +43,21 @@ public sealed class WordConverter(OfficeHost word) : IConverter
             return [output];
         }
 
-        // Word opens a 0-byte file as a blank document; converting nothing is not a result.
-        if (SourceLength(source) == 0) throw new LimeException("빈 파일은 변환할 수 없습니다.");
-
-        var work = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "LimeWin", Guid.NewGuid().ToString("N"))).FullName;
-        try
+        OfficeWorkFolder.EnsureNotEmpty(source);
+        using (var work = OfficeWorkFolder.Create())
         {
-            // Word only ever opens a private copy. Opening the user's path would hand back their own Document if it is
-            // already open in that instance (Revert:=False), and SaveAs2 + Close would then take it from them.
-            var inDir = Directory.CreateDirectory(Path.Combine(work, "in")).FullName;
+            // Word only ever opens a private copy (Documents.Open defaults to Revert:=False and would return the user's own Document).
             string input;
             if (from == "md")
             {
-                input = Path.Combine(inDir, $"{Guid.NewGuid():N}.html");
+                input = work.NewInputPath(".html");
                 var md = await ReadSourceAsync(source, ctx.Token);
                 await File.WriteAllTextAsync(input, MarkdownBridge.ToHtmlDocument(md, OutputNaming.Stem(source)), Utf8, ctx.Token);
             }
-            else
-            {
-                input = Path.Combine(inDir, $"{Guid.NewGuid():N}{Path.GetExtension(source)}");
-                try { File.Copy(source, input); }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                {
-                    throw new LimeException("원본 파일을 열 수 없습니다.");
-                }
-            }
+            else input = work.CopySource(source, Path.GetExtension(source));
 
             // Word saves under the output's own name so HTML image folders ("<stem>_files") keep matching links.
-            var outDir = Directory.CreateDirectory(Path.Combine(work, "out")).FullName;
+            var outDir = work.Out;
             var stem = OutputNaming.Stem(output);
             var saved = Path.Combine(outDir, to switch { "md" => stem + ".html", _ => stem + "." + to });
             (int Format, object Encoding) save = to switch
@@ -105,11 +92,6 @@ public sealed class WordConverter(OfficeHost word) : IConverter
             }
             ctx.Report(1);
             return [output];
-        }
-        finally
-        {
-            try { Directory.Delete(work, recursive: true); }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* temp leftovers are harmless */ }
         }
     }
 
@@ -176,15 +158,6 @@ public sealed class WordConverter(OfficeHost word) : IConverter
         Directory.CreateDirectory(to);
         foreach (var f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)));
         foreach (var d in Directory.GetDirectories(from)) CopyDirectory(d, Path.Combine(to, Path.GetFileName(d)));
-    }
-
-    static long SourceLength(string source)
-    {
-        try { return new FileInfo(source).Length; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            throw new LimeException("원본 파일을 열 수 없습니다.");
-        }
     }
 
     static async Task<string> ReadSourceAsync(string source, CancellationToken ct)

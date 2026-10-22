@@ -167,6 +167,183 @@ internal static class FixtureFactory
     }
 
     /// <summary>
+    /// Writes a presentation of <paramref name="slides"/> 16:9 title-only slides ("슬라이드 N") through PowerPoint;
+    /// format follows the extension (pptx, ppt, odp). <paramref name="password"/> becomes the open password.
+    /// </summary>
+    public static async Task<string> Slides(OfficeHost ppt, string dir, string name, int slides = 3, string? password = null)
+    {
+        var path = Path.Combine(dir, name);
+        int format = Path.GetExtension(name).TrimStart('.').ToLowerInvariant() switch
+        {
+            "pptx" => PowerPointFormat.Pptx,
+            "ppt" => PowerPointFormat.Ppt,
+            "odp" => PowerPointFormat.Odp,
+            var e => throw new ArgumentException($"Unsupported fixture extension '{e}'."),
+        };
+        await ppt.RunAsync(app =>
+        {
+            dynamic presentations = app.Presentations;
+            dynamic? pres = null;
+            try
+            {
+                pres = presentations.Add(WithWindow: MsoConst.False);
+                dynamic list = pres.Slides;
+                for (var i = 1; i <= slides; i++)
+                {
+                    dynamic slide = list.Add(i, 11); // ppLayoutTitleOnly
+                    dynamic shapes = slide.Shapes;
+                    dynamic title = shapes.Item(1);
+                    title.TextFrame.TextRange.Text = $"슬라이드 {i}";
+                    foreach (var o in new object[] { title, shapes, slide }) Marshal.FinalReleaseComObject(o);
+                }
+                Marshal.FinalReleaseComObject(list);
+                if (password is not null) pres.Password = password;
+                pres.SaveAs(path, format);
+                return 0;
+            }
+            finally
+            {
+                if (pres is not null) { pres.Close(); Marshal.FinalReleaseComObject(pres); }
+                Marshal.FinalReleaseComObject(presentations);
+            }
+        }, TimeSpan.FromMinutes(1), CancellationToken.None);
+        return path;
+    }
+
+    /// <summary>
+    /// Writes a workbook whose first sheet has A1="이름", B2=42; format follows the extension. xlsx, xls and ods are made
+    /// by Excel and carry a second sheet ("다른 시트" in A1) that is the active one, so first-sheet-only exports are
+    /// observable. csv/tsv are written directly as UTF-8 without BOM. <paramref name="password"/> is the open password.
+    /// </summary>
+    public static async Task<string> Sheet(OfficeHost excel, string dir, string name, string? password = null)
+    {
+        var path = Path.Combine(dir, name);
+        var ext = Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        var utf8 = new System.Text.UTF8Encoding(false);
+        switch (ext)
+        {
+            case "csv": File.WriteAllText(path, "이름,\r\n,42\r\n", utf8); return path;
+            case "tsv": File.WriteAllText(path, "이름\t\r\n\t42\r\n", utf8); return path;
+        }
+        int format = ext switch
+        {
+            "xlsx" => ExcelFormat.Xlsx,
+            "xls" => ExcelFormat.Xls,
+            "ods" => ExcelFormat.Ods,
+            _ => throw new ArgumentException($"Unsupported fixture extension '{ext}'."),
+        };
+        await excel.RunAsync(app =>
+        {
+            dynamic books = app.Workbooks;
+            dynamic? book = null;
+            try
+            {
+                book = books.Add();
+                dynamic sheets = book.Worksheets;
+                dynamic first = sheets.Item(1);
+                first.Range("A1").Value2 = "이름";
+                first.Range("B2").Value2 = 42;
+                dynamic second = sheets.Add(After: first);
+                second.Range("A1").Value2 = "다른 시트";
+                second.Activate();
+                foreach (var o in new object[] { second, first, sheets }) Marshal.FinalReleaseComObject(o);
+                if (password is null) book.SaveAs(Filename: path, FileFormat: format);
+                else book.SaveAs(Filename: path, FileFormat: format, Password: password);
+                return 0;
+            }
+            finally
+            {
+                if (book is not null) { book.Close(SaveChanges: false); Marshal.FinalReleaseComObject(book); }
+                Marshal.FinalReleaseComObject(books);
+            }
+        }, TimeSpan.FromMinutes(1), CancellationToken.None);
+        return path;
+    }
+
+    /// <summary>A binary .ppt carrying a VBA module; null when PowerPoint refuses programmatic VBA access (never changed by tests).</summary>
+    public static Task<string?> MacroPresentation(OfficeHost ppt, string dir, string name)
+    {
+        var path = Path.Combine(dir, name);
+        return ppt.RunAsync<string?>(app =>
+        {
+            if (!VbaAccessTrusted(app, "PowerPoint")) return null;
+            dynamic presentations = app.Presentations;
+            dynamic? pres = null;
+            try
+            {
+                pres = presentations.Add(WithWindow: MsoConst.False);
+                Marshal.FinalReleaseComObject(pres.Slides.Add(1, 11));
+                if (!AddVbaModule(pres)) return null;
+                pres.SaveAs(path, PowerPointFormat.Ppt);
+                return path;
+            }
+            finally
+            {
+                if (pres is not null) { pres.Close(); Marshal.FinalReleaseComObject(pres); }
+                Marshal.FinalReleaseComObject(presentations);
+            }
+        }, TimeSpan.FromMinutes(1), CancellationToken.None);
+    }
+
+    /// <summary>A binary .xls carrying a VBA module; null when Excel refuses programmatic VBA access (never changed by tests).</summary>
+    public static Task<string?> MacroWorkbook(OfficeHost excel, string dir, string name)
+    {
+        var path = Path.Combine(dir, name);
+        return excel.RunAsync<string?>(app =>
+        {
+            if (!VbaAccessTrusted(app, "Excel")) return null;
+            dynamic books = app.Workbooks;
+            dynamic? book = null;
+            try
+            {
+                book = books.Add();
+                if (!AddVbaModule(book)) return null;
+                book.SaveAs(Filename: path, FileFormat: ExcelFormat.Xls);
+                return path;
+            }
+            finally
+            {
+                if (book is not null) { book.Close(SaveChanges: false); Marshal.FinalReleaseComObject(book); }
+                Marshal.FinalReleaseComObject(books);
+            }
+        }, TimeSpan.FromMinutes(1), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Whether "Trust access to the VBA project object model" is on for <paramref name="appName"/> (read only, never
+    /// changed). Checked before touching VBProject: untrusted, PowerPoint and Excel hand back an empty project and then
+    /// hang on a modal dialog instead of failing.
+    /// </summary>
+    static bool VbaAccessTrusted(dynamic app, string appName)
+    {
+        string version = app.Version; // "16.0"
+        foreach (var (root, path) in new[]
+        {
+            (Microsoft.Win32.Registry.CurrentUser, $@"Software\Policies\Microsoft\Office\{version}\{appName}\Security"),
+            (Microsoft.Win32.Registry.CurrentUser, $@"Software\Microsoft\Office\{version}\{appName}\Security"),
+            (Microsoft.Win32.Registry.LocalMachine, $@"Software\Microsoft\Office\{version}\{appName}\Security"),
+        })
+        {
+            using var key = root.OpenSubKey(path);
+            if (key?.GetValue("AccessVBOM") is int value) return value == 1;
+        }
+        return false;
+    }
+
+    static bool AddVbaModule(dynamic document)
+    {
+        dynamic project;
+        try { project = document.VBProject; }
+        catch (COMException) { return false; } // "Programmatic access to Visual Basic Project is not trusted"
+        dynamic components = project.VBComponents;
+        dynamic module = components.Add(1); // vbext_ct_StdModule
+        dynamic code = module.CodeModule;
+        code.AddFromString("Sub Hello()\nEnd Sub\n");
+        foreach (var o in new object[] { code, module, components, project }) Marshal.FinalReleaseComObject(o);
+        return true;
+    }
+
+    /// <summary>
     /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
     /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
     /// </summary>

@@ -11,7 +11,7 @@ public static class Services
     static Capabilities? _capabilities;
     static ConversionRouter? _router;
     static JobRunner? _jobs;
-    static OfficeHost? _word;
+    static OfficeHost? _word, _powerPoint, _excel;
 
     public static Capabilities Capabilities => _capabilities ?? throw NotStarted();
     public static ConversionRouter Router => _router ?? throw NotStarted();
@@ -27,15 +27,25 @@ public static class Services
         // One shared Word; the host starts its thread and Word itself only on the first Word conversion.
         _word = new OfficeHost("Word.Application", "WINWORD");
         converters.Add(new WordConverter(_word));
+        if (_capabilities.Office)
+        {
+            // One host per app, each starting its thread and app only on its first conversion.
+            _powerPoint = new OfficeHost("PowerPoint.Application", "POWERPNT");
+            _excel = new OfficeHost("Excel.Application", "EXCEL");
+            converters.Add(new PowerPointConverter(_powerPoint));
+            converters.Add(new ExcelConverter(_excel));
+        }
         _router = new ConversionRouter(converters);
         _jobs = new JobRunner(new ProgressCardHost());
     }
 
-    /// <summary>Releases Office (quits the Word we started if it has no open document). Called on app exit.</summary>
+    /// <summary>Releases Office (quits each app we started if it has no open document). Called on app exit.</summary>
     public static void Stop()
     {
         _word?.Dispose();
-        _word = null;
+        _powerPoint?.Dispose();
+        _excel?.Dispose();
+        _word = _powerPoint = _excel = null;
     }
 
     static InvalidOperationException NotStarted() => new("Services.Start() has not run.");
