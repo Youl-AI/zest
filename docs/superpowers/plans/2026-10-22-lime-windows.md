@@ -6,7 +6,21 @@
 
 **Architecture:** 순수 로직(형식 표, 꽃잎 목록, 출력 이름, 드래그-탭 감지, 휠 기하, 변환·도구 엔진)은 `LimeWin.Core` 라이브러리에 두고 xUnit으로 시험한다. WPF 앱 `LimeWin.App`은 저수준 훅·투명 오버레이·휠 창·진행 카드·도구 창·트레이만 맡고 Core를 호출한다. Office 변환은 전용 STA 스레드 하나에서 COM 늦은 바인딩(`dynamic`)으로 직렬 실행한다.
 
-**Tech Stack:** C# / .NET 10 (`net10.0-windows10.0.19041.0`), WPF + WinForms `NotifyIcon`, xUnit, Magick.NET-Q8-AnyCPU, PDFsharp 6, UglyToad.PdfPig, Markdig, ReverseMarkdown, `Windows.Data.Pdf`, `Windows.Media.Ocr`, Microsoft.ML.OnnxRuntime.DirectML, ffmpeg(외부 프로세스), MS Office COM.
+**Tech Stack:** C# / .NET 10 (`net10.0-windows10.0.19041.0`), WPF, ffmpeg(외부 프로세스), MS Office COM, `Windows.Media.Ocr`. NuGet 패키지는 아래 표의 버전으로 고정한다(2026-10-22 NuGet에서 확인한 최신 안정판).
+
+| 패키지 | 버전 | 용도 / 고른 이유 |
+|---|---|---|
+| Magick.NET-Q8-AnyCPU | 15.0.0 | 이미지 읽기·쓰기 |
+| PDFsharp | 6.5.0 | PDF 만들기·합치기·나누기 (7.0은 프리뷰라 제외) |
+| PdfPig (패키지 ID가 `UglyToad.PdfPig`에서 `PdfPig`로 바뀜) | 0.1.16 | PDF 텍스트 추출 |
+| PDFtoImage | 5.4.0 | PDF 쪽 렌더링. Chrome과 같은 PDFium 엔진이라 `Windows.Data.Pdf`보다 검증된 렌더러. 스레드 안전하지 않으므로 호출을 직렬화 |
+| Markdig / ReverseMarkdown | 1.4.2 / 6.3.0 | Markdown ↔ HTML |
+| Microsoft.Windows.AI.MachineLearning | 2.4.89 | 배경 제거 추론(Windows ML). DirectML은 Microsoft가 유지보수 단계로 돌렸고, Windows ML은 RTX용 TensorRT 실행 공급자를 자동으로 받아 준다. 앱에 포함하는(self-contained) 방식이라 Windows App SDK 런타임 설치가 필요 없다 |
+| WPF-UI | 4.3.0 | 도구 창·결과 창·선반을 Windows 11 Fluent 스타일(Mica, 둥근 모서리, 시스템 강조색)로. .NET 10 내장 `ThemeMode`는 아직 실험 기능이라 제외 |
+| H.NotifyIcon.Wpf | 2.4.1 | 트레이 아이콘 + Windows 11 스타일 WPF 메뉴 (WinForms 메뉴 대신) |
+| xunit.v3 / xunit.runner.visualstudio / Microsoft.NET.Test.Sdk | 4.0.2 / 4.0.1 / 18.11.0 | 시험 |
+
+같은 주 버전 안의 새 패치가 나오면 올려도 되지만 주 버전은 올리지 않는다.
 
 **Spec:** `docs/superpowers/specs/2026-10-22-lime-windows-design.md` (실행자는 계획과 함께 반드시 읽는다)
 
@@ -26,6 +40,8 @@
 - UI 문구는 한국어. 오류 메시지는 `LimeException`(한국어 한 줄)으로 사용자에게 보인다.
 - 원작 MIT 고지(`Copyright (c) LumenJSN`, 원작 `LICENSE` 원문)와 사용 라이브러리·모델 라이선스를 `NOTICE.md`와 앱 "라이선스 보기"에 포함.
 - 범위 밖(스펙 §2 비목표): 자막, 압축 파일, AirDrop, 오디오·비디오 편집 도구, Pages/EPUB, 설정 UI, 자동 업데이트.
+- **미감 (사용자 요구):** 원작 수준의 완성도. 휠은 원작 `Screenshots/wheel-liquid.png`(라이트, 뒤가 비치는 유리)와 `wheel-solid-dark.png`(다크)를 기준 이미지로 삼는다. 모든 창은 WPF-UI Fluent 스타일. 글꼴: 한글 라벨은 Pretendard(OFL, 앱에 포함), 형식 라벨(JPG·PDF)은 Segoe UI Variable Display Semibold. 아이콘: Windows 11 내장 Segoe Fluent Icons. 모션 값은 `emil-design-eng` 기준(300 ms 이하, ease-in 금지, scale(0)에서 시작 금지).
+- **시각 확인 루프:** `LimeWin.App.exe --render <폴더>`가 휠(라이트·다크 × 꽃잎 1·4·7·9개 × 강조 있음/없음)·도구 창·진행 카드를 PNG로 그린다(원작의 `--render`와 같은 역할). 시각 작업을 한 작업은 반드시 렌더를 찍어 기준 이미지와 나란히 보고, 최종 판단은 사용자가 한다.
 
 ## Review Focus
 
@@ -69,7 +85,7 @@
 ### Task 1: 솔루션 뼈대 + 형식 표 + 출력 이름
 
 **Files:**
-- Create: `LimeWin.slnx`, `Directory.Build.props` (`<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>`, `<Nullable>enable</Nullable>`, `<ImplicitUsings>enable</ImplicitUsings>`, `<LangVersion>latest</LangVersion>`)
+- Create: `LimeWin.slnx`, `Directory.Build.props` (`<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>`, `<Nullable>enable</Nullable>`, `<ImplicitUsings>enable</ImplicitUsings>`, `<LangVersion>latest</LangVersion>`), `Directory.Packages.props` (중앙 패키지 관리, Tech Stack 표의 버전을 전부 여기에 고정)
 - Create: `src/LimeWin.Core/LimeWin.Core.csproj`, `src/LimeWin.Core/Catalog/FormatCatalog.cs`, `src/LimeWin.Core/Output/OutputNaming.cs`, `src/LimeWin.Core/LimeException.cs`
 - Create: `tests/LimeWin.Core.Tests/LimeWin.Core.Tests.csproj` (xUnit), `tests/LimeWin.Core.Tests/FormatCatalogTests.cs`, `tests/LimeWin.Core.Tests/OutputNamingTests.cs`
 - Create: `.gitignore` (`bin/ obj/ *.user .vs/`), `LICENSE` (MIT, 이 저장소), `NOTICE.md` (원작 MIT 원문 + 아래 작업에서 라이브러리 추가 시마다 갱신), `docs/decisions.md` (구현자 재량 결정 기록)
@@ -256,12 +272,12 @@ public async Task Converts_AndOutputDecodes(string from, string to) {
 **Files:**
 - Create: `src/LimeWin.Core/Convert/PdfConverter.cs`, `src/LimeWin.Core/Pdf/PdfRenderer.cs`, `src/LimeWin.Core/Pdf/PdfText.cs`
 - Test: `tests/LimeWin.Core.Tests/PdfConverterTests.cs`; `FixtureFactory.Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null) -> string` 추가 (PDFsharp로 각 쪽에 "Page N 페이지" 텍스트)
-- Modify: `NOTICE.md` (PdfPig Apache-2.0)
+- Modify: `NOTICE.md` (PdfPig Apache-2.0, PDFtoImage MIT, PDFium BSD-3-Clause)
 
 **Interfaces:**
 - Consumes: `IConverter`, `OperationContext`, `OutputNaming`
 - Produces:
-  - `public static class PdfRenderer { public static Task<IReadOnlyList<string>> RenderPagesAsync(string pdf, string outDirOrFile, string ext, int dpi, int maxEdgePx, OperationContext ctx); public static Task<int> PageCountAsync(string pdf); public static Task<byte[]> RenderPagePngAsync(string pdf, int index0, int dpi, int maxEdgePx, CancellationToken ct); }` — `Windows.Data.Pdf` 사용. 암호 PDF는 `LimeException("암호로 보호된 PDF는 열 수 없습니다.")`.
+  - `public static class PdfRenderer { public static Task<IReadOnlyList<string>> RenderPagesAsync(string pdf, string outDirOrFile, string ext, int dpi, int maxEdgePx, OperationContext ctx); public static Task<int> PageCountAsync(string pdf); public static Task<byte[]> RenderPagePngAsync(string pdf, int index0, int dpi, int maxEdgePx, CancellationToken ct); }` — PDFtoImage(PDFium) 사용. PDFium은 스레드 안전하지 않으므로 모든 호출을 정적 `SemaphoreSlim(1)`로 직렬화. 암호 PDF는 `LimeException("암호로 보호된 PDF는 열 수 없습니다.")`.
   - `public static class PdfText { public static IReadOnlyList<string> PageTexts(string pdf); }` — PdfPig, 쪽마다 텍스트(단어 사이 공백, 줄 순서 유지).
   - `public sealed class PdfConverter : IConverter` — pdf→jpg/png/txt. (pdf→docx는 Task 8)
 
@@ -284,13 +300,15 @@ public async Task Converts_AndOutputDecodes(string from, string to) {
 이 작업이 끝나면 **필수 범위가 실제로 동작**한다. `docs/spike-notes.md`의 결론을 따른다.
 
 **Files:**
-- Create: `src/LimeWin.App/LimeWin.App.csproj` (`<UseWPF>true</UseWPF>`, `<UseWindowsForms>true</UseWindowsForms>`, `<OutputType>WinExe</OutputType>`, 앱 매니페스트에 `PerMonitorV2` DPI 인식), `App.xaml(.cs)`
+- Create: `src/LimeWin.App/LimeWin.App.csproj` (`<UseWPF>true</UseWPF>`, `<OutputType>WinExe</OutputType>`, 앱 매니페스트에 `PerMonitorV2` DPI 인식, WPF-UI·H.NotifyIcon.Wpf 참조, `Assets/Fonts/Pretendard-*.otf` 리소스 포함), `App.xaml(.cs)` (WPF-UI 테마 사전, 시스템 라이트/다크 따라감)
+- Create: `src/LimeWin.App/Wheel/BackdropCapture.cs` (유리 효과용 화면 캡처), `src/LimeWin.App/Wheel/WheelStyle.cs` (색·반지름·모션 토큰 한 곳), `src/LimeWin.App/Render/RenderHarness.cs` (`--render`)
 - Create: `src/LimeWin.App/Input/LowLevelHooks.cs` (P/Invoke, 관찰만), `src/LimeWin.App/Input/DragSession.cs`
 - Create: `src/LimeWin.App/Wheel/OverlayWindow.xaml(.cs)`, `src/LimeWin.App/Wheel/WheelView.xaml(.cs)`, `src/LimeWin.App/Wheel/WheelController.cs`
 - Create: `src/LimeWin.App/Jobs/JobRunner.cs`, `src/LimeWin.App/Jobs/ProgressCard.xaml(.cs)`, `src/LimeWin.App/Jobs/ProgressCardHost.cs`
 - Create: `src/LimeWin.App/Tray/TrayIcon.cs`, `src/LimeWin.App/Tray/LoginItem.cs`, `src/LimeWin.App/Tray/LicenseWindow.xaml(.cs)`
 - Create: `src/LimeWin.App/Services.cs` (Capabilities 계산, ConversionRouter 구성)
 - Create: `docs/manual-checklist.md`
+- Modify: `NOTICE.md` (WPF-UI MIT, H.NotifyIcon MIT, Pretendard SIL OFL 1.1)
 
 **Interfaces:**
 - Consumes: `DragTapDetector`, `WheelGeometry`, `WheelCatalog`, `ConversionRouter`, `OperationContext`, `Capabilities`, `CapabilityProbe`
@@ -305,12 +323,32 @@ public async Task Converts_AndOutputDecodes(string from, string to) {
 - 휠 위 `DragOver`에서 `PetalAt`으로 강조 꽃잎 갱신, `DragDropEffects.Copy` 반환(꽃잎 위) / `None`(그 외). `Drop`: 꽃잎이면 `ItemDropped`, 아니면 아무것도 안 함. 어느 경우든 덮개 닫기.
 - 닫기 안전장치: 버튼 뗌 훅, `Esc` 훅, 그리고 100 ms 타이머로 `GetAsyncKeyState(VK_LBUTTON)`이 떼어져 있으면 닫기.
 - 공통 꽃잎이 없으면 휠 가운데에 "할 수 있는 작업 없음"만 표시.
-- 휠 모양: 반투명 판(라이트 `#E6F5F5F5` / 다크 `#E61E1E1E`, `SystemParameters`·레지스트리 `AppsUseLightTheme`로 판별), 강조 꽃잎 라임 `#A3E635`. 등장 120 ms ease-out 크기 0.92→1 + 불투명도(그 외 값은 구현자 재량).
+- **창 구조:** 덮개(전체 화면, 정적, 드롭만 받음)와 휠(320×320 작은 창, 그림·애니메이션)은 **별도 창**이다. 큰 투명 창을 매 프레임 다시 그리지 않기 위해서다. 휠 창은 `IsHitTestVisible=False`로 두고 드롭·좌표 판정은 덮개가 한다.
+- **유리 효과 (원작 Liquid/Frosted 재현):** 휠을 띄우기 직전, 휠 자리 320×320 화면 영역을 `BitBlt`(**`CAPTUREBLT` 없이** — 탐색기의 끌기 이미지 같은 레이어드 창이 찍히지 않게)로 캡처해 `BlurEffect`(반경 24, `KernelType=Gaussian`, `RenderingBias=Quality`)를 건 이미지를 휠 판 모양으로 잘라 깔고, 그 위에 색 막(라이트 `#B3F2F2F2` / 다크 `#B31C1C1C`)과 0.5 px 안쪽 하이라이트 선(`#40FFFFFF`)을 얹는다. 꽃잎은 막보다 한 단계 밝게(라이트 `#CCFFFFFF` / 다크 `#CC3A3A3A`). 다크·라이트는 `HKCU\...\Themes\Personalize\AppsUseLightTheme`. 모든 값은 `WheelStyle.cs` 한 곳에.
+- **강조:** 꽃잎 색 라임 `#8BC34A`(원작 스크린샷 기준; 다크에서는 `#6FA83A`), 글자 흰색, 바깥쪽으로 5 px 떠오름(원작 `liftDistance`). 가운데 구멍에 강조된 꽃잎 이름(원작과 같음). 크기 변화 없음.
+- **모션 (`emil-design-eng` 기준 — 키로 하루 수십 번 띄우는 요소):**
+
+  | 장면 | 값 | 이유 |
+  |---|---|---|
+  | 휠 등장 | **애니메이션 없음, 즉시 표시** | 키보드로 띄우는 동작은 애니메이션하지 않는다(Raycast 원칙). 지연은 곧 둔함 |
+  | 꽃잎 등장 순차(stagger) | 없음 | 자주 보는 요소에 장식 금지 |
+  | 꽃잎 강조 | 색: 100 ms `ease`, 5 px 떠오름: 140 ms `cubic-bezier(0.23, 1, 0.32, 1)`, 되돌아감도 같은 값(중간에 끊겨도 현재 위치에서 이어지도록 `From` 없이 시작) | 드롭 대상 표시라는 목적이 있음 |
+  | 휠 바꾸기(다른 키 탭) | 즉시 교체, 크로스페이드 없음 | 키보드 동작 |
+  | 꽃잎에 드롭 | 즉시 닫힘, 진행 카드가 피드백을 맡음 | 시스템 응답은 빠르게 |
+  | 취소(구멍·바깥·Esc) | 불투명도 1→0, 100 ms `cubic-bezier(0.23, 1, 0.32, 1)` | 사라지는 게 "취소됨"으로 읽히게 |
+  | 진행 카드 | 등장: 아래 8 px→0 + 불투명도, 200 ms 같은 곡선 / 퇴장 150 ms | 가끔 보는 요소의 표준 값 |
+  | 모션 줄이기 | `SystemParameters.ClientAreaAnimation == false`면 떠오름·이동을 빼고 색·불투명도만 | 접근성 |
+
+  `scale(0)`에서 시작 금지, ease-in 곡선 금지, 300 ms 초과 금지.
+- **글꼴·아이콘:** 형식 라벨 Segoe UI Variable Display Semibold 15 px 대문자, 한글 라벨 Pretendard SemiBold 12 px, 도구·액션 아이콘 Segoe Fluent Icons 20 px(꽃잎 라벨 위). 글자 렌더링 `TextOptions.TextFormattingMode=Display`, `TextRenderingMode=ClearType` 대신 `Grayscale`(투명 창에서 ClearType 번짐 방지).
+- **진행 카드·트레이 메뉴·도구 창**은 WPF-UI 컨트롤과 Mica 배경, 둥근 모서리 8 px, 시스템 강조색을 쓴다.
 - 이 작업에선 `ConvertOp`만 연결: 파일마다 `JobRunner.Run($"{파일명} → {대상}", ctx => router.ConvertAsync(...))`. `ToolOp`/`ActionOp`은 "준비 중" 카드.
-- 트레이 메뉴: `휠 켜기`(체크, 끄면 훅 해제), `윈도우 시작 시 실행`(체크, `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\LimeWin`), `라이선스 보기`(`NOTICE.md` 내용), `종료`. 중복 실행 방지(이름 있는 `Mutex`).
+- 트레이(H.NotifyIcon) 메뉴: `휠 켜기`(체크, 끄면 훅 해제), `윈도우 시작 시 실행`(체크, `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\LimeWin`), `라이선스 보기`(`NOTICE.md` 내용), `종료`. 중복 실행 방지(이름 있는 `Mutex`). 트레이 아이콘은 라임 조각 모양 단색 아이콘(라이트/다크 작업표시줄용 2종, 16·20·24·32 px).
+- `--render <폴더>`: 실제 창 대신 같은 `WheelView`를 `RenderTargetBitmap`(2× 배율)으로 그려 `wheel-{light|dark}-{n}petals-{hl|plain}.png`, `progress-card-{running|done|failed}.png`로 저장. 유리 배경 자리에는 원작 스크린샷처럼 문서 목록·초록 그라데이션 고정 배경을 깐다.
 
 - [ ] **Step 1:** 구현.
 - [ ] **Step 2:** `dotnet build LimeWin.slnx -c Release` 경고 0 확인, `dotnet test` 전부 PASS.
+- [ ] **Step 2a (시각 확인):** `src/LimeWin.App/bin/Release/.../LimeWin.App.exe --render artifacts/render`를 실행하고 렌더 PNG를 원작 `Screenshots/wheel-liquid.png`, `wheel-solid-dark.png`와 나란히 놓고 본다(이미지를 직접 읽어 비교). 꽃잎 간격·둥근 모서리·라벨 정렬·강조 위치가 원작과 어긋나면 `WheelStyle.cs`를 고쳐 다시 렌더. 그다음 **사용자에게 렌더 이미지를 보여 주고 "예쁘다"는 확인을 받는다.** 확인 전에는 다음 작업으로 넘어가지 않는다. (`artifacts/`는 `.gitignore`)
 - [ ] **Step 3:** `docs/manual-checklist.md` 작성 — 스파이크 질문 1~6 + 다음 항목: PNG 끌고 Shift → JPG 꽃잎 → 결과 생김, 이미지 3장 → PDF, 3쪽 PDF → PNG 폴더, 바깥 드롭 취소 후 원본 위치 그대로, 휠 없이 평소 끌기 이동·복사 정상, 앱 강제 종료(작업 관리자) 후 평소 끌기 정상, 드래그 아닐 때 Shift/Ctrl/Alt 타이핑 정상, 휠 켜기 해제 시 휠 안 뜸.
 - [ ] **Step 4:** 앱을 실행해 체크리스트 Phase 1 항목을 **사용자와 함께** 확인하고 결과를 체크리스트에 기록.
 - [ ] **Step 5:** 커밋 `feat(app): tray, hooks, overlay wheel, convert wheel`.
@@ -513,6 +551,8 @@ Excel:
 - **순서 창 (PDF 만들기·합치기):** 파일 목록, 드래그로 순서 바꾸기, ↑↓ 버튼, 이미지면 썸네일, `만들기`/`합치기` 버튼.
 - 나누기는 창 없이 바로 실행.
 - 창들은 앞으로 가져오기(`Activate`), Esc로 닫기.
+- 모든 창: WPF-UI `FluentWindow` + Mica, 기본 버튼 강조색, 간격 8의 배수, 미리보기 영역 둥근 모서리 8 px. 창 열기·닫기는 Windows 기본 애니메이션에 맡기고 자체 애니메이션을 넣지 않는다. 눌리는 버튼은 WPF-UI 기본 눌림 효과 사용.
+- `--render`에 `compress-options.png`, `crop.png`(샘플 이미지 포함), `order.png` 추가 → 렌더를 보고 정렬·여백을 다듬은 뒤 사용자 확인.
 
 - [ ] **Step 1:** 구현.
 - [ ] **Step 2:** `dotnet build` 경고 0, `dotnet test` PASS.
@@ -584,7 +624,7 @@ Excel:
 **Files:**
 - Create: `src/LimeWin.Core/Tools/BackgroundRemover.cs`, `src/LimeWin.Core/Tools/ModelStore.cs`, `src/LimeWin.App/Tools/ModelDownloadWindow.xaml(.cs)`
 - Test: `tests/LimeWin.Core.Tests/BackgroundRemoverTests.cs`, `tests/LimeWin.Core.Tests/ModelStoreTests.cs`
-- Modify: `ToolDispatcher.cs` (RemoveBackground), `Services.cs` (`BackgroundRemoval = true` — 모델이 없으면 첫 사용 때 내려받기 창), `NOTICE.md` (BiRefNet MIT, ONNX Runtime MIT)
+- Modify: `ToolDispatcher.cs` (RemoveBackground), `Services.cs` (`BackgroundRemoval = true` — 모델이 없으면 첫 사용 때 내려받기 창), `NOTICE.md` (BiRefNet MIT, ONNX Runtime MIT, Windows ML 라이선스)
 
 **Interfaces:**
 - Produces:
@@ -593,12 +633,12 @@ Excel:
   - `ModelStore.DownloadAsync(IProgress<double> progress, CancellationToken ct) -> Task` — `https://github.com/ZhengPeng7/BiRefNet/releases/download/v1/BiRefNet-general-epoch_244.onnx` (972,666,916 바이트). 임시 파일로 받아 크기·SHA-256 확인 후 이름 변경. **SHA-256 값은 구현자가 처음 받은 파일에서 계산해 상수로 고정**하고 `docs/decisions.md`에 기록.
   - `BackgroundRemover.RemoveAsync(string source, OperationContext ctx) -> Task<string>` — `ToolOutput(src, "no background", "png")`.
 
-추론: ONNX Runtime DirectML 실행 공급자(장치 0), 실패 시 CPU. 입력 1024×1024 RGB, `(x/255 − mean)/std`, mean `[0.485, 0.456, 0.406]`, std `[0.229, 0.224, 0.225]`, NCHW float32. 출력 마지막 텐서에 시그모이드 → 원본 크기로 쌍선형 확대 → 알파 채널. 세션은 한 번 만들어 재사용(첫 로드 느림 → 진행 카드 "모델 불러오는 중").
+추론: Windows ML(`Microsoft.Windows.AI.MachineLearning`, self-contained). 시작 시 `ExecutionProviderCatalog.GetDefault().EnsureAndRegisterCertifiedAsync()`로 이 PC에 맞는 실행 공급자(RTX → NvTensorRtRtx)를 받아 등록하고, 세션 옵션은 GPU 우선(`ExecutionProviderDevicePolicy.PREFER_GPU` 또는 문서상 동등한 API — 2026-10 기준 Windows ML 문서 "Accelerate AI models"의 C# 예제를 따르고 `docs/decisions.md`에 기록), 실패 시 CPU. 실행 공급자 내려받기도 모델 내려받기 창에서 함께 진행 표시. 입력 1024×1024 RGB, `(x/255 − mean)/std`, mean `[0.485, 0.456, 0.406]`, std `[0.229, 0.224, 0.225]`, NCHW float32. 출력 마지막 텐서에 시그모이드 → 원본 크기로 쌍선형 확대 → 알파 채널. 세션은 한 번 만들어 재사용(첫 로드 느림 → 진행 카드 "모델 불러오는 중").
 
 - [ ] **Step 1: 실패하는 시험**
 ```csharp
 [Fact] public void ModelStore_WrongHash_NotReady() { /* 같은 이름의 가짜 파일 → IsReady false */ }
-[SkippableFact] public async Task Remove_SolidBackgroundCircle_CornersTransparentCenterOpaque() { Skip.IfNot(ModelStore.IsReady); /* 흰 배경 위 빨간 원 512px → 모서리 알파 < 20, 중심 알파 > 235, 이름 "(no background).png" */ }
+[Fact] public async Task Remove_SolidBackgroundCircle_CornersTransparentCenterOpaque() { Assert.SkipUnless(ModelStore.IsReady, "모델 없음"); /* 흰 배경 위 빨간 원 512px → 모서리 알파 < 20, 중심 알파 > 235, 이름 "(no background).png" */ }
 ```
 - [ ] **Step 2:** FAIL. **Step 3:** 구현, 모델 내려받기. **Step 4:** PASS (모델 받은 뒤).
 - [ ] **Step 5 (품질 관문):** 사용자 샘플(인물·머리카락, 동물 털, 물건)로 결과를 보여 주고 처리 시간을 잰다. 사용자가 "맥 수준"이라 하면 계속. 아니면 **멈추고** `BiRefNet_HR-general` 또는 `matting` 모델을 사용자와 논의. 결과를 `docs/decisions.md`에 기록.
