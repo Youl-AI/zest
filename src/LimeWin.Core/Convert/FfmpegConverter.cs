@@ -77,16 +77,31 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
             }
         });
 
-        string? progressLine;
-        while ((progressLine = await process.StandardOutput.ReadLineAsync()) is not null)
+        try
         {
-            if (duration is > 0 && progressLine.StartsWith("out_time_us=", StringComparison.Ordinal)
-                && long.TryParse(progressLine.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var us))
-                ctx.Report(us / 1_000_000.0 / duration.Value);
-        }
+            string? progressLine;
+            while ((progressLine = await process.StandardOutput.ReadLineAsync()) is not null)
+            {
+                if (duration is > 0 && progressLine.StartsWith("out_time_us=", StringComparison.Ordinal)
+                    && long.TryParse(progressLine.AsSpan("out_time_us=".Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var us))
+                    ctx.Report(us / 1_000_000.0 / duration.Value);
+            }
 
-        await process.WaitForExitAsync(CancellationToken.None);
-        await stderr;
+            await process.WaitForExitAsync(CancellationToken.None);
+            await stderr;
+        }
+        finally
+        {
+            // If anything above threw, ffmpeg may still be running and holding the output file.
+            if (!process.HasExited)
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+                using var bound = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try { await process.WaitForExitAsync(bound.Token); }
+                catch (OperationCanceledException) { }
+            }
+        }
 
         ctx.Token.ThrowIfCancellationRequested();
         if (process.ExitCode != 0)

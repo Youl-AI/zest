@@ -33,7 +33,8 @@ public static partial class FfmpegLocator
         return Find("ffprobe.exe", Environment.GetEnvironmentVariable("PATH"));
     }
 
-    static string? Find(string fileName, string? pathList)
+    /// <summary>Full path of <paramref name="fileName"/> in the first folder of a PATH-style list that has it, or null.</summary>
+    public static string? Find(string fileName, string? pathList)
     {
         if (string.IsNullOrEmpty(pathList)) return null;
         foreach (var raw in pathList.Split(Path.PathSeparator))
@@ -77,8 +78,14 @@ public static partial class FfmpegLocator
             psi.ArgumentList.Add("-encoders");
             using var p = Process.Start(psi)!;
             var err = p.StandardError.ReadToEndAsync();
-            var text = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(10_000)) { p.Kill(true); return null; }
+            var read = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(10_000))
+            {
+                p.Kill(true);
+                p.WaitForExit(2_000);
+                return null; // hung: treat as "encoders unknown"
+            }
+            var text = read.GetAwaiter().GetResult();
             err.Wait();
             var set = new HashSet<string>();
             foreach (Match m in EncoderLine().Matches(text)) set.Add(m.Groups[1].Value);

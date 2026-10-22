@@ -183,7 +183,9 @@ public class FfmpegConverterTests : IDisposable
     public async Task Ffmpeg_Cancelled_KillsProcessAndRemovesOutput()
     {
         var src = FixtureFactory.Media(Dir, "long.mp4", 120);
-        var before = Process.GetProcessesByName("ffmpeg").Select(p => p.Id).ToHashSet();
+        var beforeProcs = Process.GetProcessesByName("ffmpeg");
+        var before = beforeProcs.Select(p => p.Id).ToHashSet();
+        foreach (var p in beforeProcs) p.Dispose();
         using var cts = new CancellationTokenSource();
         var progress = new SyncProgress(f => { if (f > 0.1) cts.Cancel(); });
 
@@ -192,7 +194,9 @@ public class FfmpegConverterTests : IDisposable
 
         Assert.False(File.Exists(Path.Combine(Dir, "long.mkv")));
         Assert.Equal(new[] { "long.mp4" }, Directory.GetFiles(Dir).Select(Path.GetFileName));
-        var leftover = Process.GetProcessesByName("ffmpeg").Where(p => !before.Contains(p.Id)).ToList();
+        var after = Process.GetProcessesByName("ffmpeg");
+        var leftover = after.Where(p => !before.Contains(p.Id)).Select(p => p.Id).ToList();
+        foreach (var p in after) p.Dispose();
         Assert.Empty(leftover);
     }
 

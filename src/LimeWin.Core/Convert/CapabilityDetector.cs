@@ -22,21 +22,7 @@ public static class CapabilityDetector
     }
 
     /// <summary>True when <paramref name="fileName"/> exists in one of the folders of a PATH-style list.</summary>
-    public static bool FindOnPath(string fileName, string? pathList)
-    {
-        if (string.IsNullOrEmpty(pathList)) return false;
-        foreach (var raw in pathList.Split(Path.PathSeparator))
-        {
-            var dir = raw.Trim().Trim('"');
-            if (dir.Length == 0) continue;
-            try
-            {
-                if (File.Exists(Path.Combine(dir, fileName))) return true;
-            }
-            catch (ArgumentException) { /* malformed PATH entry */ }
-        }
-        return false;
-    }
+    public static bool FindOnPath(string fileName, string? pathList) => FfmpegLocator.Find(fileName, pathList) is not null;
 
     static bool IsProgIdRegistered(string progId)
     {
