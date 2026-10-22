@@ -35,19 +35,31 @@ public sealed class ImageConverter : IConverter
         ctx.Token.ThrowIfCancellationRequested();
         var from = FormatCatalog.FormatOf(source);
         var output = OutputNaming.ConvertOutput(source, to);
+
+        MagickImage image;
         try
         {
-            using var image = Load(source, from);
-            ctx.Report(0.4);
+            image = Load(source, from);
             image.AutoOrient();
-            ctx.Token.ThrowIfCancellationRequested();
-
-            if (to == "pdf") WritePdf(image, output);
-            else Encode(image, to, output);
         }
         catch (MagickException)
         {
             throw new LimeException("이미지를 읽을 수 없습니다.");
+        }
+        using (image)
+        {
+            ctx.Report(0.4);
+            ctx.Token.ThrowIfCancellationRequested();
+            ctx.Track(output);
+            try
+            {
+                if (to == "pdf") WritePdf(image, output);
+                else Encode(image, to, output);
+            }
+            catch (MagickException)
+            {
+                throw new LimeException("이미지를 저장하지 못했습니다.");
+            }
         }
         ctx.Report(1);
         return [output];
@@ -62,7 +74,16 @@ public sealed class ImageConverter : IConverter
             settings.Format = MagickFormat.Svg;
             settings.Density = new Density(192);
         }
-        return new MagickImage(File.ReadAllBytes(source), settings);
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(source);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            throw new LimeException("원본 파일을 열 수 없습니다."); // FileNotFoundException is an IOException
+        }
+        return new MagickImage(bytes, settings);
     }
 
     static void Encode(MagickImage image, string to, string output)

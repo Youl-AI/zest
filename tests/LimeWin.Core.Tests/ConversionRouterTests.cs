@@ -13,14 +13,14 @@ public class ConversionRouterTests : IDisposable
 
     public void Dispose() { try { Directory.Delete(Dir, true); } catch (IOException) { } }
 
-    sealed class FakeConverter(Func<string, Task<IReadOnlyList<string>>> run) : IConverter
+    sealed class FakeConverter(Func<string, OperationContext, Task<IReadOnlyList<string>>> run) : IConverter
     {
         public bool Called;
         public bool Handles(string from, string to) => from == "png" && to == "jpg";
         public Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx)
         {
             Called = true;
-            return run(source);
+            return run(source, ctx);
         }
     }
 
@@ -36,7 +36,7 @@ public class ConversionRouterTests : IDisposable
     public async Task ReadOnlyFolder_ThrowsLimeException_AndLeavesNoFile()
     {
         var src = FixtureFactory.Image(Dir, "a.png");
-        var fake = new FakeConverter(s => Task.FromResult<IReadOnlyList<string>>([]));
+        var fake = new FakeConverter((s, c) => Task.FromResult<IReadOnlyList<string>>([]));
         var info = new DirectoryInfo(Dir);
         var sid = WindowsIdentity.GetCurrent().User!;
         var deny = new FileSystemAccessRule(sid,
@@ -70,10 +70,14 @@ public class ConversionRouterTests : IDisposable
         var src = FixtureFactory.Image(Dir, "a.png");
         var existing = Path.Combine(Dir, "a.jpg");
         File.WriteAllText(existing, "keep");
-        var converter = new FakeConverter(s =>
+        var converter = new FakeConverter((s, c) =>
         {
-            File.WriteAllText(Path.Combine(Dir, "a 2.jpg"), "partial");
-            Directory.CreateDirectory(Path.Combine(Dir, "a (pages)"));
+            var file = Path.Combine(Dir, "a 2.jpg");
+            var folder = Path.Combine(Dir, "a (pages)");
+            c.Track(file);
+            c.Track(folder);
+            File.WriteAllText(file, "partial");
+            Directory.CreateDirectory(folder);
             File.WriteAllText(Path.Combine(Dir, "a (pages)", "1.png"), "partial");
             throw cancel ? new OperationCanceledException() : new InvalidOperationException("boom");
         });
@@ -83,5 +87,25 @@ public class ConversionRouterTests : IDisposable
 
         Assert.Equal("keep", File.ReadAllText(existing));
         Assert.Equal(["a.jpg", "a.png"], Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
+    }
+
+    [Fact]
+    public async Task Cleanup_DoesNotDeleteUnrelatedFileCreatedDuringFailingCall()
+    {
+        var src = FixtureFactory.Image(Dir, "a.png");
+        var output = Path.Combine(Dir, "a.jpg");
+        var unrelated = Path.Combine(Dir, "download.tmp");
+        var converter = new FakeConverter((s, c) =>
+        {
+            c.Track(output);
+            File.WriteAllText(output, "partial");
+            File.WriteAllText(unrelated, "someone else's file");
+            throw new InvalidOperationException("boom");
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new ConversionRouter([converter]).ConvertAsync(src, "jpg", Ctx));
+
+        Assert.False(File.Exists(output));
+        Assert.Equal("someone else's file", File.ReadAllText(unrelated));
     }
 }

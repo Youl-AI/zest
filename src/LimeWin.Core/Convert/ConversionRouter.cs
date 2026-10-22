@@ -15,29 +15,24 @@ public sealed class ConversionRouter(IEnumerable<IConverter> converters)
 
         var dir = Path.GetDirectoryName(Path.GetFullPath(source))!;
         EnsureWritable(dir);
-        var before = Snapshot(dir);
         try
         {
             return await converter.ConvertAsync(source, to, ctx);
         }
         catch
         {
-            foreach (var entry in Snapshot(dir))
+            foreach (var path in ctx.Created)
             {
-                if (before.Contains(entry)) continue;
                 try
                 {
-                    if (Directory.Exists(entry)) Directory.Delete(entry, recursive: true);
-                    else File.Delete(entry);
+                    if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+                    else File.Delete(path);
                 }
                 catch (Exception) { /* best effort; the original failure matters more */ }
             }
             throw;
         }
     }
-
-    static HashSet<string> Snapshot(string dir) =>
-        new(Directory.EnumerateFileSystemEntries(dir), StringComparer.OrdinalIgnoreCase);
 
     static void EnsureWritable(string dir)
     {
