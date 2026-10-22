@@ -25,6 +25,8 @@ public partial class App : Application
     TrayIcon? _tray;
     DispatcherTimer? _hookHealth;
     bool _wheelEnabled;
+    long? _lastErrorBalloon; // Environment.TickCount64 of the last error balloon
+    const long ErrorBalloonIntervalMs = 30_000;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -39,9 +41,25 @@ public partial class App : Application
             return;
         }
 
+        try
+        {
+            Start();
+        }
+        catch (Exception ex)
+        {
+            // Without this the process would linger invisibly, holding the mutex so every relaunch exits silently.
+            MessageBox.Show($"Lime을 시작하지 못했습니다: {ex.Message}", "Lime", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(); // OnExit cleans up what was built and releases the mutex
+            return;
+        }
+
+        // Last-resort handlers only once the app is fully up; a failed startup must not be swallowed.
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
 
+    void Start()
+    {
         ApplicationThemeManager.ApplySystemTheme();
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
@@ -71,18 +89,26 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _hookHealth?.Stop();
-        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
-        _hooks?.Dispose(); // ends the hook thread
-        _wheel?.Close();
-        _tray?.Dispose();
-        if (_singleInstance is not null)
+        try
         {
-            _singleInstance.ReleaseMutex();
-            _singleInstance.Dispose();
+            _hookHealth?.Stop();
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+            _hooks?.Dispose(); // ends the hook thread
+            _wheel?.Close();
+            _tray?.Dispose();
         }
-        base.OnExit(e);
+        finally
+        {
+            // Released on every exit path, even if cleanup above throws.
+            if (_singleInstance is not null)
+            {
+                _singleInstance.ReleaseMutex();
+                _singleInstance.Dispose();
+                _singleInstance = null;
+            }
+            base.OnExit(e);
+        }
     }
 
     void SetWheelEnabled(bool on)
@@ -93,7 +119,7 @@ public partial class App : Application
             {
                 _hooks?.Install();
             }
-            catch (Win32Exception)
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
             {
                 on = false;
                 _tray?.Notify(HooksFailed);
@@ -152,7 +178,13 @@ public partial class App : Application
         try
         {
             _wheel?.Close();
-            _tray?.Notify(UnexpectedError);
+            // At most one balloon per 30 s, so an error recurring in a timer tick cannot spam the user.
+            var now = Environment.TickCount64;
+            if (_lastErrorBalloon is null || now - _lastErrorBalloon.Value >= ErrorBalloonIntervalMs)
+            {
+                _lastErrorBalloon = now;
+                _tray?.Notify(UnexpectedError);
+            }
         }
         catch (Exception)
         {

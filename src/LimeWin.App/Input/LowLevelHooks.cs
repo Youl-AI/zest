@@ -51,8 +51,11 @@ public sealed class LowLevelHooks : IDisposable
 
     readonly Dispatcher _dispatcher;
     readonly HookProc _mouseProc, _keyboardProc; // held so the GC never collects the callbacks
+    static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(2);
+
     Thread? _thread;
     uint _threadId;
+    bool _stopping; // WM_QUIT posted, thread not yet joined
 
     // Hook-thread state: touched only on the hook thread.
     IntPtr _mouseHook, _keyboardHook;
@@ -81,12 +84,21 @@ public sealed class LowLevelHooks : IDisposable
         _keyboardProc = KeyboardProc;
     }
 
-    public bool Installed => _thread is not null;
+    public bool Installed => _thread is not null && !_stopping;
 
-    /// <summary>Starts the hook thread and installs both hooks; throws <see cref="Win32Exception"/> if Windows refuses.</summary>
+    /// <summary>
+    /// Starts the hook thread and installs both hooks. Throws <see cref="Win32Exception"/> if Windows refuses, or
+    /// <see cref="InvalidOperationException"/> if a previous hook thread is still exiting (they would share the hook fields).
+    /// </summary>
     public void Install()
     {
-        if (Installed) return;
+        if (_thread is not null)
+        {
+            if (!_stopping) return;
+            if (!_thread.Join(JoinTimeout)) throw new InvalidOperationException("The previous hook thread has not exited.");
+            _thread = null;
+            _stopping = false;
+        }
         Exception? error = null;
         using var ready = new ManualResetEventSlim();
         var thread = new Thread(() => HookThread(ready, e => error = e)) { IsBackground = true, Name = "LimeWin input hooks" };
@@ -101,13 +113,20 @@ public sealed class LowLevelHooks : IDisposable
         _thread = thread;
     }
 
-    /// <summary>Unhooks and ends the hook thread.</summary>
+    /// <summary>Unhooks and ends the hook thread. The thread is forgotten only once it has really exited.</summary>
     public void Uninstall()
     {
         if (_thread is null) return;
-        PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
-        _thread.Join(TimeSpan.FromSeconds(2));
-        _thread = null;
+        if (!_stopping)
+        {
+            PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            _stopping = true;
+        }
+        if (_thread.Join(JoinTimeout))
+        {
+            _thread = null;
+            _stopping = false;
+        }
     }
 
     public void Dispose() => Uninstall();
