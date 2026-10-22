@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using LimeWin.App.Input;
 using LimeWin.App.Tray;
 using LimeWin.App.Wheel;
@@ -13,11 +15,16 @@ namespace LimeWin.App;
 public partial class App : Application
 {
     const string SingleInstanceName = @"Local\LimeWin.SingleInstance";
+    const string HooksFailed = "키 감지를 켜지 못했습니다.";
+    const string UnexpectedError = "예기치 않은 오류가 발생했지만 Lime은 계속 실행됩니다.";
+    static readonly TimeSpan HookHealthInterval = TimeSpan.FromSeconds(5);
 
     Mutex? _singleInstance;
     LowLevelHooks? _hooks;
     WheelController? _wheel;
     TrayIcon? _tray;
+    DispatcherTimer? _hookHealth;
+    bool _wheelEnabled;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -31,6 +38,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         ApplicationThemeManager.ApplySystemTheme();
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -48,16 +58,23 @@ public partial class App : Application
             else wheel.Show(mode, at);
         };
         session.ButtonReleased += wheel.OnButtonReleased;
-        session.Escape += wheel.Close;
-        _hooks.Install();
+        session.Escape += wheel.OnEscape;
 
         _tray = new TrayIcon(wheelOn: true, SetWheelEnabled, Shutdown);
+        SetWheelEnabled(true);
+
+        // Windows silently removes a low-level hook that times out; check every 5 s and reinstall if input passes us by.
+        _hookHealth = new DispatcherTimer { Interval = HookHealthInterval };
+        _hookHealth.Tick += (_, _) => CheckHooks();
+        _hookHealth.Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _hookHealth?.Stop();
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        _hooks?.Dispose();
+        TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+        _hooks?.Dispose(); // ends the hook thread
         _wheel?.Close();
         _tray?.Dispose();
         if (_singleInstance is not null)
@@ -72,16 +89,38 @@ public partial class App : Application
     {
         if (on)
         {
-            _hooks?.Install();
+            try
+            {
+                _hooks?.Install();
+            }
+            catch (Win32Exception)
+            {
+                on = false;
+                _tray?.Notify(HooksFailed);
+            }
         }
         else
         {
             _hooks?.Uninstall();
             _wheel?.Close();
         }
+        _wheelEnabled = on;
+        _tray?.SetWheelChecked(on);
     }
 
-    static void OnItemDropped(WheelItem item, IReadOnlyList<string> files, Point at)
+    void CheckHooks()
+    {
+        if (!_wheelEnabled || _hooks is null || !_hooks.LooksDead()) return;
+        _wheel?.Close();
+        _hooks.Uninstall();
+        SetWheelEnabled(true);
+    }
+
+    void OnItemDropped(WheelItem item, IReadOnlyList<string> files, Point at) =>
+        // Start the jobs after OLE's Drop callback has returned, so the drag source is released immediately.
+        Dispatcher.BeginInvoke(() => StartJobs(item, files));
+
+    static void StartJobs(WheelItem item, IReadOnlyList<string> files)
     {
         if (item.Operation is ConvertOp convert)
         {
@@ -92,6 +131,32 @@ public partial class App : Application
         {
             // Tools and actions arrive in later tasks.
             Services.Jobs.Run(item.Label, _ => throw new LimeException("준비 중입니다."));
+        }
+    }
+
+    // Last-resort handlers: get the overlay out of the user's way, say so, keep running. Nothing is logged (and no input ever is).
+    void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        e.Handled = true;
+        RecoverFromError();
+    }
+
+    void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        e.SetObserved();
+        Dispatcher.BeginInvoke(RecoverFromError);
+    }
+
+    void RecoverFromError()
+    {
+        try
+        {
+            _wheel?.Close();
+            _tray?.Notify(UnexpectedError);
+        }
+        catch (Exception)
+        {
+            // Recovery must never throw back into the dispatcher.
         }
     }
 

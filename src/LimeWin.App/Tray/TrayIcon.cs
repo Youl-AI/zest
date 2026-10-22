@@ -8,13 +8,14 @@ namespace LimeWin.App.Tray;
 public sealed class TrayIcon : IDisposable
 {
     readonly TaskbarIcon _icon;
+    readonly MenuItem _wheel;
     LicenseWindow? _licenses;
 
     /// <param name="wheelEnabled">Called with the new state when "휠 켜기" is toggled.</param>
     /// <param name="quit">Called for "종료".</param>
     public TrayIcon(bool wheelOn, Action<bool> wheelEnabled, Action quit)
     {
-        var wheel = new MenuItem { Header = "휠 켜기", IsCheckable = true, IsChecked = wheelOn };
+        var wheel = _wheel = new MenuItem { Header = "휠 켜기", IsCheckable = true, IsChecked = wheelOn };
         wheel.Click += (_, _) => wheelEnabled(wheel.IsChecked);
 
         var login = new MenuItem { Header = "윈도우 시작 시 실행", IsCheckable = true, IsChecked = LoginItem.IsEnabled };
@@ -49,6 +50,12 @@ public sealed class TrayIcon : IDisposable
         // Efficiency Mode would lower the process priority and slow the hooks and conversions, so keep it off.
         _icon.ForceCreate(enablesEfficiencyMode: false);
     }
+
+    /// <summary>Reflects the real wheel state, e.g. after the hooks failed to install.</summary>
+    public void SetWheelChecked(bool on) => _wheel.IsChecked = on;
+
+    /// <summary>A short notification balloon from the tray icon.</summary>
+    public void Notify(string message) => _icon.ShowNotification("Lime", message);
 
     void ShowLicenses()
     {

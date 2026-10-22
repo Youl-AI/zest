@@ -72,6 +72,15 @@ internal static class Native
         return (info.rcMonitor, info.rcWork);
     }
 
+    [DllImport("shcore.dll")] static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    /// <summary>Physical pixels per DIP on the monitor nearest to a physical point (1.0 at 96 DPI).</summary>
+    public static double ScaleAt(int x, int y)
+    {
+        var monitor = MonitorFromPoint(new POINT { X = x, Y = y }, MONITOR_DEFAULTTONEAREST);
+        return GetDpiForMonitor(monitor, 0 /* MDT_EFFECTIVE_DPI */, out var dpi, out _) == 0 ? dpi / 96.0 : 1.0;
+    }
+
     public static IntPtr Handle(Window w) => new WindowInteropHelper(w).EnsureHandle();
 
     public static RECT WindowRect(Window w) => GetWindowRect(Handle(w), out var r) ? r : default;

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -7,27 +8,26 @@ using LimeWin.Core.Wheel;
 namespace LimeWin.App.Wheel;
 
 /// <summary>
-/// Owns the drop overlay and the small wheel window for one drag.
-/// Close rules (docs/spike-notes.md): the hook's button-up usually arrives before OLE's Drop, so once the overlay has seen a
-/// FileDrop the button-up only starts "awaiting drop" — Drop closes, or a 500 ms fallback does. Without a FileDrop it closes at once.
-/// A 100 ms GetAsyncKeyState timer backs up a missed button-up and follows the same rule. Esc closes immediately.
+/// Owns the drop overlay and the small wheel window for one drag. When to close is decided by <see cref="OverlayCloseRules"/>
+/// (tested in Core); this class only feeds it events, a monotonic clock and the polled button state, and acts on the answer.
 /// </summary>
 public sealed class WheelController
 {
     static readonly TimeSpan SafetyInterval = TimeSpan.FromMilliseconds(100);
-    static readonly TimeSpan AwaitDropTimeout = TimeSpan.FromMilliseconds(500);
 
     readonly Capabilities _caps;
     readonly OverlayWindow _overlay = new();
     readonly WheelView _view = new();
     readonly Window _wheelWindow;
-    readonly DispatcherTimer _safety, _awaitDrop;
+    readonly OverlayCloseRules _rules = new();
+    readonly Stopwatch _clock = Stopwatch.StartNew();
+    readonly DispatcherTimer _safety, _dropFallback;
 
     WheelMode _mode;
     Point _anchor;
     IReadOnlyList<string>? _files;
     IReadOnlyList<WheelItem> _items = [];
-    bool _awaitingDrop;
+    bool _fallbackArmed;
 
     /// <summary>An item was dropped on: the item, the dropped files, and the drop point in physical screen pixels.</summary>
     public event Action<WheelItem, IReadOnlyList<string>, Point>? ItemDropped;
@@ -60,13 +60,19 @@ public sealed class WheelController
         _wheelWindow.SourceInitialized += (_, _) => Native.MakeClickThrough(_wheelWindow);
 
         _overlay.FilesEntered += OnFilesEntered;
+        _overlay.NonFileDragEntered += () => Apply(_rules.NonFileDragEntered());
         _overlay.HoverChanged += _view.Highlight;
         _overlay.Dropped += OnDropped;
 
         _safety = new DispatcherTimer { Interval = SafetyInterval };
-        _safety.Tick += (_, _) => OnSafetyTick();
-        _awaitDrop = new DispatcherTimer { Interval = AwaitDropTimeout };
-        _awaitDrop.Tick += (_, _) => Close();
+        _safety.Tick += (_, _) => Apply(_rules.SafetyTick(Native.PrimaryButtonDown(), _clock.Elapsed));
+        // One-shot timer so the drop fallback fires on time instead of on the next 100 ms safety tick.
+        _dropFallback = new DispatcherTimer { Interval = OverlayCloseRules.DropTimeout };
+        _dropFallback.Tick += (_, _) =>
+        {
+            _dropFallback.Stop();
+            Apply(_rules.SafetyTick(Native.PrimaryButtonDown(), _clock.Elapsed));
+        };
     }
 
     /// <summary>Puts up the drop surface; the wheel itself is drawn only once a FileDrop DragEnter arrives.</summary>
@@ -82,7 +88,8 @@ public sealed class WheelController
         _anchor = screenPx;
         _files = null;
         _items = [];
-        _awaitingDrop = false;
+        _rules.Reset();
+        _fallbackArmed = false;
         _overlay.ShowOverVirtualScreen();
         _safety.Start();
     }
@@ -100,8 +107,7 @@ public sealed class WheelController
         if (!IsOpen) return;
         IsOpen = false;
         _safety.Stop();
-        _awaitDrop.Stop();
-        _awaitingDrop = false;
+        _dropFallback.Stop();
         _files = null;
         _items = [];
         _wheelWindow.Hide();
@@ -111,21 +117,28 @@ public sealed class WheelController
     /// <summary>The hook saw the button go up.</summary>
     public void OnButtonReleased()
     {
+        if (IsOpen) Apply(_rules.ButtonUp(_clock.Elapsed));
+    }
+
+    /// <summary>Esc was pressed.</summary>
+    public void OnEscape()
+    {
+        if (IsOpen) Apply(_rules.Escape());
+    }
+
+    void Apply(OverlayAction action)
+    {
         if (!IsOpen) return;
-        if (_overlay.ReceivedFiles) BeginAwaitingDrop();
-        else Close();
-    }
-
-    void BeginAwaitingDrop()
-    {
-        if (_awaitingDrop) return;
-        _awaitingDrop = true;
-        _awaitDrop.Start();
-    }
-
-    void OnSafetyTick()
-    {
-        if (!Native.PrimaryButtonDown()) OnButtonReleased();
+        switch (action)
+        {
+            case OverlayAction.Close:
+                Close();
+                break;
+            case OverlayAction.AwaitDrop when !_fallbackArmed:
+                _fallbackArmed = true; // once per drag; the 100 ms safety tick covers a timer that fires a hair early
+                _dropFallback.Start();
+                break;
+        }
     }
 
     void OnFilesEntered(IReadOnlyList<string> files)
@@ -133,6 +146,7 @@ public sealed class WheelController
         if (!IsOpen) return;
         _files = files;
         DrawWheel();
+        Apply(_rules.FileDragEntered());
     }
 
     void DrawWheel()
@@ -164,7 +178,7 @@ public sealed class WheelController
         }
         finally
         {
-            Close();
+            Apply(_rules.Dropped());
         }
     }
 }

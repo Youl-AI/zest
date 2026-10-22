@@ -19,6 +19,9 @@ public partial class OverlayWindow : Window
     /// <summary>A drag carrying a FileDrop entered; the controller should call <see cref="SetWheel"/> before returning.</summary>
     public event Action<IReadOnlyList<string>>? FilesEntered;
 
+    /// <summary>A drag without FileDrop entered (text, virtual shell items); the overlay must not keep it.</summary>
+    public event Action? NonFileDragEntered;
+
     /// <summary>The petal under the cursor changed (null = hole, gutter or outside).</summary>
     public event Action<int?>? HoverChanged;
 
@@ -65,8 +68,14 @@ public partial class OverlayWindow : Window
         {
             ReceivedFiles = true;
             FilesEntered?.Invoke(files);
+            OnDragOver(sender, e);
+            return;
         }
-        OnDragOver(sender, e);
+        // Text, virtual items (zip contents, MTP) and the like are not ours: refuse, and let the controller close the
+        // overlay so OLE re-targets the window underneath on its next poll.
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
+        NonFileDragEntered?.Invoke();
     }
 
     void OnDragOver(object sender, DragEventArgs e)

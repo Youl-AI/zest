@@ -41,9 +41,25 @@ public sealed class ProgressCardHost
         card.CloseRequested += Remove;
         if (_stack.Children.Count == 0) _anchor = Native.CursorPos();
         _stack.Children.Add(card);
-        if (!_window.IsVisible) _window.Show();
+        if (!_window.IsVisible)
+        {
+            PlaceHidden(); // so it never flashes at its old or default spot
+            _window.Show();
+        }
         Reposition();
         return card;
+    }
+
+    /// <summary>Moves the hidden window to where the stack will end up, estimating its size at the target monitor's DPI.</summary>
+    void PlaceHidden()
+    {
+        var work = Native.MonitorAt(_anchor.X, _anchor.Y).Work;
+        var scale = Native.ScaleAt(_anchor.X, _anchor.Y);
+        _stack.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var w = (int)Math.Ceiling(_stack.DesiredSize.Width * scale);
+        var h = (int)Math.Ceiling(_stack.DesiredSize.Height * scale);
+        var margin = (int)Math.Round(MarginDip * scale);
+        Native.MoveTo(_window, work.Right - w - margin, work.Bottom - h - margin);
     }
 
     void Remove(ProgressCard card)
