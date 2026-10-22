@@ -21,6 +21,19 @@ public class DragTapDetectorTests
     [Fact] public void NoButton_NeverFires() { var d = new DragTapDetector(4); Assert.Null(d.Feed(new(false, 50, 0, Modifiers.Shift))); }
     [Fact] public void ButtonUp_Resets() { var d = Dragging(); d.Feed(new(false, 20, 0, Modifiers.None)); Assert.False(d.Dragging); }
 
+    [Fact] public void HeldShift_ThenCtrlPressedAndReleased_DoesNotFire()
+    {
+        var d = new DragTapDetector(4); d.Feed(new(true, 0, 0, Modifiers.Shift)); d.Feed(new(true, 20, 0, Modifiers.Shift));
+        Assert.Null(d.Feed(new(true, 20, 0, Modifiers.Shift | Modifiers.Ctrl)));
+        Assert.Null(d.Feed(new(true, 20, 0, Modifiers.Shift)));
+    }
+    [Fact] public void ComboThenReleaseOne_DoesNotFire()
+    {
+        var d = Dragging();
+        Assert.Null(d.Feed(new(true, 20, 0, Modifiers.Shift | Modifiers.Ctrl)));
+        Assert.Null(d.Feed(new(true, 20, 0, Modifiers.Ctrl)));
+    }
+
     [Fact] public void VerticalMoveAlone_StartsDrag() { var d = new DragTapDetector(4); d.Feed(new(true, 0, 0, Modifiers.None)); d.Feed(new(true, 0, 5, Modifiers.None)); Assert.True(d.Dragging); }
     [Fact] public void MoveEqualToThreshold_DoesNotStartDrag() { var d = new DragTapDetector(4); d.Feed(new(true, 0, 0, Modifiers.None)); d.Feed(new(true, 4, 4, Modifiers.None)); Assert.False(d.Dragging); }
 

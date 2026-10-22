@@ -7,7 +7,9 @@ public enum Modifiers { None = 0, Shift = 1, Ctrl = 2, Alt = 4 }
 
 public readonly record struct InputSample(bool LeftButton, int X, int Y, Modifiers Mods);
 
-/// <summary>Detects "tap a modifier key while dragging" from polled input samples.</summary>
+/// <summary>Detects "tap a modifier key while dragging" from polled input samples.
+/// Fires only on the sample where a modifier bit becomes newly set while dragging and the resulting set is exactly one key;
+/// releasing a key, or keys held since before the drag, never fires.</summary>
 public sealed class DragTapDetector(int dragThresholdPx)
 {
     private bool _hasStart;
@@ -38,12 +40,10 @@ public sealed class DragTapDetector(int dragThresholdPx)
         if (!Dragging && (Math.Abs(s.X - _startX) > dragThresholdPx || Math.Abs(s.Y - _startY) > dragThresholdPx))
             Dragging = true;
 
-        var changed = s.Mods != _prevMods;
+        var newlyPressed = (s.Mods & ~_prevMods) != Modifiers.None;
         _prevMods = s.Mods;
 
-        if (Dragging && changed && s.Mods != Modifiers.None)
-            return ModeFor(s.Mods);
-        return null;
+        return Dragging && newlyPressed ? ModeFor(s.Mods) : null;
     }
 
     public static WheelMode? ModeFor(Modifiers m) => m switch

@@ -20,6 +20,13 @@ public class WheelGeometryTests
     [Fact] public void PetalAt_ZeroCount_IsNull() => Assert.Null(new WheelGeometry().PetalAt(0, -90, 0));
     [Fact] public void PetalAt_RadiusBounds_AreInclusive() { var g = new WheelGeometry(); Assert.Equal(0, g.PetalAt(0, -WheelGeometry.Inner, 4)); Assert.Equal(0, g.PetalAt(0, -WheelGeometry.Outer, 4)); }
 
+    [Fact] public void PetalAt_WrapSideOfPetalZero()
+    {
+        var a = 2 * Math.PI - 0.05;
+        Assert.Equal(0, new WheelGeometry().PetalAt(Math.Sin(a) * 90, -Math.Cos(a) * 90, 4));
+    }
+    [Fact] public void PetalAt_TwoPetals() { var g = new WheelGeometry(); Assert.Equal(0, g.PetalAt(0, -90, 2)); Assert.Equal(1, g.PetalAt(0, 90, 2)); Assert.Null(g.PetalAt(90, 0, 2)); }
+
     [Fact] public void BearingOf_IsClockwiseFromTwelve()
     {
         var g = new WheelGeometry();
