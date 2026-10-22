@@ -41,16 +41,13 @@ public sealed class PdfConverter : IConverter
 
     static async Task<string> ToTextAsync(string source, OperationContext ctx)
     {
-        var pages = await Task.Run(() => PdfText.PageTexts(source), ctx.Token);
-        ctx.Report(0.8);
-        ctx.Token.ThrowIfCancellationRequested();
+        var pages = await Task.Run(() => PdfText.PageTexts(source, ctx.Token, ctx.Report), ctx.Token);
         if (pages.All(string.IsNullOrWhiteSpace))
             throw new LimeException("이 PDF에는 글자 정보가 없습니다. 도구 휠의 '글자 복사'를 쓰세요.");
 
         var output = OutputNaming.ConvertOutput(source, "txt");
         ctx.Track(output);
         await File.WriteAllTextAsync(output, string.Join("\n\n", pages), new UTF8Encoding(false), ctx.Token);
-        ctx.Report(1);
         return output;
     }
 }

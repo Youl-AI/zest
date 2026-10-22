@@ -90,6 +90,36 @@ public class PdfConverterTests : IDisposable
     }
 
     [Fact]
+    public async Task PdfToTxt_Cancelled_LeavesNoTxt()
+    {
+        var src = FixtureFactory.Pdf(Dir, "big.pdf", 30);
+        using var cts = new CancellationTokenSource();
+        var calls = 0;
+        var ctx = new OperationContext(cts.Token, new CallbackProgress(_ => { if (++calls == 2) cts.Cancel(); }));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Router.ConvertAsync(src, "txt", ctx));
+        Assert.Equal(["big.pdf"], Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName));
+        Assert.True(calls < 30);
+    }
+
+    [Theory, InlineData("png"), InlineData("txt")]
+    public async Task GarbagePdf_Throws_AndLeavesNothing(string to)
+    {
+        var src = Path.Combine(Dir, "g.pdf");
+        File.WriteAllBytes(src, Enumerable.Range(0, 4096).Select(i => (byte)(i * 31 + 7)).ToArray());
+        var e = await Assert.ThrowsAsync<LimeException>(() => Router.ConvertAsync(src, to, Ctx));
+        Assert.Equal("PDF를 읽을 수 없습니다.", e.Message);
+        Assert.Equal(["g.pdf"], Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task RenamedPng_AsPdf_Throws()
+    {
+        var src = Path.Combine(Dir, "r.pdf");
+        File.Copy(FixtureFactory.Image(Dir, "x.png"), src);
+        await Assert.ThrowsAsync<LimeException>(() => Router.ConvertAsync(src, "png", Ctx));
+    }
+
+    [Fact]
     public async Task Render_LongEdgeCappedAt4096()
     {
         var src = FixtureFactory.Pdf(Dir, "a.pdf", 1);

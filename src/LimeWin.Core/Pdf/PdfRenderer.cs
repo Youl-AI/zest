@@ -108,9 +108,9 @@ public static class PdfRenderer
                 {
                     throw new LimeException("암호로 보호된 PDF는 열 수 없습니다.");
                 }
-                catch (PdfException)
+                catch (Exception e) when (e is not (LimeException or OperationCanceledException))
                 {
-                    throw new LimeException("PDF를 읽을 수 없습니다.");
+                    throw new LimeException("PDF를 읽을 수 없습니다."); // PdfException and anything PDFium/Skia throws on garbage
                 }
             }, CancellationToken.None);
         }

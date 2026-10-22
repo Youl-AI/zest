@@ -9,7 +9,10 @@ namespace LimeWin.Core.Pdf;
 public static class PdfText
 {
     /// <summary>One string per page (words separated by spaces, lines in reading order); empty for pages without text.</summary>
-    public static IReadOnlyList<string> PageTexts(string pdf)
+    public static IReadOnlyList<string> PageTexts(string pdf) => PageTexts(pdf, CancellationToken.None, null);
+
+    /// <summary>Same, checking <paramref name="ct"/> before each page and reporting (i+1)/n after each page.</summary>
+    public static IReadOnlyList<string> PageTexts(string pdf, CancellationToken ct, Action<double>? progress)
     {
         byte[] bytes;
         try
@@ -26,15 +29,20 @@ public static class PdfText
         {
             using var doc = PdfDocument.Open(bytes);
             var texts = new List<string>(doc.NumberOfPages);
-            foreach (var page in doc.GetPages())
-                texts.Add(ContentOrderTextExtractor.GetText(page).Trim());
+            var n = doc.NumberOfPages;
+            for (var i = 1; i <= n; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                texts.Add(ContentOrderTextExtractor.GetText(doc.GetPage(i)).Trim());
+                progress?.Invoke(i / (double)n);
+            }
             return texts;
         }
         catch (PdfDocumentEncryptedException)
         {
             throw new LimeException("암호로 보호된 PDF는 열 수 없습니다.");
         }
-        catch (Exception e) when (e is not LimeException)
+        catch (Exception e) when (e is not (LimeException or OperationCanceledException))
         {
             throw new LimeException("PDF를 읽을 수 없습니다.");
         }
