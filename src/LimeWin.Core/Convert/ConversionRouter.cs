@@ -21,15 +21,7 @@ public sealed class ConversionRouter(IEnumerable<IConverter> converters)
         }
         catch
         {
-            foreach (var path in ctx.Created)
-            {
-                try
-                {
-                    if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-                    else File.Delete(path);
-                }
-                catch (Exception) { /* best effort; the original failure matters more */ }
-            }
+            TrackedCleanup.DeleteCreated(ctx);
             throw;
         }
     }

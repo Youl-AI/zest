@@ -65,7 +65,7 @@ public sealed class ImageConverter : IConverter
         return [output];
     }
 
-    static MagickImage Load(string source, string? from)
+    internal static MagickImage Load(string source, string? from)
     {
         // Read from bytes so the content, not the (possibly wrong) extension, decides the decoder.
         var settings = new MagickReadSettings();
@@ -96,14 +96,18 @@ public sealed class ImageConverter : IConverter
 
     static void WritePdf(MagickImage image, string output)
     {
+        var builder = new PdfDocumentBuilder();
+        AddPdfPage(builder, image);
+        File.WriteAllBytes(output, builder.Build());
+    }
+
+    /// <summary>Adds one page sized to the image (1 px = 1 pt) with the image filling it.</summary>
+    internal static void AddPdfPage(PdfDocumentBuilder builder, MagickImage image)
+    {
         using var png = new MemoryStream();
         image.Write(png, MagickFormat.Png);
-
-        // 1 px = 1 pt; the image fills the page.
         double w = image.Width, h = image.Height;
-        var builder = new PdfDocumentBuilder();
         var page = builder.AddPage(w, h);
         page.AddPng(png.ToArray(), new PdfRectangle(0, 0, w, h));
-        File.WriteAllBytes(output, builder.Build());
     }
 }
