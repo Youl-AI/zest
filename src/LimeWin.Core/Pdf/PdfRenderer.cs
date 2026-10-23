@@ -20,7 +20,7 @@ public static class PdfRenderer
     /// <summary>
     /// Renders every page. If <paramref name="outDirOrFile"/> is an existing directory each page becomes
     /// `stem N.ext` inside it, otherwise the (single) page is written to that file path.
-    /// Returns the written file paths. The caller tracks <paramref name="outDirOrFile"/> for cleanup.
+    /// Returns the written file paths. The caller reserved and tracked <paramref name="outDirOrFile"/> (a placeholder file is written over).
     /// </summary>
     public static async Task<IReadOnlyList<string>> RenderPagesAsync(
         string pdf, string outDirOrFile, string ext, int dpi, int maxEdgePx, OperationContext ctx)

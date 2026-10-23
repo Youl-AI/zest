@@ -26,19 +26,18 @@ public sealed class WordConverter(OfficeHost word) : IConverter
     {
         ctx.Token.ThrowIfCancellationRequested();
         var from = FormatCatalog.FormatOf(source) ?? "";
-        var output = OutputNaming.ConvertOutput(source, to);
 
         if ((from, to) is ("md", "html"))
         {
             var html = MarkdownBridge.ToHtmlDocument(await ReadSourceAsync(source, ctx.Token), OutputNaming.Stem(source));
-            ctx.Track(output);
+            var output = OutputNaming.ConvertOutput(source, to, ctx);
             await File.WriteAllTextAsync(output, html, Utf8, ctx.Token);
             return [output];
         }
         if ((from, to) is ("html", "md"))
         {
             var md = MarkdownBridge.FromHtml(await ReadSourceAsync(source, ctx.Token));
-            ctx.Track(output);
+            var output = OutputNaming.ConvertOutput(source, to, ctx);
             await File.WriteAllTextAsync(output, md, Utf8, ctx.Token);
             return [output];
         }
@@ -56,7 +55,8 @@ public sealed class WordConverter(OfficeHost word) : IConverter
             }
             else input = work.CopySource(source, Path.GetExtension(source));
 
-            // Word saves under the output's own name so HTML image folders ("<stem>_files") keep matching links.
+            // Word saves under the output's own (reserved) name so HTML image folders ("<stem>_files") keep matching links.
+            var output = OutputNaming.ConvertOutput(source, to, ctx);
             var outDir = work.Out;
             var stem = OutputNaming.Stem(output);
             var saved = Path.Combine(outDir, to switch { "md" => stem + ".html", _ => stem + "." + to });
@@ -70,7 +70,6 @@ public sealed class WordConverter(OfficeHost word) : IConverter
                 _ => throw new LimeException("이 변환은 지원하지 않습니다."),
             };
 
-            ctx.Track(output);
             ctx.Report(0.05);
             await word.RunAsync(app => { SaveWithWord(app, input, saved, save.Format, save.Encoding); return 0; }, Timeout, ctx.Token);
             ctx.Token.ThrowIfCancellationRequested();
@@ -87,7 +86,7 @@ public sealed class WordConverter(OfficeHost word) : IConverter
                     await File.WriteAllTextAsync(output, MarkdownBridge.FromHtml(html), Utf8, ctx.Token);
                     break;
                 default:
-                    File.Move(saved, output);
+                    File.Move(saved, output, overwrite: true); // onto our own placeholder only
                     break;
             }
             ctx.Report(1);
@@ -140,19 +139,20 @@ public sealed class WordConverter(OfficeHost word) : IConverter
         }
     }
 
-    /// <summary>Copies the image folders Word wrote beside an HTML file next to the output (tracked first).</summary>
+    /// <summary>Copies the image folders Word wrote beside an HTML file next to the output, each into a folder created (and tracked) by us.</summary>
     static async Task PlaceCompanionFoldersAsync(string outDir, string destination, OperationContext ctx)
     {
         foreach (var folder in Directory.GetDirectories(outDir))
         {
             var target = Path.Combine(destination, Path.GetFileName(folder));
-            if (Directory.Exists(target) || File.Exists(target))
+            if (!OutputNaming.TryCreateFolder(target))
                 throw new LimeException("같은 이름의 폴더가 있어 그림을 저장할 수 없습니다.");
             ctx.Track(target);
             await Task.Run(() => CopyDirectory(folder, target), ctx.Token);
         }
     }
 
+    /// <summary>Copies a folder tree into <paramref name="to"/> (which may already exist, empty); never overwrites a file.</summary>
     static void CopyDirectory(string from, string to)
     {
         Directory.CreateDirectory(to);

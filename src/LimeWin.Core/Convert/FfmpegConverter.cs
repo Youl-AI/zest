@@ -32,10 +32,9 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
     {
         ctx.Token.ThrowIfCancellationRequested();
         var from = FormatCatalog.FormatOf(source) ?? "";
-        var output = OutputNaming.ConvertOutput(source, to);
         var duration = await ProbeDurationAsync(source, ctx.Token);
 
-        ctx.Track(output); // ffmpeg creates it; the router removes it on failure or cancel
+        var output = OutputNaming.ConvertOutput(source, to, ctx); // ffmpeg writes over our placeholder (-y); the router removes it on failure or cancel
         await RunAsync(["-progress", "pipe:1", "-nostats", .. FfmpegArgs.For(source, from, to, output)], duration, ctx);
         ctx.Report(1);
         return [output];

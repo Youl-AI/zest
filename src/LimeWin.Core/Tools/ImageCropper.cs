@@ -33,8 +33,7 @@ public static class ImageCropper
         image.ResetPage();
 
         ctx.Token.ThrowIfCancellationRequested();
-        var output = OutputNaming.ToolOutput(source, "cropped", format);
-        ctx.Track(output);
+        var output = OutputNaming.ToolOutput(source, "cropped", format, ctx);
         try
         {
             ImageConverter.Encode(image, format, output, lossyQuality: 92); // a crop should not visibly degrade the picture

@@ -13,7 +13,7 @@ public sealed class OperationContext(CancellationToken token, IProgress<double>?
         get { lock (_created) return [.. _created]; }
     }
 
-    /// <summary>Registers an output file or folder the converter is about to create, so a failed run can remove it.</summary>
+    /// <summary>Registers an output file or folder this operation has just created (reserved), so a failed run can remove it. Never track a path you did not create.</summary>
     public void Track(string path)
     {
         lock (_created) _created.Add(path);

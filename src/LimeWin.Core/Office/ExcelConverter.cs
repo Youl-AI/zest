@@ -32,10 +32,9 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
         var text = from is "csv" or "tsv";
         var input = work.CopySource(source, text ? ".txt" : Path.GetExtension(source));
         var origin = text ? await Task.Run(() => TextOrigin(input), ctx.Token) : 0;
-        var output = OutputNaming.ConvertOutput(source, to);
+        var output = OutputNaming.ConvertOutput(source, to, ctx);
         var saved = Path.Combine(work.Out, Path.GetFileName(output));
 
-        ctx.Track(output);
         ctx.Report(0.05);
         await excel.RunAsync(app => { SaveWithExcel(app, input, from, origin, saved, to, OutputNaming.Stem(source)); return 0; }, Timeout, ctx.Token);
         ctx.Token.ThrowIfCancellationRequested();
@@ -50,7 +49,7 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
                 await File.WriteAllTextAsync(output, await File.ReadAllTextAsync(saved, Encoding.Unicode, ctx.Token), Utf8, ctx.Token);
                 break;
             default:
-                File.Move(saved, output);
+                File.Move(saved, output, overwrite: true); // onto our own placeholder only
                 break;
         }
         ctx.Report(1);

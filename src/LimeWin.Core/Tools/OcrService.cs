@@ -114,8 +114,7 @@ public static class OcrService
         ToolRunner.RunAsync(ctx, () => Task.Run(() =>
         {
             ctx.Token.ThrowIfCancellationRequested();
-            var output = Output.OutputNaming.ToolOutput(source, "text", "txt");
-            ctx.Track(output);
+            var output = Output.OutputNaming.ToolOutput(source, "text", "txt", ctx);
             File.WriteAllText(output, WindowsNewlines(text), new UTF8Encoding(false));
             ctx.Report(1);
             return output;

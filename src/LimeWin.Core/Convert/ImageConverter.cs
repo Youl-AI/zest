@@ -34,13 +34,13 @@ public sealed class ImageConverter : IConverter
     {
         ctx.Token.ThrowIfCancellationRequested();
         var from = FormatCatalog.FormatOf(source);
-        var output = OutputNaming.ConvertOutput(source, to);
+        string output;
 
         using (var image = LoadOriented(source, from))
         {
             ctx.Report(0.4);
             ctx.Token.ThrowIfCancellationRequested();
-            ctx.Track(output);
+            output = OutputNaming.ConvertOutput(source, to, ctx); // reserved here; written over below
             try
             {
                 if (to == "pdf") WritePdf(image, output);

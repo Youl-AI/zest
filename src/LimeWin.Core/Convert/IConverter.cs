@@ -8,8 +8,10 @@ public interface IConverter
 
     /// <summary>
     /// Returns the created result paths (a single folder for folder results).
-    /// Contract: call <c>ctx.Track(path)</c> for every output file or folder BEFORE creating it; on failure the
-    /// router deletes exactly the tracked paths (tracked folders recursively), so only track what you create.
+    /// Contract: reserve every output where its name is chosen, with <c>OutputNaming.ConvertOutput/ToolOutput/CreatePagesFolder</c>
+    /// (they claim the name atomically: an empty placeholder file created with <c>FileMode.CreateNew</c>, or a new folder, and
+    /// then <c>ctx.Track</c> it), and write only over your own placeholder. On failure the router deletes exactly the tracked
+    /// paths (tracked folders recursively), so never track a path you did not create yourself.
     /// </summary>
     Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx);
 }

@@ -119,8 +119,7 @@ public static class BackgroundRemover
                 ApplyMask(image, mask);
                 ctx.Report(0.9);
 
-                var output = OutputNaming.ToolOutput(source, "no background", "png");
-                ctx.Track(output);
+                var output = OutputNaming.ToolOutput(source, "no background", "png", ctx);
                 try
                 {
                     ImageConverter.Encode(image, "png", output);

@@ -32,17 +32,16 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
 
         if (to is "pdf" or "pptx")
         {
-            var output = OutputNaming.ConvertOutput(source, to);
+            var output = OutputNaming.ConvertOutput(source, to, ctx);
             var saved = Path.Combine(work.Out, Path.GetFileName(output)); // the output's own name, as in WordConverter
             var format = to == "pdf" ? PowerPointFormat.Pdf : PowerPointFormat.Pptx;
-            ctx.Track(output);
             await ppt.RunAsync(app =>
             {
                 WithPresentation((object)app, input, saved, from, pres => pres.SaveAs(saved, format));
                 return 0;
             }, Timeout, ctx.Token);
             ctx.Token.ThrowIfCancellationRequested();
-            File.Move(saved, output);
+            File.Move(saved, output, overwrite: true); // onto our own placeholder only
             ctx.Report(1);
             return [output];
         }
@@ -71,14 +70,12 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
         string result;
         if (count == 1)
         {
-            result = OutputNaming.ConvertOutput(source, to);
-            ctx.Track(result);
-            File.Move(SlideFile(work.Out, 1, to), result);
+            result = OutputNaming.ConvertOutput(source, to, ctx);
+            File.Move(SlideFile(work.Out, 1, to), result, overwrite: true); // onto our own placeholder only
         }
         else
         {
-            result = OutputNaming.CreatePagesFolder(source);
-            ctx.Track(result);
+            result = OutputNaming.CreatePagesFolder(source, ctx);
             for (var i = 1; i <= count; i++)
                 File.Move(SlideFile(work.Out, i, to), Path.Combine(result, OutputNaming.PageFileName(stem, i, count, to)));
         }

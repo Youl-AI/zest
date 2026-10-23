@@ -263,8 +263,8 @@ public static class FileMover
         var ext = isFolder ? "" : Path.GetExtension(name);
         var stem = Path.GetFileNameWithoutExtension(name);
         return ext.Length > 1 && stem.Length > 0
-            ? OutputNaming.UniquePath(destination, stem, ext[1..])
-            : OutputNaming.UniqueName(destination, name);
+            ? OutputNaming.FreePath(destination, stem, ext[1..])
+            : OutputNaming.FreeName(destination, name);
     }
 
     /// <summary>A short Korean reason for a failed move.</summary>

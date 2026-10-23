@@ -78,8 +78,7 @@ public static class ImageCompressor
             : Preset(image, format, o, originalBytes, ctx);
 
         ctx.Token.ThrowIfCancellationRequested();
-        var output = OutputNaming.ToolOutput(source, "compressed", format);
-        ctx.Track(output);
+        var output = OutputNaming.ToolOutput(source, "compressed", format, ctx);
         File.WriteAllBytes(output, bytes);
         ctx.Report(1);
         return output;

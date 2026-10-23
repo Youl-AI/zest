@@ -59,8 +59,7 @@ public static class PdfTools
                 var n = doc.NumberOfPages;
                 if (n < 1) throw new LimeException("PDF를 읽을 수 없습니다.");
 
-                var folder = OutputNaming.CreatePagesFolder(pdf); // creates the folder itself
-                ctx.Track(folder);
+                var folder = OutputNaming.CreatePagesFolder(pdf, ctx);
                 var stem = OutputNaming.Stem(pdf);
                 for (var i = 1; i <= n; i++)
                 {
@@ -82,8 +81,7 @@ public static class PdfTools
     static string WriteOutput(string first, byte[] pdf, OperationContext ctx)
     {
         ctx.Token.ThrowIfCancellationRequested();
-        var output = OutputNaming.ToolOutput(first, "merged", "pdf");
-        ctx.Track(output);
+        var output = OutputNaming.ToolOutput(first, "merged", "pdf", ctx);
         File.WriteAllBytes(output, pdf);
         ctx.Report(1);
         return output;
