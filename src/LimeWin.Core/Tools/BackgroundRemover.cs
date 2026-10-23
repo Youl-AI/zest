@@ -113,10 +113,11 @@ public static class BackgroundRemover
             return await Task.Run(() =>
             {
                 var tensor = ToTensor(ModelInput(image));
-                var mask = MaskBytes(Infer(tensor, ctx.Token));
-                ctx.Report(0.9);
+                var mask = Probabilities(Infer(tensor, ctx.Token));
+                ctx.Report(0.8);
                 ctx.Token.ThrowIfCancellationRequested();
                 ApplyMask(image, mask);
+                ctx.Report(0.9);
 
                 var output = OutputNaming.ToolOutput(source, "no background", "png");
                 ctx.Track(output);
@@ -299,35 +300,73 @@ public static class BackgroundRemover
         return tensor;
     }
 
-    /// <summary>Sigmoid of the model's logits as 0..255 opacity.</summary>
-    internal static byte[] MaskBytes(ReadOnlySpan<float> logits)
+    /// <summary>Sigmoid of the model's logits: opacity 0..1.</summary>
+    internal static float[] Probabilities(ReadOnlySpan<float> logits)
     {
-        var mask = new byte[logits.Length];
-        for (var i = 0; i < logits.Length; i++)
-            mask[i] = (byte)Math.Round(255 / (1 + Math.Exp(-logits[i])));
-        return mask;
+        var p = new float[logits.Length];
+        for (var i = 0; i < logits.Length; i++) p[i] = 1 / (1 + MathF.Exp(-logits[i]));
+        return p;
     }
 
-    /// <summary>Stretches the 1024 x 1024 mask back to the image (bilinear) and makes it the alpha channel (times any alpha the image had).</summary>
-    static void ApplyMask(MagickImage image, byte[] mask)
+    /// <summary>
+    /// Bilinear resize of a float mask with <c>align_corners=True</c> (corner samples map onto corner pixels), as BiRefNet's
+    /// own inference upsamples its prediction.
+    /// </summary>
+    internal static float[] ResizeMask(float[] src, int srcWidth, int srcHeight, int width, int height)
+    {
+        var result = new float[width * height];
+        var sx = width > 1 ? (srcWidth - 1) / (double)(width - 1) : 0;
+        var sy = height > 1 ? (srcHeight - 1) / (double)(height - 1) : 0;
+        Parallel.For(0, height, y =>
+        {
+            var fy = y * sy;
+            var y0 = (int)fy;
+            var y1 = Math.Min(y0 + 1, srcHeight - 1);
+            var wy = (float)(fy - y0);
+            for (var x = 0; x < width; x++)
+            {
+                var fx = x * sx;
+                var x0 = (int)fx;
+                var x1 = Math.Min(x0 + 1, srcWidth - 1);
+                var wx = (float)(fx - x0);
+                var top = src[y0 * srcWidth + x0] * (1 - wx) + src[y0 * srcWidth + x1] * wx;
+                var bottom = src[y1 * srcWidth + x0] * (1 - wx) + src[y1 * srcWidth + x1] * wx;
+                result[y * width + x] = top * (1 - wy) + bottom * wy;
+            }
+        });
+        return result;
+    }
+
+    /// <summary>
+    /// Stretches the 1024 x 1024 mask to the image, makes it the alpha channel (times any alpha the image had) and replaces
+    /// the colours with the estimated foreground colours (<see cref="ForegroundEstimator"/>), so edges carry no background tint.
+    /// The image keeps its profiles and metadata.
+    /// </summary>
+    static void ApplyMask(MagickImage image, float[] mask)
     {
         try
         {
-            var grey = new byte[mask.Length * 3];
-            for (var i = 0; i < mask.Length; i++) grey[i * 3] = grey[i * 3 + 1] = grey[i * 3 + 2] = mask[i];
-            using var alpha = new MagickImage();
-            alpha.ReadPixels(grey, new PixelReadSettings(Side, Side, StorageType.Char, PixelMapping.RGB));
-            alpha.FilterType = FilterType.Triangle;
-            alpha.Resize(new MagickGeometry(image.Width, image.Height) { IgnoreAspectRatio = true });
+            if (image.ColorSpace != ColorSpace.sRGB) image.ColorSpace = ColorSpace.sRGB;
+            int w = (int)image.Width, h = (int)image.Height;
+            var alpha = ResizeMask(mask, Side, Side, w, h);
             if (image.HasAlpha)
             {
-                using var original = (MagickImage)image.Clone();
-                original.Alpha(AlphaAction.Extract);
-                alpha.Composite(original, CompositeOperator.Multiply);
+                var original = image.GetPixels().ToByteArray(PixelMapping.RGBA) ?? throw new LimeException(ProcessFailed);
+                for (var i = 0; i < alpha.Length; i++) alpha[i] *= original[i * 4 + 3] / 255f;
             }
-            if (image.ColorSpace != ColorSpace.sRGB) image.ColorSpace = ColorSpace.sRGB;
+            var rgb = image.GetPixels().ToByteArray(PixelMapping.RGB) ?? throw new LimeException(ProcessFailed);
+            var foreground = ForegroundEstimator.Estimate(rgb, alpha, w, h);
+
+            var rgba = new byte[alpha.Length * 4];
+            for (var i = 0; i < alpha.Length; i++)
+            {
+                rgba[i * 4] = foreground[i * 3];
+                rgba[i * 4 + 1] = foreground[i * 3 + 1];
+                rgba[i * 4 + 2] = foreground[i * 3 + 2];
+                rgba[i * 4 + 3] = (byte)MathF.Round(alpha[i] * 255);
+            }
             image.Alpha(AlphaAction.Set);
-            image.Composite(alpha, CompositeOperator.CopyAlpha);
+            image.ImportPixels(rgba, new PixelImportSettings((uint)w, (uint)h, StorageType.Char, PixelMapping.RGBA));
         }
         catch (MagickException)
         {

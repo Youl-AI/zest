@@ -45,6 +45,13 @@ public class BackgroundRemoverTests : IDisposable
         foreach (var (x, y) in new[] { (2, 2), (509, 2), (2, 509), (509, 509) })
             Assert.True(Alpha(result, x, y) < 20, $"corner ({x},{y}) alpha {Alpha(result, x, y)}");
         Assert.True(Alpha(result, 256, 256) > 235, $"centre alpha {Alpha(result, 256, 256)}");
+
+        // Foreground colour estimation: the half-transparent rim is the disc's red, not red mixed with the white background.
+        var rgba = result.GetPixels().ToByteArray(PixelMapping.RGBA)!;
+        var rim = Enumerable.Range(0, 512 * 512).Where(i => rgba[i * 4 + 3] is > 20 and < 235).ToList();
+        Assert.NotEmpty(rim);
+        Assert.True(rim.Average(i => (double)rgba[i * 4 + 1]) < 40, $"rim green {rim.Average(i => (double)rgba[i * 4 + 1]):0}");
+        Assert.True(rim.Average(i => (double)rgba[i * 4]) > 200, $"rim red {rim.Average(i => (double)rgba[i * 4]):0}");
     }
 
     [Fact]
@@ -117,11 +124,14 @@ public class BackgroundRemoverTests : IDisposable
     }
 
     [Fact]
-    public void MaskBytes_AppliesSigmoid()
+    public void Probabilities_AppliesSigmoid()
     {
-        var mask = BackgroundRemover.MaskBytes([-20f, 0f, 20f, 2f]);
+        var p = BackgroundRemover.Probabilities([-20f, 0f, 20f, 2f]);
 
-        Assert.Equal([0, 128, 255, (byte)Math.Round(255 / (1 + Math.Exp(-2)))], mask);
+        Assert.Equal(0f, p[0], 6);
+        Assert.Equal(0.5f, p[1], 6);
+        Assert.Equal(1f, p[2], 6);
+        Assert.Equal((float)(1 / (1 + Math.Exp(-2))), p[3], 6);
     }
 
     [Fact]
