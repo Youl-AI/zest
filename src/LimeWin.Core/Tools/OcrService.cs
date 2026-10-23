@@ -21,7 +21,21 @@ public static class OcrService
 
     static readonly Lazy<OcrEngine?> Engine = new(CreateEngine);
 
-    public static bool IsAvailable => Engine.Value is not null;
+    /// <summary>True when at least one OCR language is installed. Cheap: it does not build the engine (that waits for the first recognition).</summary>
+    public static bool IsAvailable
+    {
+        get
+        {
+            try
+            {
+                return OcrEngine.AvailableRecognizerLanguages.Count > 0;
+            }
+            catch (Exception e) when (e is COMException or InvalidOperationException or TypeLoadException)
+            {
+                return false;
+            }
+        }
+    }
 
     /// <summary>BCP-47 tags of the installed OCR languages (empty when none).</summary>
     public static IReadOnlyList<string> InstalledLanguages
@@ -68,13 +82,16 @@ public static class OcrService
                 return await RecognizePdfAsync(engine, path, ctx);
             case FormatCategory.Image:
                 ctx.Report(0.1);
-                var text = await Task.Run(() =>
+                using (var bitmap = await Task.Run(() =>
                 {
                     using var image = ImageConverter.LoadOriented(path, format);
-                    return RecognizeImageAsync(engine, image, ctx.Token);
-                }, ctx.Token);
-                ctx.Report(1);
-                return text;
+                    return ToBitmap(image);
+                }, ctx.Token))
+                {
+                    var text = await RecognizeBitmapAsync(engine, bitmap, ctx.Token);
+                    ctx.Report(1);
+                    return text;
+                }
             default:
                 throw new LimeException("이 파일에서는 글자를 읽을 수 없습니다.");
         }
@@ -99,7 +116,7 @@ public static class OcrService
             ctx.Token.ThrowIfCancellationRequested();
             var output = Output.OutputNaming.ToolOutput(source, "text", "txt");
             ctx.Track(output);
-            File.WriteAllText(output, text, new UTF8Encoding(false));
+            File.WriteAllText(output, WindowsNewlines(text), new UTF8Encoding(false));
             ctx.Report(1);
             return output;
         }, ctx.Token));
@@ -111,25 +128,39 @@ public static class OcrService
         for (var i = 0; i < layers.Count; i++)
         {
             ctx.Token.ThrowIfCancellationRequested();
-            if (layers[i].Count(c => !char.IsWhiteSpace(c)) >= MinTextLayerChars)
+            if (UseTextLayer(layers[i]))
             {
                 pages.Add(layers[i]);
             }
             else
             {
                 var png = await PdfRenderer.RenderPagePngAsync(pdf, i, PdfDpi, (int)OcrEngine.MaxImageDimension, ctx.Token);
-                pages.Add(await Task.Run(() =>
+                using var bitmap = await Task.Run(() =>
                 {
                     using var image = new MagickImage(png);
-                    return RecognizeImageAsync(engine, image, ctx.Token);
-                }, ctx.Token));
+                    return ToBitmap(image);
+                }, ctx.Token);
+                pages.Add(await RecognizeBitmapAsync(engine, bitmap, ctx.Token));
             }
             ctx.Report((i + 1) / (double)layers.Count);
         }
-        return string.Join("\n\n", pages.Where(p => p.Length > 0));
+        // Blank pages (no text layer and nothing recognized) are skipped; the rest are joined by exactly one blank line.
+        return string.Join("\n\n", pages.Select(p => p.Trim()).Where(p => p.Length > 0));
     }
 
-    static async Task<string> RecognizeImageAsync(OcrEngine engine, MagickImage image, CancellationToken ct)
+    internal static bool UseTextLayer(string layerText) => layerText.Count(c => !char.IsWhiteSpace(c)) >= MinTextLayerChars;
+
+    /// <summary>The text with Windows line endings (CRLF), whatever line endings it had.</summary>
+    public static string WindowsNewlines(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", "\r\n");
+
+    static async Task<string> RecognizeBitmapAsync(OcrEngine engine, SoftwareBitmap bitmap, CancellationToken ct)
+    {
+        var result = await engine.RecognizeAsync(bitmap).AsTask(ct);
+        return string.Join("\n", result.Lines.Select(l => JoinWords(l.Words.Select(w => w.Text))));
+    }
+
+    /// <summary>Synchronous: scales the image to the engine's limit and copies its pixels into a Bgra8 bitmap the caller disposes.</summary>
+    static SoftwareBitmap ToBitmap(MagickImage image)
     {
         var max = (int)OcrEngine.MaxImageDimension;
         if (Math.Max(image.Width, image.Height) > max)
@@ -138,10 +169,8 @@ public static class OcrService
         var bgra = image.GetPixels().ToByteArray(PixelMapping.BGRA) ?? throw new LimeException("이미지를 읽을 수 없습니다.");
         using var writer = new DataWriter();
         writer.WriteBytes(bgra);
-        using var bitmap = SoftwareBitmap.CreateCopyFromBuffer(writer.DetachBuffer(), BitmapPixelFormat.Bgra8,
+        return SoftwareBitmap.CreateCopyFromBuffer(writer.DetachBuffer(), BitmapPixelFormat.Bgra8,
             (int)image.Width, (int)image.Height, BitmapAlphaMode.Premultiplied);
-        var result = await engine.RecognizeAsync(bitmap).AsTask(ct);
-        return string.Join("\n", result.Lines.Select(l => JoinWords(l.Words.Select(w => w.Text))));
     }
 
     /// <summary>Words with a space between them, except between two Han/kana characters (Chinese and Japanese are written without spaces).</summary>

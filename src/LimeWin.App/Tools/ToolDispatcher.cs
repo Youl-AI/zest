@@ -77,6 +77,7 @@ public static class ToolDispatcher
                 results.Add((files[i], await OcrService.RecognizeAsync(files[i], each)));
             }
             var text = OcrService.Combine(results);
+            ctx.Token.ThrowIfCancellationRequested(); // cancelled just after the last file: no window
             await dispatcher.InvokeAsync(() => ShowText(files, text, at));
             return (IReadOnlyList<string>)[];
         });
@@ -88,7 +89,7 @@ public static class ToolDispatcher
         if (text.Length > 0)
         {
             var data = new DataObject();
-            data.SetText(text);
+            data.SetText(OcrService.WindowsNewlines(text));
             copied = ActionRunner.TrySetClipboard(data);
         }
         var window = new TextResultWindow(files, text, copied,

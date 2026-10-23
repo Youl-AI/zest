@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using LimeWin.App.Actions;
 using LimeWin.Core.Output;
+using LimeWin.Core.Tools;
 using Wpf.Ui.Controls;
 
 namespace LimeWin.App.Tools;
@@ -46,7 +47,7 @@ public partial class TextResultWindow : FluentWindow
     void Copy()
     {
         var data = new DataObject();
-        data.SetText(ResultBox.Text);
+        data.SetText(OcrService.WindowsNewlines(ResultBox.Text));
         StatusText.Text = ActionRunner.TrySetClipboard(data) ? "클립보드에 복사했습니다." : ActionRunner.ClipboardBusyMessage;
     }
 }

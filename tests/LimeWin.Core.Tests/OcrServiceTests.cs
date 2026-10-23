@@ -124,12 +124,78 @@ public class OcrServiceTests : IDisposable
         var source = Path.Combine(Dir, "스캔.png");
         File.WriteAllBytes(source, [1]);
 
-        var first = await OcrService.SaveTextAsync(source, "안녕하세요", Ctx);
+        var first = await OcrService.SaveTextAsync(source, "안녕하세요\n둘째 줄", Ctx);
         var second = await OcrService.SaveTextAsync(source, "again", Ctx);
 
         Assert.Equal(Path.Combine(Dir, "스캔 (text).txt"), first);
         Assert.Equal(Path.Combine(Dir, "스캔 (text) 2.txt"), second);
-        Assert.Equal([.. System.Text.Encoding.UTF8.GetBytes("안녕하세요")], File.ReadAllBytes(first));
+        Assert.Equal([.. System.Text.Encoding.UTF8.GetBytes("안녕하세요\r\n둘째 줄")], File.ReadAllBytes(first));
+    }
+
+    sealed class Recorder(Action<double>? onReport = null) : IProgress<double>
+    {
+        public List<double> Values { get; } = [];
+        public void Report(double value)
+        {
+            Values.Add(value);
+            onReport?.Invoke(value);
+        }
+    }
+
+    [Fact]
+    public async Task Pdf_ReportsProgressPerPage()
+    {
+        RequireOcr();
+        var pdf = FixtureFactory.Pdf(Dir, "three.pdf", 3);
+        var progress = new Recorder();
+
+        await OcrService.RecognizeAsync(pdf, new OperationContext(CancellationToken.None, progress));
+
+        Assert.Equal([1 / 3.0, 2 / 3.0, 1.0], progress.Values);
+    }
+
+    [Fact]
+    public async Task Pdf_CancelledAfterFirstPage_Throws_AndStopsReporting()
+    {
+        RequireOcr();
+        var pdf = FixtureFactory.Pdf(Dir, "three.pdf", 3);
+        using var cts = new CancellationTokenSource();
+        var progress = new Recorder(_ => cts.Cancel());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => OcrService.RecognizeAsync(pdf, new OperationContext(cts.Token, progress)));
+
+        Assert.Equal([1 / 3.0], progress.Values);
+    }
+
+    [Fact]
+    public void TextLayerThreshold_Is20NonWhitespaceCharacters()
+    {
+        Assert.False(OcrService.UseTextLayer(new string('가', 19)));
+        Assert.True(OcrService.UseTextLayer(new string('가', 20)));
+        Assert.False(OcrService.UseTextLayer(new string('가', 19) + " \n\t "));
+        Assert.True(OcrService.UseTextLayer("가 나 다 라 마 바 사 아 자 차 카 타 파 하 거 너 더 러 머 버"));
+    }
+
+    [Fact]
+    public async Task Pdf_TextLayerOfExactly20Chars_IsUsedAsIs()
+    {
+        RequireOcr();
+        var pdf = FixtureFactory.TextPdf(Dir, "twenty.pdf", "abcdefghij klmnopqrst");
+
+        Assert.Equal("abcdefghij klmnopqrst", await OcrService.RecognizeAsync(pdf, Ctx));
+    }
+
+    [Fact]
+    public void WindowsNewlines_NormalizesEveryStyleToCrLf()
+    {
+        Assert.Equal("a\r\nb\r\nc\r\nd", OcrService.WindowsNewlines("a\nb\r\nc\rd"));
+    }
+
+    [Fact]
+    public void IsAvailable_MatchesInstalledLanguages()
+    {
+        Assert.Equal(OcrService.InstalledLanguages.Count > 0, OcrService.IsAvailable);
     }
 
     [Fact]

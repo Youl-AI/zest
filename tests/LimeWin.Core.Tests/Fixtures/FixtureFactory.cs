@@ -412,10 +412,6 @@ internal static class FixtureFactory
         return true;
     }
 
-    /// <summary>
-    /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
-    /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
-    /// </summary>
     /// <summary>A white PNG with <paramref name="lines"/> drawn in Malgun Gothic (Magick), for OCR tests.</summary>
     public static string TextImage(string dir, string name, int pointSize = 48, params string[] lines)
     {
@@ -445,6 +441,10 @@ internal static class FixtureFactory
         return path;
     }
 
+    /// <summary>
+    /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
+    /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
+    /// </summary>
     public static string Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null)
     {
         // The core PDFsharp build has no Windows font access; resolve the one font we need ourselves.
