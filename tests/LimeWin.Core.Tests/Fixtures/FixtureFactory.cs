@@ -416,6 +416,35 @@ internal static class FixtureFactory
     /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
     /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
     /// </summary>
+    /// <summary>A white PNG with <paramref name="lines"/> drawn in Malgun Gothic (Magick), for OCR tests.</summary>
+    public static string TextImage(string dir, string name, int pointSize = 48, params string[] lines)
+    {
+        var path = Path.Combine(dir, name);
+        var font = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", "malgun.ttf");
+        using var image = new MagickImage(MagickColors.White, (uint)(pointSize * 24), (uint)(pointSize * 2 * (lines.Length + 1)));
+        new ImageMagick.Drawing.Drawables()
+            .Font(font)
+            .FontPointSize(pointSize)
+            .FillColor(MagickColors.Black)
+            .Text(pointSize, pointSize * 2, string.Join("\n", lines))
+            .Draw(image);
+        image.Write(path, MagickFormat.Png);
+        return path;
+    }
+
+    /// <summary>A one-page PDF whose text layer holds <paramref name="text"/> (PDFsharp, Malgun Gothic).</summary>
+    public static string TextPdf(string dir, string name, string text)
+    {
+        GlobalFontSettings.FontResolver ??= new MalgunFontResolver();
+        var path = Path.Combine(dir, name);
+        using var doc = new PdfDocument();
+        var font = new XFont("Malgun Gothic", 24, XFontStyleEx.Regular, new XPdfFontOptions(PdfFontEncoding.Unicode));
+        using (var gfx = XGraphics.FromPdfPage(doc.AddPage()))
+            gfx.DrawString(text, font, XBrushes.Black, new XPoint(72, 100));
+        doc.Save(path);
+        return path;
+    }
+
     public static string Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null)
     {
         // The core PDFsharp build has no Windows font access; resolve the one font we need ourselves.

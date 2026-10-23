@@ -73,12 +73,20 @@ public static class ActionRunner
     /// </summary>
     static void SetClipboard(DataObject data, string title)
     {
+        if (!TrySetClipboard(data)) FailedCard(title, ClipboardBusyMessage);
+    }
+
+    internal const string ClipboardBusyMessage = "클립보드를 쓸 수 없습니다. 다른 프로그램이 사용 중입니다.";
+
+    /// <summary>Puts <paramref name="data"/> on the clipboard (with the retry above); false when it stayed busy. UI thread only.</summary>
+    internal static bool TrySetClipboard(DataObject data)
+    {
         for (var attempt = 1; ; attempt++)
         {
             try
             {
                 Clipboard.SetDataObject(data, copy: true);
-                return;
+                return true;
             }
             catch (ExternalException) when (attempt < ClipboardAttempts)
             {
@@ -86,8 +94,7 @@ public static class ActionRunner
             }
             catch (ExternalException)
             {
-                FailedCard(title, "클립보드를 쓸 수 없습니다. 다른 프로그램이 사용 중입니다.");
-                return;
+                return false;
             }
         }
     }

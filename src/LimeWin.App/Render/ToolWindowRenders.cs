@@ -51,6 +51,13 @@ internal static class ToolWindows
         return Frame(window, dark);
     }
 
+    public static FrameworkElement TextResult(bool dark)
+    {
+        const string text = "── 회의록 스캔.png ──\n오늘 회의에서 논의한 내용을 정리합니다.\n1. 다음 분기 일정: 2026년 11월 3일\n2. Quarterly report 검토 담당: 김하늘\n\n── 견적서.pdf ──\n견적 번호 2026-1022\n합계 금액 1,250,000원";
+        var window = new TextResultWindow([@"C:\Users\me\Documents\회의록 스캔.png", @"C:\Users\me\Documents\견적서.pdf"], text, true, _ => { });
+        return Frame(window, dark);
+    }
+
     /// <summary>A shelf holding five sample items (two selected) with Explorer's icons for their types, on a plain desktop colour.</summary>
     public static FrameworkElement Shelf(bool dark, WheelPalette palette)
     {
@@ -88,6 +95,7 @@ internal static class ToolWindows
             ClipToBounds = true,
             Child = content,
         };
+        if (window.SizeToContent == SizeToContent.Manual) surface.Height = window.Height; // a fixed-size window, not a sized-to-content one
         surface.SetResourceReference(Border.BackgroundProperty, "ApplicationBackgroundBrush");
         surface.SetResourceReference(Border.BorderBrushProperty, "SurfaceStrokeColorDefaultBrush");
         window.Close();

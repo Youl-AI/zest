@@ -16,7 +16,7 @@ public static class CapabilityDetector
             Ffmpeg: ffmpeg is not null,
             HeicWrite: CapabilityProbe.CanWrite("heic"),
             AvifWrite: CapabilityProbe.CanWrite("avif"),
-            Ocr: false,
+            Ocr: Tools.OcrService.IsAvailable,
             BackgroundRemoval: false,
             UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg));
     }

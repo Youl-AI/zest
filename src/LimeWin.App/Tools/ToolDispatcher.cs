@@ -3,8 +3,10 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using LimeWin.App.Actions;
 using LimeWin.Core;
 using LimeWin.Core.Catalog;
+using LimeWin.Core.Jobs;
 using LimeWin.Core.Tools;
 
 namespace LimeWin.App.Tools;
@@ -48,13 +50,56 @@ public static class ToolDispatcher
                     Run($"{Name(pdf)} 나누기", ctx => PdfTools.SplitAsync(pdf, ctx));
                 break;
 
-            // Not built yet: Task 15 fills CopyText (OCR), Task 16 fills RemoveBackground.
             case LimeTool.CopyText:
+                CopyText(files, at);
+                break;
+
+            // Not built yet: Task 16 fills RemoveBackground.
             case LimeTool.RemoveBackground:
             default:
-                Services.Jobs.Run(tool == LimeTool.CopyText ? "글자 복사" : "배경 제거", _ => throw new LimeException("준비 중입니다."));
+                Services.Jobs.Run("배경 제거", _ => throw new LimeException("준비 중입니다."));
                 break;
         }
+    }
+
+    /// <summary>Reads every file in one job ("글자 인식 중"), then copies the text and opens the result window on the UI thread.</summary>
+    static void CopyText(IReadOnlyList<string> files, Native.POINT at)
+    {
+        var dispatcher = Application.Current.Dispatcher;
+        Services.Jobs.Run($"{Several(files, "개")} 글자 인식 중", async ctx =>
+        {
+            var results = new List<(string Path, string Text)>();
+            for (var i = 0; i < files.Count; i++)
+            {
+                ctx.Token.ThrowIfCancellationRequested();
+                var (done, count) = (i, files.Count);
+                var each = new OperationContext(ctx.Token, new Relay(f => ctx.Report((done + f) / count)));
+                results.Add((files[i], await OcrService.RecognizeAsync(files[i], each)));
+            }
+            var text = OcrService.Combine(results);
+            await dispatcher.InvokeAsync(() => ShowText(files, text, at));
+            return (IReadOnlyList<string>)[];
+        });
+    }
+
+    static void ShowText(IReadOnlyList<string> files, string text, Native.POINT at)
+    {
+        var copied = false;
+        if (text.Length > 0)
+        {
+            var data = new DataObject();
+            data.SetText(text);
+            copied = ActionRunner.TrySetClipboard(data);
+        }
+        var window = new TextResultWindow(files, text, copied,
+            edited => Run($"{Name(files[0])} 텍스트 저장", ctx => OcrService.SaveTextAsync(files[0], edited, ctx)));
+        Present(window, at);
+    }
+
+    /// <summary>Progress reported on the calling thread (the job's own progress already marshals to the UI).</summary>
+    sealed class Relay(Action<double> report) : IProgress<double>
+    {
+        public void Report(double value) => report(value);
     }
 
     static void Compress(IReadOnlyList<string> files, CompressOptions options)

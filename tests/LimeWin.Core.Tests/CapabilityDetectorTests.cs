@@ -12,7 +12,7 @@ public class CapabilityDetectorTests
 
         Assert.Equal(CapabilityProbe.CanWrite("heic"), caps.HeicWrite);
         Assert.Equal(CapabilityProbe.CanWrite("avif"), caps.AvifWrite);
-        Assert.False(caps.Ocr);
+        Assert.Equal(LimeWin.Core.Tools.OcrService.IsAvailable, caps.Ocr);
         Assert.False(caps.BackgroundRemoval);
     }
 
