@@ -63,13 +63,14 @@ public static class ToolDispatcher
 
     /// <summary>
     /// Checks the model (hashing it the first time takes about a second, so off the UI thread). Ready: starts the jobs.
-    /// Missing (or an accelerator still to fetch): opens the download window, or adds this drop to the one already open.
+    /// Missing: opens the download window, or adds this drop to the one already open. Accelerators never prompt: they are
+    /// fetched (once per process) inside the "모델 불러오는 중" job, and without them the CPU is used.
     /// </summary>
     static async Task RemoveBackgroundAsync(IReadOnlyList<string> files, Native.POINT at)
     {
         try
         {
-            if (await Task.Run(() => ModelStore.IsReady && !BackgroundRemover.AcceleratorsMissing))
+            if (await Task.Run(() => ModelStore.IsReady))
             {
                 RemoveBackground(files);
                 return;
@@ -92,7 +93,10 @@ public static class ToolDispatcher
         }
     }
 
-    /// <summary>One "배경 제거 중" card per image (they take turns on the one model session). The first time, a "모델 불러오는 중" card loads the session first.</summary>
+    /// <summary>
+    /// One "배경 제거 중" card per image (they take turns on the one model session). The first time, a "모델 불러오는 중" card
+    /// loads the session first (including the process's single attempt to fetch a Windows ML accelerator).
+    /// </summary>
     static void RemoveBackground(IReadOnlyList<string> files)
     {
         if (BackgroundRemover.IsLoaded)

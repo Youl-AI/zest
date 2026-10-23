@@ -18,7 +18,6 @@ public static class CapabilityDetector
             AvifWrite: CapabilityProbe.CanWrite("avif"),
             Ocr: Tools.OcrService.IsAvailable,
             BackgroundRemoval: Tools.BackgroundRemover.IsAvailable, // the model is downloaded on first use
-
             UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg));
     }
 

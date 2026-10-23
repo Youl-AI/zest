@@ -129,6 +129,73 @@ public class ModelStoreTests : IDisposable
     }
 
     [Fact]
+    public void IsReady_NoModel_RemovesLeftoverTempFile()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
+        var model = File_();
+        File.WriteAllBytes(model.TempPath, Payload[..1000]); // a download that was killed half-way
+
+        Assert.False(model.IsReady);
+        Assert.False(File.Exists(model.TempPath));
+    }
+
+    [Fact]
+    public async Task Download_RemovesLeftoverTempFile_EvenWhenTheServerFails()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(ModelPath)!);
+        var model = File_();
+        File.WriteAllBytes(model.TempPath, Payload[..1000]);
+        using var http = new HttpClient(new Serve([], HttpStatusCode.NotFound));
+
+        await Assert.ThrowsAsync<LimeException>(() => model.DownloadAsync(http, null, CancellationToken.None));
+
+        Assert.False(File.Exists(model.TempPath));
+    }
+
+    [Fact]
+    public async Task Download_TempFileCannotBeCreated_SaysDisk()
+    {
+        var model = File_();
+        Directory.CreateDirectory(model.TempPath); // a folder where the temp file should go: the file cannot be created
+        using var http = new HttpClient(new Serve(Payload));
+
+        var ex = await Assert.ThrowsAsync<LimeException>(() => model.DownloadAsync(http, null, CancellationToken.None));
+
+        Assert.Equal("모델을 저장하지 못했습니다. 디스크 공간을 확인하세요.", ex.Message);
+        Assert.False(File.Exists(ModelPath));
+    }
+
+    [Fact]
+    public async Task Download_NotEnoughFreeSpace_RefusedBeforeAnyRequest()
+    {
+        var asked = new List<string>();
+        var model = new ModelFile(ModelPath, Payload.Length, PayloadHash, Source, folder =>
+        {
+            asked.Add(folder);
+            return Payload.Length; // less than size + 10 %
+        });
+        var handler = new Serve(Payload);
+        using var http = new HttpClient(handler);
+
+        var ex = await Assert.ThrowsAsync<LimeException>(() => model.DownloadAsync(http, null, CancellationToken.None));
+
+        Assert.StartsWith("디스크 공간이 부족합니다.", ex.Message);
+        Assert.Equal([Path.GetDirectoryName(ModelPath)!], asked);
+        Assert.Equal(0, handler.Requests);
+    }
+
+    [Fact]
+    public async Task Download_EnoughFreeSpace_Proceeds()
+    {
+        var model = new ModelFile(ModelPath, Payload.Length, PayloadHash, Source, _ => Payload.Length * 2L);
+        using var http = new HttpClient(new Serve(Payload));
+
+        await model.DownloadAsync(http, null, CancellationToken.None);
+
+        Assert.True(model.IsReady);
+    }
+
+    [Fact]
     public async Task Download_Cancelled_ThrowsCancelled_NoFileLeft()
     {
         using var cts = new CancellationTokenSource();
@@ -153,8 +220,11 @@ public class ModelStoreTests : IDisposable
     /// <summary>Serves <paramref name="body"/>; with <paramref name="stallAfter"/>, sends that many bytes and then hangs until cancelled.</summary>
     sealed class Serve(byte[] body, HttpStatusCode status = HttpStatusCode.OK, int? stallAfter = null) : HttpMessageHandler
     {
+        public int Requests { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            Requests++;
             Stream stream = stallAfter is { } n ? new StallingStream(body[..n]) : new MemoryStream(body);
             var content = new StreamContent(stream);
             content.Headers.ContentLength = body.Length;

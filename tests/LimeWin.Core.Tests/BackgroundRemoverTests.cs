@@ -140,8 +140,43 @@ public class BackgroundRemoverTests : IDisposable
     }
 
     [Fact]
-    public void IsAvailable_WindowsMlLoadsHere()
+    public void IsAvailable_WindowsMlShipsWithTheTestHost()
     {
         Assert.True(BackgroundRemover.IsAvailable);
+    }
+
+    [Fact]
+    public void RuntimePresent_LooksNextToTheAppAndInItsRuntimesFolder()
+    {
+        Assert.False(BackgroundRemover.RuntimePresent(Dir));
+
+        var native = Path.Combine(Dir, "runtimes", "win-x64", "native");
+        Directory.CreateDirectory(native);
+        File.WriteAllBytes(Path.Combine(native, "onnxruntime.dll"), []);
+        Assert.True(BackgroundRemover.RuntimePresent(Dir)); // RID-less build (tests run as x64)
+
+        var flat = Path.Combine(Dir, "publish");
+        Directory.CreateDirectory(flat);
+        Assert.False(BackgroundRemover.RuntimePresent(flat));
+        File.WriteAllBytes(Path.Combine(flat, "onnxruntime.dll"), []);
+        Assert.True(BackgroundRemover.RuntimePresent(flat)); // RID-specific publish
+    }
+
+    [Fact]
+    public async Task Remove_CancelledDuringInference_StopsTheRunAndLeavesNoOutput()
+    {
+        Assert.SkipUnless(ModelStore.IsReady, "모델 없음");
+        await BackgroundRemover.LoadAsync(Ctx); // so the cancel lands in the model run, not in the load
+        var src = RedCircle("취소.png");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1.5)); // a CPU run takes ~7 s here
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => BackgroundRemover.RemoveAsync(src, new OperationContext(cts.Token)));
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"took {watch.Elapsed}"); // RunOptions.Terminate, not the end of the run
+        Assert.Single(Directory.GetFiles(Dir));
+
+        var after = await BackgroundRemover.RemoveAsync(src, Ctx); // the session still works after a terminated run
+        Assert.True(File.Exists(after));
     }
 }

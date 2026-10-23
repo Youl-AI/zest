@@ -7,9 +7,10 @@ using Wpf.Ui.Controls;
 namespace LimeWin.App.Tools;
 
 /// <summary>
-/// Asks before the first background removal downloads the model (~973 MB), then gets the Windows ML accelerators and the
-/// model with progress. 취소 (or closing the window) stops the download and leaves nothing behind. On success the window
-/// closes and runs the queued work (one action per drop that arrived while it was open).
+/// Asks before the first background removal downloads the model (~973 MB), then downloads it with progress. 취소 (or
+/// closing the window) stops the download and leaves nothing behind; any failure puts the window back in a state where
+/// 다시 시도 works. On success the window closes and runs the queued work (one action per drop that arrived while it was
+/// open). Windows ML accelerators are not handled here (see <c>BackgroundRemover.LoadAsync</c>).
 /// </summary>
 public partial class ModelDownloadWindow : FluentWindow
 {
@@ -42,11 +43,7 @@ public partial class ModelDownloadWindow : FluentWindow
         ShowRunning();
         try
         {
-            PhaseText.Text = "가속 장치 준비 중…";
-            await BackgroundRemover.PrepareAcceleratorsAsync(new Progress<double>(SetBar), cts.Token);
-
             PhaseText.Text = "모델 확인 중…";
-            LoadBar.IsIndeterminate = true;
             if (!await Task.Run(() => ModelStore.IsReady, cts.Token))
             {
                 ShowModelProgress(0);
@@ -54,7 +51,7 @@ public partial class ModelDownloadWindow : FluentWindow
                 await Task.Run(() => ModelStore.DownloadAsync(progress, cts.Token), cts.Token);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             return; // the window is closing
         }
