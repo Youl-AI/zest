@@ -2,12 +2,12 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using LimeWin.App.Actions;
 using LimeWin.App.Input;
 using LimeWin.App.Render;
 using LimeWin.App.Tools;
 using LimeWin.App.Tray;
 using LimeWin.App.Wheel;
-using LimeWin.Core;
 using LimeWin.Core.Catalog;
 using Microsoft.Win32;
 using Wpf.Ui.Appearance;
@@ -167,9 +167,8 @@ public partial class App : Application
             case ToolOp tool:
                 ToolDispatcher.Handle(tool.Tool, files, at);
                 break;
-            default:
-                // Actions arrive in a later task.
-                Services.Jobs.Run(item.Label, _ => throw new LimeException("준비 중입니다."));
+            case ActionOp action:
+                ActionRunner.Run(action.Action, files, at);
                 break;
         }
     }

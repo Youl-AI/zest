@@ -62,6 +62,7 @@ public static class RenderHarness
                 Save(ToolWindows.Compress(dark), folder, $"compress-options{suffix}.png", log);
                 Save(ToolWindows.Crop(dark, palette), folder, $"crop{suffix}.png", log);
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
+                Save(ToolWindows.Shelf(dark, palette), folder, $"shelf{suffix}.png", log);
             }
 
             Save(TraySheet(), folder, "tray-icons.png", log);

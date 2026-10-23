@@ -109,6 +109,31 @@ internal static class Native
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
     }
 
+    /// <summary>Tool window (no Alt+Tab entry) that still takes activation when clicked, so it can receive keys.</summary>
+    public static void MakeToolWindow(Window w)
+    {
+        var hwnd = Handle(w);
+        var ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64() | WS_EX_TOOLWINDOW;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
+    }
+
+    /// <summary>
+    /// Centres a window on a physical point, clamped inside the work area of that point's monitor, without activating it
+    /// or changing its z-order. Call it before the window is shown: the first move lets WPF rescale for that monitor's DPI
+    /// (PerMonitorV2), the second places it with the final size.
+    /// </summary>
+    public static void PlaceAround(Window w, int x, int y)
+    {
+        var work = MonitorAt(x, y).Work;
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var r = WindowRect(w);
+            var left = Math.Clamp(x - r.Width / 2, work.Left, Math.Max(work.Left, work.Right - r.Width));
+            var top = Math.Clamp(y - r.Height / 2, work.Top, Math.Max(work.Top, work.Bottom - r.Height));
+            SetWindowPos(Handle(w), IntPtr.Zero, left, top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+
     /// <summary>
     /// Moves a SizeToContent window so its centre sits at a physical point, clamped inside that point's monitor.
     /// Moving first lets WPF rescale for the target monitor's DPI (PerMonitorV2); the second move uses the final size.

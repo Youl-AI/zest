@@ -1,0 +1,142 @@
+<Window x:Class="LimeWin.App.Shelf.ShelfWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wheel="clr-namespace:LimeWin.App.Wheel"
+        Title="Lime 선반" Width="304" SizeToContent="Height" MinWidth="0" MinHeight="0"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        ShowInTaskbar="False" ShowActivated="False" Topmost="True" WindowStartupLocation="Manual" AllowDrop="True"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Grayscale">
+    <Window.Resources>
+        <ResourceDictionary Source="/LimeWin.App;component/Tools/ToolStyles.xaml" />
+    </Window.Resources>
+    <!-- 12 px on the sides and 16 below leave room for the shadow inside the transparent window; the tab sticks out above the card. -->
+    <Grid x:Name="Root" Margin="12,0,12,16">
+        <Border x:Name="Card" Margin="0,5,0,0" CornerRadius="8" BorderThickness="1"
+                Background="{DynamicResource ApplicationBackgroundBrush}"
+                BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Opacity="0.16" Color="Black" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Header: drag to move the shelf. -->
+                <Grid x:Name="Header" Background="Transparent" Cursor="SizeAll">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- The original's pile: the first item's icon on a tile, with a second tile peeking out when there are more. -->
+                    <Grid Margin="16,10,0,8" Width="36" Height="36" VerticalAlignment="Center">
+                        <Border x:Name="PileBack" Width="32" Height="32" CornerRadius="6" Margin="4,0,0,4" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Background="{DynamicResource ApplicationBackgroundBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                        <Border Width="32" Height="32" CornerRadius="6" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                Background="{DynamicResource ApplicationBackgroundBrush}" BorderThickness="1"
+                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                            <Image x:Name="PileIcon" Width="16" Height="16" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Column="1" Margin="12,10,8,8" VerticalAlignment="Center">
+                        <TextBlock x:Name="TitleText" FontFamily="{x:Static wheel:WheelStyle.TextFont}" FontSize="13" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock x:Name="HintText" Margin="0,2,0,0" Text="끌어서 꺼내기" FontSize="12" Style="{StaticResource Detail}" />
+                    </StackPanel>
+                    <Button x:Name="CloseButton" Grid.Column="2" Width="28" Height="28" Margin="0,0,8,0" VerticalAlignment="Center"
+                            Cursor="Arrow" ToolTip="선반 닫기 (파일은 그대로 있습니다)" Focusable="False">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Disc" CornerRadius="14" Background="Transparent">
+                                    <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons" FontSize="10"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Disc" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Disc" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
+
+                <Border Grid.Row="1" Style="{StaticResource Divider}" />
+
+                <ListBox x:Name="List" Grid.Row="2" Margin="4" Background="Transparent" BorderThickness="0" MaxHeight="320"
+                         SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <!-- Same row as the order window: subtle fill on hover and selection, a short pill (lime here) marks a selected row. -->
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="12,0,8,0" />
+                            <Setter Property="Margin" Value="0,1" />
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Setter Property="ToolTip" Value="{Binding Path}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Row" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                            <Grid>
+                                                <Rectangle x:Name="Pill" Width="3" Height="16" RadiusX="1.5" RadiusY="1.5" Margin="-10,0,0,0"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
+                                                           Fill="{DynamicResource ShelfAccentBrush}" />
+                                                <ContentPresenter />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                                <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid x:Name="Line" Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Image Source="{Binding Icon}" Width="16" Height="16" VerticalAlignment="Center"
+                                       RenderOptions.BitmapScalingMode="HighQuality" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0" Text="{Binding Name}" Style="{StaticResource Number}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <!-- Gone from where it was (moved or deleted elsewhere): dimmed, and left out of drags. -->
+                                <DataTrigger Binding="{Binding Missing}" Value="True">
+                                    <Setter TargetName="Line" Property="Opacity" Value="0.4" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <!-- Lime outline while files are dragged over the shelf (an overlay, so the layout never shifts). -->
+        <Border x:Name="DropRing" Margin="0,5,0,0" CornerRadius="8" BorderThickness="1.5" IsHitTestVisible="False"
+                BorderBrush="{DynamicResource ShelfAccentBrush}" Visibility="Collapsed" />
+
+        <!-- Lime grip tab centred on the card's top edge, like the original. -->
+        <Border x:Name="Tab" Width="34" Height="7" CornerRadius="3.5" VerticalAlignment="Top" HorizontalAlignment="Center"
+                IsHitTestVisible="False" Background="{DynamicResource ShelfAccentBrush}"
+                BorderThickness="0.5" BorderBrush="#59FFFFFF" />
+    </Grid>
+</Window>

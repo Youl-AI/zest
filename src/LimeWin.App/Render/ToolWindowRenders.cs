@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using LimeWin.App.Shelf;
 using LimeWin.App.Tools;
 using LimeWin.App.Wheel;
 using LimeWin.Core.Tools;
@@ -48,6 +49,28 @@ internal static class ToolWindows
         }
         var window = new OrderWindow(OrderMode.ImagesToPdf, items, _ => { });
         return Frame(window, dark);
+    }
+
+    /// <summary>A shelf holding five sample items (two selected) with Explorer's icons for their types, on a plain desktop colour.</summary>
+    public static FrameworkElement Shelf(bool dark, WheelPalette palette)
+    {
+        (string Name, bool Folder)[] samples =
+            [("여행 사진", true), ("제주 바다.jpg", false), ("회의록 2026-10.docx", false), ("견적서.pdf", false), ("bgm.mp3", false)];
+        var items = samples.Select(s => new ShelfItem($@"C:\Users\me\Desktop\{s.Name}", ShellIcon.ForName(s.Name, s.Folder), missing: false));
+        var window = new ShelfWindow(items, palette);
+        window.Select(1, 2);
+        var content = (FrameworkElement)window.Content;
+        window.Content = null;
+        content.Resources.MergedDictionaries.Add(window.Resources); // lifted content keeps the window's styles and accent
+        RenderHarness.AsOnHighDpiScreen(content);
+        content.Width = window.Width;
+        window.Close();
+        return new Border
+        {
+            Padding = new Thickness(24, 24, 24, 8),
+            Background = new SolidColorBrush(dark ? Color.FromRgb(0x2B, 0x2B, 0x2B) : Color.FromRgb(0xDD, 0xE3, 0xE8)),
+            Child = content,
+        };
     }
 
     static FrameworkElement Frame(FluentWindow window, bool dark)
