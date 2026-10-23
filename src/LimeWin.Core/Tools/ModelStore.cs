@@ -5,22 +5,25 @@ using System.Security.Cryptography;
 namespace LimeWin.Core.Tools;
 
 /// <summary>
-/// The background-removal model (BiRefNet general, ONNX). It is not shipped with the app: the first use downloads it to
-/// <c>%LOCALAPPDATA%\LimeWin\models</c>, and it counts as present only when its size and SHA-256 match.
+/// The background-removal model (BiRefNet matting checkpoint, ONNX). It is not shipped with the app: the first use downloads
+/// it to <c>%LOCALAPPDATA%\LimeWin\models</c>, and it counts as present only when its size and SHA-256 match.
 /// </summary>
 public static class ModelStore
 {
-    public const string FileName = "BiRefNet-general-epoch_244.onnx";
-    public const long ExpectedBytes = 972_666_916;
+    public const string FileName = "BiRefNet-matting-epoch_100.onnx";
+    public const long ExpectedBytes = 972_667_742;
 
     /// <summary>Computed from the release asset downloaded on 2026-10-23 (GitHub publishes no digest for it).</summary>
-    public const string Sha256 = "58f621f00f5d756097615970a88a791584600dcf7c45b18a0a6267535a1ebd3c";
+    public const string Sha256 = "6065d27c615ea27308f5b88598dd8db116eb07436c7a323ca40d13b2866c309e";
 
-    public static readonly Uri Source = new("https://github.com/ZhengPeng7/BiRefNet/releases/download/v1/BiRefNet-general-epoch_244.onnx");
+    public static readonly Uri Source = new("https://github.com/ZhengPeng7/BiRefNet/releases/download/v1/BiRefNet-matting-epoch_100.onnx");
+
+    /// <summary>Models earlier versions downloaded into the same folder; removed (by exact name) on the first check or download.</summary>
+    internal static readonly string[] ObsoleteFileNames = ["BiRefNet-general-epoch_244.onnx"];
 
     static readonly ModelFile Model = new(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LimeWin", "models", FileName),
-        ExpectedBytes, Sha256, Source);
+        ExpectedBytes, Sha256, Source, obsolete: ObsoleteFileNames);
 
     static readonly Lazy<HttpClient> Http = new(() =>
     {
@@ -41,9 +44,12 @@ public static class ModelStore
 
 /// <summary>A downloaded file pinned by size and SHA-256 (the logic behind <see cref="ModelStore"/>, testable with any path).</summary>
 /// <param name="freeSpace">Free bytes on the drive of a folder, or null when unknown (tests replace the real drive query).</param>
-internal sealed class ModelFile(string path, long bytes, string sha256, Uri source, Func<string, long?>? freeSpace = null)
+/// <param name="obsolete">File names (no folders) of replaced models in the same folder, deleted once per instance on the first check or download.</param>
+internal sealed class ModelFile(string path, long bytes, string sha256, Uri source, Func<string, long?>? freeSpace = null, IReadOnlyList<string>? obsolete = null)
 {
     readonly Func<string, long?> _freeSpace = freeSpace ?? DriveFreeSpace;
+    readonly IReadOnlyList<string> _obsolete = obsolete ?? [];
+    bool _obsoleteRemoved;
 
     internal const string NetworkMessage = "모델을 내려받지 못했습니다. 인터넷 연결을 확인하세요.";
     internal const string CorruptMessage = "내려받은 모델 파일이 올바르지 않습니다. 다시 시도하세요.";
@@ -66,10 +72,27 @@ internal sealed class ModelFile(string path, long bytes, string sha256, Uri sour
         {
             lock (_gate)
             {
+                RemoveObsolete();
                 if (Check()) return true;
                 TryDelete(TempPath);
                 return false;
             }
+        }
+    }
+
+    /// <summary>
+    /// Deletes the replaced models, once: only those exact file names, only in this model's own folder (a name containing a
+    /// folder part is ignored). Call under the lock.
+    /// </summary>
+    void RemoveObsolete()
+    {
+        if (_obsoleteRemoved) return;
+        _obsoleteRemoved = true;
+        var folder = System.IO.Path.GetDirectoryName(Path)!;
+        foreach (var name in _obsolete)
+        {
+            if (name.Length == 0 || System.IO.Path.GetFileName(name) != name || name == System.IO.Path.GetFileName(Path)) continue;
+            TryDelete(System.IO.Path.Combine(folder, name));
         }
     }
 
@@ -128,6 +151,7 @@ internal sealed class ModelFile(string path, long bytes, string sha256, Uri sour
             throw new LimeException(DiskMessage);
         }
 
+        lock (_gate) RemoveObsolete(); // frees ~1 GB before the free-space check when an older model is still there
         TryDelete(temp); // left over from a run that crashed or was killed mid-download
         CheckFreeSpace(folder);
 

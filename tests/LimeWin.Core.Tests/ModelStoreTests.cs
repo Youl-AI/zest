@@ -17,13 +17,53 @@ public class ModelStoreTests : IDisposable
     ModelFile File_() => new(ModelPath, Payload.Length, PayloadHash, Source);
 
     [Fact]
-    public void ModelPath_IsTheBiRefNetFileUnderLocalAppData()
+    public void ModelPath_IsTheBiRefNetMattingFileUnderLocalAppData()
     {
         var expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LimeWin", "models", "BiRefNet-general-epoch_244.onnx");
+            "LimeWin", "models", "BiRefNet-matting-epoch_100.onnx");
         Assert.Equal(expected, ModelStore.ModelPath);
-        Assert.Equal(972_666_916, ModelStore.ExpectedBytes);
-        Assert.Equal(64, ModelStore.Sha256.Length);
+        Assert.Equal(972_667_742, ModelStore.ExpectedBytes);
+        Assert.Equal("6065d27c615ea27308f5b88598dd8db116eb07436c7a323ca40d13b2866c309e", ModelStore.Sha256);
+        Assert.EndsWith("/BiRefNet-matting-epoch_100.onnx", ModelStore.Source.AbsoluteUri);
+        Assert.Equal(["BiRefNet-general-epoch_244.onnx"], ModelStore.ObsoleteFileNames);
+    }
+
+    [Fact]
+    public void IsReady_RemovesTheObsoleteModel_ByExactNameInItsOwnFolderOnly()
+    {
+        var folder = Path.GetDirectoryName(ModelPath)!;
+        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        var old = Path.Combine(folder, "old.onnx");
+        var similar = Path.Combine(folder, "old.onnx.bak");
+        var nested = Path.Combine(folder, "sub", "old.onnx");
+        var outside = Path.Combine(Dir, "old.onnx");
+        foreach (var f in new[] { old, similar, nested, outside }) File.WriteAllBytes(f, [1, 2, 3]);
+        var model = new ModelFile(ModelPath, Payload.Length, PayloadHash, Source, obsolete: ["old.onnx", @"..\old.onnx", "sub\\old.onnx"]);
+
+        Assert.False(model.IsReady);
+
+        Assert.False(File.Exists(old));
+        Assert.True(File.Exists(similar));
+        Assert.True(File.Exists(nested));
+        Assert.True(File.Exists(outside));
+    }
+
+    [Fact]
+    public async Task Download_RemovesTheObsoleteModel_BeforeCheckingFreeSpace()
+    {
+        var folder = Path.GetDirectoryName(ModelPath)!;
+        Directory.CreateDirectory(folder);
+        var old = Path.Combine(folder, "old.onnx");
+        File.WriteAllBytes(old, [1, 2, 3]);
+        var sawOld = true;
+        var model = new ModelFile(ModelPath, Payload.Length, PayloadHash, Source, _ => { sawOld = File.Exists(old); return null; }, obsolete: ["old.onnx"]);
+        using var http = new HttpClient(new Serve(Payload));
+
+        await model.DownloadAsync(http, null, CancellationToken.None);
+
+        Assert.False(sawOld);
+        Assert.False(File.Exists(old));
+        Assert.True(model.IsReady);
     }
 
     [Fact]
