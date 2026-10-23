@@ -9,6 +9,7 @@ using LimeWin.App.Tools;
 using LimeWin.App.Tray;
 using LimeWin.App.Wheel;
 using LimeWin.Core.Catalog;
+using LimeWin.Core.Office;
 using Microsoft.Win32;
 using Wpf.Ui.Appearance;
 
@@ -73,6 +74,12 @@ public partial class App : Application
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         Services.Start();
+        // Work folders a crashed or killed run left in %TEMP%\LimeWin; best effort, off the UI thread.
+        _ = Task.Run(() =>
+        {
+            try { OfficeWorkFolder.SweepStale(); }
+            catch (Exception) { /* nothing here may disturb startup */ }
+        });
 
         var wheel = _wheel = new WheelController(Services.Capabilities);
         wheel.ItemDropped += OnItemDropped;

@@ -17,6 +17,7 @@ public static class WordConst
 {
     public const int DoNotSaveChanges = 0; // wdDoNotSaveChanges
     public const int AlertsNone = 0;       // wdAlertsNone
+    public const int InlineShapeLinkedPicture = 4; // wdInlineShapeLinkedPicture
 
     /// <summary>A deliberately wrong open password: a protected document then fails with an error instead of a prompt.</summary>
     public const string WrongPassword = "\u0001lime";

@@ -140,6 +140,26 @@ public class WordConverterTests(WordFixture fx) : IClassFixture<WordFixture>, ID
     }
 
     [Fact]
+    public async Task HtmlSourceWithImageFolder_KeepsTheImages()
+    {
+        // A saved web page links its pictures from the sibling "<stem>_files" folder; Word reads only a private copy.
+        var src = Path.Combine(Dir, "그림.html");
+        File.WriteAllText(src, "<html><head><meta charset=\"utf-8\"></head><body><p>안녕</p><img src=\"그림_files/image001.png\"></body></html>", new System.Text.UTF8Encoding(false));
+        Fixtures.FixtureFactory.Image(Directory.CreateDirectory(Path.Combine(Dir, "그림_files")).FullName, "image001.png");
+
+        var output = Assert.Single(await Router.ConvertAsync(src, "docx", Ctx));
+
+        using var zip = ZipFile.OpenRead(output);
+        Assert.Contains(zip.Entries, e => e.FullName.StartsWith("word/media/", StringComparison.Ordinal));
+        using (var rels = new StreamReader(zip.GetEntry("word/_rels/document.xml.rels")!.Open()))
+            Assert.DoesNotContain("TargetMode=\"External\"", rels.ReadToEnd()); // not a link into the deleted work folder
+        using (var body = new StreamReader(zip.GetEntry("word/document.xml")!.Open()))
+            Assert.Single(System.Text.RegularExpressions.Regex.Matches(body.ReadToEnd(), "<pic:pic ")); // the picture once, not twice
+        Assert.Contains("안녕", ZipXmlText(output, "word/document.xml"));
+        Assert.Equal(new[] { "그림.docx", "그림.html", "그림_files" }.Order(), Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
+    }
+
+    [Fact]
     public async Task SourceAlreadyOpenInOurWord_IsNeitherClosedNorRepointed()
     {
         // Stands in for a user's document that joined our instance (double-click while our hidden Word ran):

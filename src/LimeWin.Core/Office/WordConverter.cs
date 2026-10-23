@@ -54,6 +54,7 @@ public sealed class WordConverter(OfficeHost word) : IConverter
                 await File.WriteAllTextAsync(input, MarkdownBridge.ToHtmlDocument(md, OutputNaming.Stem(source)), Utf8, ctx.Token);
             }
             else input = work.CopySource(source, Path.GetExtension(source));
+            if (from == "html") work.CopyCompanionFiles(source); // "<stem>_files" pictures, linked relatively
 
             // Word saves under the output's own (reserved) name so HTML image folders ("<stem>_files") keep matching links.
             var output = OutputNaming.ConvertOutput(source, to, ctx);
@@ -70,8 +71,10 @@ public sealed class WordConverter(OfficeHost word) : IConverter
                 _ => throw new LimeException("이 변환은 지원하지 않습니다."),
             };
 
+            // A web page's pictures open as links to the private copy, which is deleted afterwards: docx/odt embed them.
+            var embed = from == "html" && save.Format is WordFormat.Docx or WordFormat.Odt;
             ctx.Report(0.05);
-            await word.RunAsync(app => { SaveWithWord(app, input, saved, save.Format, save.Encoding); return 0; }, Timeout, ctx.Token);
+            await word.RunAsync(app => { SaveWithWord(app, input, saved, save.Format, save.Encoding, embed); return 0; }, Timeout, ctx.Token);
             ctx.Token.ThrowIfCancellationRequested();
             ctx.Report(0.9);
 
@@ -95,7 +98,7 @@ public sealed class WordConverter(OfficeHost word) : IConverter
     }
 
     /// <summary>Runs on the Office STA thread.</summary>
-    static void SaveWithWord(dynamic app, string input, string saved, int format, object encoding)
+    static void SaveWithWord(dynamic app, string input, string saved, int format, object encoding, bool embedLinkedPictures)
     {
         dynamic docs = app.Documents;
         dynamic? doc = null;
@@ -124,6 +127,7 @@ public sealed class WordConverter(OfficeHost word) : IConverter
                 try { web.Encoding = MsoConst.EncodingUtf8; }
                 finally { Marshal.FinalReleaseComObject(web); }
             }
+            if (embedLinkedPictures) EmbedLinkedPictures(doc);
             try { doc.SaveAs2(FileName: saved, FileFormat: format, Encoding: encoding); }
             catch (COMException e) { throw new LimeException($"변환 실패: {e.Message}"); }
         }
@@ -137,6 +141,47 @@ public sealed class WordConverter(OfficeHost word) : IConverter
             }
             Marshal.FinalReleaseComObject(docs);
         }
+    }
+
+    /// <summary>
+    /// Runs on the Office STA thread: replaces each linked inline picture with the same picture stored in the document, at
+    /// the same size (best effort per picture). <c>LinkFormat.BreakLink</c> has no effect on pictures of an opened web page
+    /// (measured), so the picture is inserted again from its file and the link removed.
+    /// </summary>
+    static void EmbedLinkedPictures(dynamic doc)
+    {
+        dynamic shapes = doc.InlineShapes;
+        try
+        {
+            for (int i = shapes.Count; i >= 1; i--)
+            {
+                dynamic shape = shapes.Item(i);
+                dynamic? range = null, picture = null;
+                try
+                {
+                    if ((int)shape.Type != WordConst.InlineShapeLinkedPicture) continue;
+                    dynamic link = shape.LinkFormat;
+                    string file;
+                    try { file = link.SourceFullName; }
+                    finally { Marshal.FinalReleaseComObject(link); }
+                    if (!File.Exists(file)) continue; // a missing picture stays a (broken) link, as Word showed it
+                    float width = shape.Width, height = shape.Height;
+                    range = shape.Range;
+                    picture = shapes.AddPicture(FileName: file, LinkToFile: false, SaveWithDocument: true, Range: range); // goes in before the link
+                    picture.Width = width;
+                    picture.Height = height;
+                    shape.Delete();
+                }
+                catch (COMException) { /* Word refused: this picture stays as it was */ }
+                finally
+                {
+                    if (picture is not null) Marshal.FinalReleaseComObject(picture);
+                    if (range is not null) Marshal.FinalReleaseComObject(range);
+                    Marshal.FinalReleaseComObject(shape);
+                }
+            }
+        }
+        finally { Marshal.FinalReleaseComObject(shapes); }
     }
 
     /// <summary>Copies the image folders Word wrote beside an HTML file next to the output, each into a folder created (and tracked) by us.</summary>
