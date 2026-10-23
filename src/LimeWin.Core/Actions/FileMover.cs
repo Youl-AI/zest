@@ -23,6 +23,8 @@ public static class FileMover
     {
         public Action<string, string> MoveDirectory { get; init; } = Directory.Move;
         public Action<string, string> CopyFile { get; init; } = (s, d) => File.Copy(s, d);
+        /// <summary>Whether a source and a target path are on the same drive (a volume mounted in a folder is caught later, by the move itself).</summary>
+        public Func<string, string, bool> SameVolume { get; init; } = (s, t) => SamePath(Path.GetPathRoot(s), Path.GetPathRoot(t));
     }
 
     /// <summary>Moves each item into <paramref name="destinationDir"/>. Cancellation is checked between items (and between files of a cross-volume folder copy).</summary>
@@ -53,8 +55,12 @@ public static class FileMover
                 try
                 {
                     if (isFolder) MoveFolder(source, target, ops, token);
-                    else File.Move(source, target);
+                    else MoveFile(source, target, ops);
                     moved.Add(target);
+                }
+                catch (LinkAcrossVolumesException)
+                {
+                    failures.Add($"‘{name}’은 바로가기(링크) {(isFolder ? "폴더라" : "파일이라")} 다른 드라이브로 옮길 수 없습니다.");
                 }
                 catch (SourceNotRemovedException)
                 {
@@ -87,11 +93,11 @@ public static class FileMover
     /// </summary>
     static void MoveFolder(string source, string target, Ops ops, CancellationToken token)
     {
-        if (SamePath(Path.GetPathRoot(source), Path.GetPathRoot(target)))
+        if (ops.SameVolume(source, target))
         {
             try
             {
-                ops.MoveDirectory(source, target);
+                ops.MoveDirectory(source, target); // a junction or folder symlink is moved as the link itself
                 return;
             }
             catch (IOException e) when (Win32Code(e) == ErrorNotSameDevice)
@@ -99,6 +105,9 @@ public static class FileMover
                 // A volume mounted in a folder: same drive letter, different volume.
             }
         }
+
+        // Copying through a link would copy the folder it points to and then delete that folder's files.
+        if (new DirectoryInfo(source).LinkTarget is not null) throw new LinkAcrossVolumesException();
 
         var copied = new List<Copied>();
         try
@@ -111,6 +120,16 @@ public static class FileMover
             throw;
         }
         if (!RemoveCopied(copied)) throw new SourceNotRemovedException();
+    }
+
+    /// <summary>
+    /// <see cref="File.Move"/> (Windows copies across volumes itself). A file symbolic link going to another drive is
+    /// refused: the copy would hold the linked file's contents instead of the link.
+    /// </summary>
+    static void MoveFile(string source, string target, Ops ops)
+    {
+        if (!ops.SameVolume(source, target) && new FileInfo(source).LinkTarget is not null) throw new LinkAcrossVolumesException();
+        File.Move(source, target);
     }
 
     /// <summary>One file or folder the cross-volume copy created, with the source's state when it was copied.</summary>
@@ -277,4 +296,7 @@ public static class FileMover
 
     /// <summary>The copy is complete in the destination, but part of the source was left (added, changed or undeletable).</summary>
     sealed class SourceNotRemovedException : Exception;
+
+    /// <summary>The item is a junction or symbolic link and would have to be copied through to reach another volume.</summary>
+    sealed class LinkAcrossVolumesException : Exception;
 }

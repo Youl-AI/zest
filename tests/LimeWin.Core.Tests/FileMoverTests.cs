@@ -6,7 +6,7 @@ public class FileMoverTests : IDisposable
 {
     readonly string Dir = TestFiles.TempDir();
 
-    public void Dispose() { try { Directory.Delete(Dir, true); } catch (IOException) { } }
+    public void Dispose() { try { Directory.Delete(Dir, true); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { } }
 
     string Folder(string relative) => Directory.CreateDirectory(Path.Combine(Dir, relative)).FullName;
 
@@ -306,16 +306,24 @@ public class FileMoverTests : IDisposable
         Directory.SetCreationTimeUtc(sub, stamp);
         File.SetAttributes(sub, FileAttributes.Directory | FileAttributes.Hidden | FileAttributes.ReadOnly);
 
-        var r = FileMover.Move([folder], dest, ops: new FileMover.Ops { MoveDirectory = CrossVolume });
-
-        Assert.Empty(r.Failures);
         var copied = new DirectoryInfo(Path.Combine(dest, "프로젝트", "sub"));
-        Assert.Equal(stamp, copied.LastWriteTimeUtc);
-        Assert.Equal(stamp, copied.CreationTimeUtc);
-        Assert.True(copied.Attributes.HasFlag(FileAttributes.Hidden));
-        Assert.True(copied.Attributes.HasFlag(FileAttributes.ReadOnly));
-        Assert.False(Directory.Exists(folder));
-        copied.Attributes = FileAttributes.Directory; // let Dispose clean up
+        try
+        {
+            var r = FileMover.Move([folder], dest, ops: new FileMover.Ops { MoveDirectory = CrossVolume });
+
+            Assert.Empty(r.Failures);
+            Assert.Equal(stamp, copied.LastWriteTimeUtc);
+            Assert.Equal(stamp, copied.CreationTimeUtc);
+            Assert.True(copied.Attributes.HasFlag(FileAttributes.Hidden));
+            Assert.True(copied.Attributes.HasFlag(FileAttributes.ReadOnly));
+            Assert.False(Directory.Exists(folder));
+        }
+        finally
+        {
+            // Let Dispose clean up whichever side is left.
+            foreach (var dir in new[] { sub, copied.FullName })
+                if (Directory.Exists(dir)) File.SetAttributes(dir, FileAttributes.Directory);
+        }
     }
 
     [Fact]
@@ -336,6 +344,85 @@ public class FileMoverTests : IDisposable
         Assert.True(Directory.Exists(Path.Combine(folder, "link")));
         Assert.Equal("keep", File.ReadAllText(Path.Combine(outside, "keep.txt")));
         Assert.False(Directory.Exists(Path.Combine(dest, "프로젝트")));
+    }
+
+    [Fact]
+    public void Move_JunctionAcrossVolumes_RefusedAndTargetUntouched()
+    {
+        var dest = Folder("dest");
+        var real = Folder("real");
+        Write(real, "a.txt", "a");
+        var link = Path.Combine(Folder("src"), "링크");
+        Junction(link, real);
+
+        var r = FileMover.Move([link], dest, ops: new FileMover.Ops { MoveDirectory = CrossVolume });
+
+        Assert.Empty(r.Moved);
+        Assert.Equal(["‘링크’은 바로가기(링크) 폴더라 다른 드라이브로 옮길 수 없습니다."], r.Failures);
+        Assert.Equal("a", File.ReadAllText(Path.Combine(real, "a.txt")));
+        Assert.True(Directory.Exists(link));
+        Assert.False(Directory.Exists(Path.Combine(dest, "링크")));
+    }
+
+    [Fact]
+    public void Move_JunctionOnOtherDrive_RefusedWithoutTryingToMove()
+    {
+        var dest = Folder("dest");
+        var real = Folder("real");
+        Write(real, "a.txt", "a");
+        var link = Path.Combine(Folder("src"), "링크");
+        Junction(link, real);
+        var ops = new FileMover.Ops
+        {
+            SameVolume = (_, _) => false,
+            MoveDirectory = (_, _) => throw new InvalidOperationException("must not be called"),
+        };
+
+        var r = FileMover.Move([link], dest, ops: ops);
+
+        Assert.Equal(["‘링크’은 바로가기(링크) 폴더라 다른 드라이브로 옮길 수 없습니다."], r.Failures);
+        Assert.Equal("a", File.ReadAllText(Path.Combine(real, "a.txt")));
+        Assert.True(Directory.Exists(link));
+    }
+
+    [Fact]
+    public void Move_JunctionOnSameVolume_MovesTheLinkItself()
+    {
+        var dest = Folder("dest");
+        var real = Folder("real");
+        Write(real, "a.txt", "a");
+        var link = Path.Combine(Folder("src"), "링크");
+        Junction(link, real);
+
+        var r = FileMover.Move([link], dest);
+
+        var moved = Path.Combine(dest, "링크");
+        Assert.Equal([moved], r.Moved);
+        Assert.True(new DirectoryInfo(moved).Attributes.HasFlag(FileAttributes.ReparsePoint));
+        Assert.Equal("a", File.ReadAllText(Path.Combine(real, "a.txt")));
+    }
+
+    [Fact]
+    public void Move_FileSymlinkAcrossVolumes_Refused()
+    {
+        var dest = Folder("dest");
+        var real = Write(Folder("real"), "a.txt", "a");
+        var link = Path.Combine(Folder("src"), "링크.txt");
+        try
+        {
+            File.CreateSymbolicLink(link, real);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Assert.Skip("Creating a file symbolic link needs Developer Mode or admin here.");
+        }
+
+        var r = FileMover.Move([link], dest, ops: new FileMover.Ops { SameVolume = (_, _) => false });
+
+        Assert.Equal(["‘링크.txt’은 바로가기(링크) 파일이라 다른 드라이브로 옮길 수 없습니다."], r.Failures);
+        Assert.True(File.Exists(link));
+        Assert.Equal("a", File.ReadAllText(real));
+        Assert.False(File.Exists(Path.Combine(dest, "링크.txt")));
     }
 
     [Fact]
