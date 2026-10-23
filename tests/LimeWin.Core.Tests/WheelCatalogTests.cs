@@ -12,6 +12,16 @@ public class WheelCatalogTests
     [Fact] public void Convert_UnknownExtension_Empty() => Assert.Empty(Items(["a.png", "b.xyz"], WheelMode.Convert));
     [Fact] public void Tools_OneImage_HasCrop() => Assert.Equal(new[] { "압축", "자르기", "PDF 만들기", "글자 복사", "배경 제거" }, Labels(Items(["a.png"], WheelMode.Tools)));
     [Fact] public void Tools_TwoImages_NoCrop() => Assert.DoesNotContain("자르기", Labels(Items(["a.png", "b.png"], WheelMode.Tools)));
+    [Fact]
+    public void Tools_HeicWithoutHeicWrite_HasNeitherCompressNorCrop()
+    {
+        var labels = Labels(WheelCatalog.Items(["a.heic"], WheelMode.Tools, Capabilities.All with { HeicWrite = false }));
+        Assert.DoesNotContain("압축", labels);
+        Assert.DoesNotContain("자르기", labels);
+        Assert.Contains("PDF 만들기", labels);
+    }
+
+    [Fact] public void Tools_HeicWithHeicWrite_HasCompress() => Assert.Contains("압축", Labels(Items(["a.heic"], WheelMode.Tools)));
     [Fact] public void Tools_TwoPdfs_MergeFirst() => Assert.Equal(new[] { "합치기", "나누기", "글자 복사" }, Labels(Items(["a.pdf", "b.pdf"], WheelMode.Tools)));
     [Fact] public void Tools_ImageAndPdf_Empty() => Assert.Empty(Items(["a.png", "b.pdf"], WheelMode.Tools));
     [Fact] public void Tools_WithoutOcr_HidesCopyText() => Assert.DoesNotContain("글자 복사", Labels(WheelCatalog.Items(["a.png"], WheelMode.Tools, Capabilities.All with { Ocr = false })));

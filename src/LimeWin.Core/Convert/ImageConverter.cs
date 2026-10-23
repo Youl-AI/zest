@@ -36,17 +36,7 @@ public sealed class ImageConverter : IConverter
         var from = FormatCatalog.FormatOf(source);
         var output = OutputNaming.ConvertOutput(source, to);
 
-        MagickImage image;
-        try
-        {
-            image = Load(source, from);
-            image.AutoOrient();
-        }
-        catch (MagickException)
-        {
-            throw new LimeException("이미지를 읽을 수 없습니다.");
-        }
-        using (image)
+        using (var image = LoadOriented(source, from))
         {
             ctx.Report(0.4);
             ctx.Token.ThrowIfCancellationRequested();
@@ -83,10 +73,41 @@ public sealed class ImageConverter : IConverter
         {
             throw new LimeException("원본 파일을 열 수 없습니다."); // FileNotFoundException is an IOException
         }
-        return new MagickImage(bytes, settings);
+        MagickImage? image = null;
+        try
+        {
+            image = new MagickImage(bytes, settings); // an empty byte array throws ArgumentException
+            return image;
+        }
+        catch (Exception e) when (e is MagickException or ArgumentException)
+        {
+            image?.Dispose();
+            throw new LimeException("이미지를 읽을 수 없습니다.");
+        }
     }
 
-    static void Encode(MagickImage image, string to, string output)
+    /// <summary>Loads the image and applies its EXIF orientation. The image is disposed if anything after the decode fails.</summary>
+    internal static MagickImage LoadOriented(string source, string? from)
+    {
+        var image = Load(source, from);
+        try
+        {
+            image.AutoOrient();
+            return image;
+        }
+        catch (Exception e) when (e is MagickException or ArgumentException)
+        {
+            image.Dispose();
+            throw new LimeException("이미지를 읽을 수 없습니다.");
+        }
+        catch
+        {
+            image.Dispose();
+            throw;
+        }
+    }
+
+    internal static void Encode(MagickImage image, string to, string output)
     {
         if (to is "jpg" or "bmp") image.ColorAlpha(MagickColors.White);
         if (to is "jpg" or "webp" or "heic" or "avif") image.Quality = 80;
@@ -105,7 +126,14 @@ public sealed class ImageConverter : IConverter
     internal static void AddPdfPage(PdfDocumentBuilder builder, MagickImage image)
     {
         using var png = new MemoryStream();
-        image.Write(png, MagickFormat.Png);
+        try
+        {
+            image.Write(png, MagickFormat.Png);
+        }
+        catch (MagickException)
+        {
+            throw new LimeException("이미지를 저장하지 못했습니다.");
+        }
         double w = image.Width, h = image.Height;
         var page = builder.AddPage(w, h);
         page.AddPng(png.ToArray(), new PdfRectangle(0, 0, w, h));

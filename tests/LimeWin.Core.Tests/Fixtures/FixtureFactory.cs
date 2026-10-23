@@ -105,6 +105,26 @@ internal static class FixtureFactory
         return path;
     }
 
+    /// <summary>Writes a w x h image of random noise (hard to compress) in the format of the extension; <paramref name="quality"/> applies to lossy formats.</summary>
+    public static string NoiseImage(string dir, string name, int w, int h, uint quality = 98)
+    {
+        var path = Path.Combine(dir, name);
+        var ext = Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        using var image = new MagickImage(MagickColors.Gray, (uint)w, (uint)h);
+        image.AddNoise(NoiseType.Random);
+        image.Quality = quality;
+        image.Write(path, ext switch
+        {
+            "jpg" => MagickFormat.Jpeg,
+            "png" => MagickFormat.Png,
+            "webp" => MagickFormat.WebP,
+            "tiff" => MagickFormat.Tiff,
+            "bmp" => MagickFormat.Bmp,
+            _ => throw new ArgumentException($"Unsupported fixture extension '{ext}'."),
+        });
+        return path;
+    }
+
     /// <summary>
     /// Writes a one-paragraph document whose format follows the extension. docx/doc/rtf/odt/pdf are made by Word
     /// through <paramref name="word"/> (with <paramref name="password"/> as the open password, if given);

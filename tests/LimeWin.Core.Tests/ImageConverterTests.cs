@@ -85,6 +85,18 @@ public class ImageConverterTests : IDisposable
         Assert.False(File.Exists(Path.Combine(Dir, "깨짐.png")));
     }
 
+    [Theory]
+    [InlineData("png")]
+    [InlineData("jpg")]
+    public async Task ZeroByteImage_ThrowsLimeException_AndLeavesNoFile(string ext)
+    {
+        var src = Path.Combine(Dir, $"빈.{ext}");
+        File.WriteAllBytes(src, []);
+        var ex = await Assert.ThrowsAsync<LimeException>(() => Router.ConvertAsync(src, ext == "png" ? "jpg" : "png", Ctx));
+        Assert.Equal("이미지를 읽을 수 없습니다.", ex.Message);
+        Assert.Equal([src], Directory.GetFiles(Dir));
+    }
+
     [Fact]
     public async Task MislabeledPngAsJpg_StillConverts()
     {

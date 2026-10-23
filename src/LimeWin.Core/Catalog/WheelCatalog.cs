@@ -35,8 +35,9 @@ public static class WheelCatalog
         List<LimeTool> tools = [];
         if (formats.All(f => RasterImages.Contains(f!)))
         {
-            tools.Add(LimeTool.Compress);
-            if (paths.Count == 1) tools.Add(LimeTool.Crop);
+            var writable = formats.All(f => CanWriteOwnFormat(f!, caps));
+            if (writable) tools.Add(LimeTool.Compress);
+            if (writable && paths.Count == 1) tools.Add(LimeTool.Crop);
             tools.Add(LimeTool.ImagesToPdf);
             if (caps.Ocr) tools.Add(LimeTool.CopyText);
             if (caps.BackgroundRemoval) tools.Add(LimeTool.RemoveBackground);
@@ -49,6 +50,14 @@ public static class WheelCatalog
         }
         return tools.Select(t => new WheelItem(new ToolOp(t), ToolLabel(t))).ToList();
     }
+
+    /// <summary>Compress and Crop write the source's own format, so a format Magick cannot encode here gets neither petal.</summary>
+    static bool CanWriteOwnFormat(string format, Capabilities caps) => format switch
+    {
+        "heic" => caps.HeicWrite,
+        "avif" => caps.AvifWrite,
+        _ => true,
+    };
 
     static IReadOnlyList<WheelItem> ActionItems() =>
         Enum.GetValues<DropAction>().Select(a => new WheelItem(new ActionOp(a), ActionLabel(a))).ToList();

@@ -21,17 +21,8 @@ public static class PdfTools
             for (var i = 0; i < imagesInOrder.Count; i++)
             {
                 ctx.Token.ThrowIfCancellationRequested();
-                MagickImage image;
-                try
-                {
-                    image = ImageConverter.Load(imagesInOrder[i], FormatCatalog.FormatOf(imagesInOrder[i]));
-                    image.AutoOrient();
-                }
-                catch (Exception e) when (e is MagickException or ArgumentException) // Magick throws ArgumentException for a 0-byte file
-                {
-                    throw new LimeException("이미지를 읽을 수 없습니다.");
-                }
-                using (image) ImageConverter.AddPdfPage(builder, image);
+                using var image = ImageConverter.LoadOriented(imagesInOrder[i], FormatCatalog.FormatOf(imagesInOrder[i]));
+                ImageConverter.AddPdfPage(builder, image);
                 ctx.Report((i + 1) / (double)imagesInOrder.Count);
             }
             return WriteOutput(imagesInOrder[0], builder.Build(), ctx);
