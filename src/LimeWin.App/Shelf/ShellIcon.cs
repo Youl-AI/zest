@@ -1,15 +1,51 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace LimeWin.App.Shelf;
 
-/// <summary>Explorer's small icon for a file or folder (SHGetFileInfo). Call on an STA thread (the UI thread).</summary>
+/// <summary>Explorer's small icon for a file or folder (SHGetFileInfo). Call on an STA thread (the UI thread, or <see cref="LoadLater"/>'s own).</summary>
 internal static class ShellIcon
 {
+    static readonly BlockingCollection<Action> Pending = new();
+
+    /// <summary>One background STA thread for icon reads, so a slow or offline network path never blocks the UI thread.</summary>
+    static readonly Lazy<Thread> Reader = new(() =>
+    {
+        var thread = new Thread(() =>
+        {
+            foreach (var read in Pending.GetConsumingEnumerable())
+            {
+                try { read(); }
+                catch (Exception) { /* one unreadable item must not stop the others */ }
+            }
+        })
+        { IsBackground = true, Name = "Lime shell icons" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return thread;
+    });
+
+    /// <summary>
+    /// Reads the item's icon (<see cref="For"/>) and whether it exists on the background reader, then calls
+    /// <paramref name="done"/> on <paramref name="dispatcher"/>'s thread. The icon is frozen, so it crosses threads safely.
+    /// </summary>
+    public static void LoadLater(string path, Dispatcher dispatcher, Action<ImageSource?, bool> done)
+    {
+        _ = Reader.Value;
+        Pending.Add(() =>
+        {
+            var icon = For(path);
+            var exists = File.Exists(path) || Directory.Exists(path);
+            dispatcher.BeginInvoke(() => done(icon, exists));
+        });
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     struct SHFILEINFO
     {

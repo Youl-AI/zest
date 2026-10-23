@@ -68,6 +68,18 @@ public class DropSourcePolicyTests
     }
 
     [Fact]
+    public void UncDevicePathInsideAUncTempRoot_IsRefused_WithoutAnyFileSystemProbe()
+    {
+        var probes = 0;
+        bool Exists(string _) { probes++; return false; }
+        string? Long(string _) { probes++; return null; }
+        Assert.False(DropSourcePolicy.IsRealUserFiles([@"\\?\UNC\host\share\tmp\BNZ.1\a.png"], @"\\host\share\tmp", Exists, Long));
+        Assert.False(DropSourcePolicy.IsRealUserFiles([@"\\host\share\tmp\BNZ.1\a.png"], @"\\host\share\tmp", Exists, Long));
+        Assert.True(DropSourcePolicy.IsRealUserFiles([@"\\?\UNC\host\share\tmp2\a.png"], @"\\host\share\tmp", Exists, Long));
+        Assert.Equal(0, probes);
+    }
+
+    [Fact]
     public void TempRootIsExpandedOncePerCall()
     {
         var longCalls = 0;

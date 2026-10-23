@@ -66,7 +66,9 @@ public partial class OverlayWindow : Window
 
     void OnDragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0
+        // Copy is the only effect Lime ever answers; a source that does not offer it (move-only) is refused.
+        if (e.AllowedEffects.HasFlag(DragDropEffects.Copy)
+            && e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0
             && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath()))
         {
             ReceivedFiles = true;
@@ -74,7 +76,7 @@ public partial class OverlayWindow : Window
             OnDragOver(sender, e);
             return;
         }
-        // Text, virtual items (zip contents, MTP), files an archiver extracted into %TEMP% (Bandizip deletes the archive entry
+        // Move-only sources, text, virtual items (zip contents, MTP), files an archiver extracted into %TEMP% (Bandizip deletes the archive entry
         // when a drop with Shift is accepted) and the like are not ours: refuse, and let the controller close the
         // overlay so OLE re-targets the window underneath on its next poll.
         e.Effects = DragDropEffects.None;

@@ -15,10 +15,21 @@ namespace LimeWin.App.Shelf;
 public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : INotifyPropertyChanged
 {
     bool _missing = missing;
+    ImageSource? _icon = icon;
 
     public string Path { get; } = path;
     public string Name { get; } = OutputNaming.DisplayName(path);
-    public ImageSource? Icon { get; } = icon;
+
+    public ImageSource? Icon
+    {
+        get => _icon;
+        set
+        {
+            if (ReferenceEquals(_icon, value)) return;
+            _icon = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+        }
+    }
 
     /// <summary>No longer at <see cref="Path"/> (moved or deleted elsewhere): shown dimmed and left out of drags.</summary>
     public bool Missing
@@ -34,7 +45,12 @@ public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : IN
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public static ShelfItem For(string path) => new(path, ShellIcon.For(path), !Exists(path));
+    /// <summary>
+    /// A row shown at once without touching the disk (a slow or offline network path must never block a drop): the generic
+    /// icon for the name's type. The real icon and whether it exists follow from <see cref="ShellIcon.LoadLater"/>.
+    /// </summary>
+    public static ShelfItem Placeholder(string path) =>
+        new(path, ShellIcon.ForName(path, isFolder: !System.IO.Path.HasExtension(path)), missing: false);
 
     public static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 }
@@ -53,8 +69,9 @@ public partial class ShelfWindow : Window
     bool _draggingOut;
 
     public ShelfWindow(IReadOnlyList<string> paths)
-        : this(paths.Select(ShelfItem.For), WheelStyle.SystemPalette())
+        : this(paths.Select(ShelfItem.Placeholder), WheelStyle.SystemPalette())
     {
+        foreach (var item in _items) LoadDetails(item);
     }
 
     internal ShelfWindow(IEnumerable<ShelfItem> items, WheelPalette palette)
@@ -113,15 +130,28 @@ public partial class ShelfWindow : Window
 
     public void Add(IEnumerable<string> paths)
     {
-        foreach (var path in paths) AddUnique(ShelfItem.For(path));
+        foreach (var path in paths)
+        {
+            var item = ShelfItem.Placeholder(path);
+            if (AddUnique(item)) LoadDetails(item);
+        }
         UpdateHeader();
     }
 
-    void AddUnique(ShelfItem item)
+    bool AddUnique(ShelfItem item)
     {
-        if (_items.Any(i => string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase))) return;
+        if (_items.Any(i => string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase))) return false;
         _items.Add(item);
+        return true;
     }
+
+    /// <summary>Fills in a placeholder row's real icon and existence once the background reader has them.</summary>
+    void LoadDetails(ShelfItem item) => ShellIcon.LoadLater(item.Path, Dispatcher, (icon, exists) =>
+    {
+        if (icon is not null) item.Icon = icon;
+        item.Missing = !exists;
+        if (_items.Count > 0 && ReferenceEquals(_items[0], item)) PileIcon.Source = item.Icon;
+    });
 
     void UpdateHeader()
     {
@@ -222,8 +252,9 @@ public partial class ShelfWindow : Window
             return;
         }
         _dragDecided = true;
-        // Archive-extracted temp copies vanish with the archiver's clean-up; never shelve them.
-        _acceptDrag = !_draggingOut && e.Data.GetData(DataFormats.FileDrop) is string[] files
+        // Archive-extracted temp copies vanish with the archiver's clean-up; never shelve them. A source that does not offer
+        // Copy (the only effect a shelf answers) is refused too.
+        _acceptDrag = !_draggingOut && e.AllowedEffects.HasFlag(DragDropEffects.Copy) && e.Data.GetData(DataFormats.FileDrop) is string[] files
             && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath());
         OnDragOver(sender, e);
     }
