@@ -89,6 +89,26 @@ public class ConversionRouterTests : IDisposable
         Assert.Equal(["a.jpg", "a.png"], Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName).Order());
     }
 
+    [Theory]
+    [InlineData(typeof(IOException))]
+    [InlineData(typeof(UnauthorizedAccessException))]
+    [InlineData(typeof(DirectoryNotFoundException))]
+    public async Task IoFailure_BecomesKoreanLimeException_AfterCleanup(Type exceptionType)
+    {
+        var src = FixtureFactory.Image(Dir, "a.png");
+        var converter = new FakeConverter((s, c) =>
+        {
+            var output = Output.OutputNaming.ConvertOutput(s, "jpg", c);
+            File.WriteAllText(output, "partial");
+            throw (Exception)Activator.CreateInstance(exceptionType)!;
+        });
+
+        var ex = await Assert.ThrowsAsync<LimeException>(() => new ConversionRouter([converter]).ConvertAsync(src, "jpg", Ctx));
+
+        Assert.Equal("파일을 읽거나 저장하지 못했습니다.", ex.Message);
+        Assert.Equal(["a.png"], Directory.GetFileSystemEntries(Dir).Select(Path.GetFileName));
+    }
+
     [Fact]
     public async Task Cleanup_DoesNotDeleteUnrelatedFileCreatedDuringFailingCall()
     {

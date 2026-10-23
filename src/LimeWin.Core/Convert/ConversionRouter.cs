@@ -15,15 +15,8 @@ public sealed class ConversionRouter(IEnumerable<IConverter> converters)
 
         var dir = Path.GetDirectoryName(Path.GetFullPath(source))!;
         EnsureWritable(dir);
-        try
-        {
-            return await converter.ConvertAsync(source, to, ctx);
-        }
-        catch
-        {
-            TrackedCleanup.DeleteCreated(ctx);
-            throw;
-        }
+        // On any failure the tracked outputs are removed; IO and permission errors become a Korean LimeException.
+        return await ToolRunner.RunAsync(ctx, () => converter.ConvertAsync(source, to, ctx));
     }
 
     static void EnsureWritable(string dir)
