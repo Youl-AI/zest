@@ -75,6 +75,7 @@ public class FfmpegArgsTests
 }
 
 [Trait("Category", "Ffmpeg")]
+[Collection(ProcessCollection.Name)]
 public class FfmpegConverterTests : IDisposable
 {
     readonly string Dir = TestFiles.TempDir();

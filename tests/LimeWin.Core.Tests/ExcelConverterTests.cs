@@ -76,6 +76,7 @@ public sealed class ExcelFixture : IDisposable
 }
 
 [Trait("Category", "Office")]
+[Collection(ProcessCollection.Name)]
 public class ExcelConverterTests(ExcelFixture fx) : IClassFixture<ExcelFixture>, IDisposable
 {
     readonly string Dir = TestFiles.TempDir();

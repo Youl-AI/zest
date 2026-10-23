@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using LimeWin.Core.Catalog;
 using LimeWin.Core.Convert;
 using LimeWin.Core.Office;
 using ImageMagick;
@@ -20,6 +21,27 @@ internal sealed class MalgunFontResolver : IFontResolver
 internal static class FixtureFactory
 {
     static readonly HashSet<string> AudioExtensions = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"];
+
+    /// <summary>
+    /// Writes a fixture of <paramref name="format"/> named <c>한글 파일 (1).&lt;ext&gt;</c> in <paramref name="dir"/>, using the
+    /// tool that can write it: Magick (images), ffmpeg (gif/audio/video, incl. webm), PDFsharp (pdf), Office (docx, doc,
+    /// rtf, odt, pptx, ppt, odp, xlsx, xls, ods) or plain text (txt, md, html, csv, tsv). Throws for formats that cannot be made
+    /// (heic: Magick here has no HEIC encoder).
+    /// </summary>
+    public static async Task<string> For(string dir, string format, OfficeHost word, OfficeHost powerPoint, OfficeHost excel)
+    {
+        var name = $"한글 파일 (1).{format}";
+        return FormatCatalog.CategoryOf(format) switch
+        {
+            FormatCategory.Image => Image(dir, name),
+            FormatCategory.Gif or FormatCategory.Audio or FormatCategory.Video => Media(dir, name),
+            FormatCategory.Pdf => Pdf(dir, name, 2),
+            FormatCategory.Document => await Document(word, dir, name),
+            FormatCategory.Slides => await Slides(powerPoint, dir, name),
+            FormatCategory.Spreadsheet => await Sheet(excel, dir, name),
+            _ => throw new ArgumentException($"No fixture for format '{format}'."),
+        };
+    }
 
     /// <summary>
     /// Writes a test clip with ffmpeg (lavfi testsrc 320x240@25 + 440 Hz sine); format follows the extension.

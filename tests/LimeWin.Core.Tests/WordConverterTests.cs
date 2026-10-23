@@ -83,6 +83,7 @@ public sealed class WordFixture : IDisposable
 }
 
 [Trait("Category", "Office")]
+[Collection(ProcessCollection.Name)]
 public class WordConverterTests(WordFixture fx) : IClassFixture<WordFixture>, IDisposable
 {
     readonly string Dir = TestFiles.TempDir();

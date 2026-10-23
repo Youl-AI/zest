@@ -119,6 +119,7 @@ sealed class UserPowerPoint : IDisposable
 }
 
 [Trait("Category", "Office")]
+[Collection(ProcessCollection.Name)]
 public class PowerPointConverterTests(PowerPointFixture fx) : IClassFixture<PowerPointFixture>, IDisposable
 {
     readonly string Dir = TestFiles.TempDir();

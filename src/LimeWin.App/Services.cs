@@ -20,21 +20,15 @@ public static class Services
     public static void Start()
     {
         _capabilities = CapabilityDetector.Detect();
-        List<IConverter> converters = [new ImageConverter(), new PdfConverter()];
-        if (_capabilities.Ffmpeg && FfmpegLocator.Locate() is { } ffmpeg)
-            converters.Add(new FfmpegConverter(ffmpeg));
-        // Always registered so md<->html works without Office; FormatCatalog hides the routes that need Word.
-        // One shared Word; the host starts its thread and Word itself only on the first Word conversion.
+        // Word is always registered so md<->html works without Office; FormatCatalog hides the routes that need Word.
+        // One shared host per Office app; each starts its thread and app only on its first conversion.
         _word = new OfficeHost("Word.Application", "WINWORD");
-        converters.Add(new WordConverter(_word));
         if (_capabilities.Office)
         {
-            // One host per app, each starting its thread and app only on its first conversion.
             _powerPoint = new OfficeHost("PowerPoint.Application", "POWERPNT");
             _excel = new OfficeHost("Excel.Application", "EXCEL");
-            converters.Add(new PowerPointConverter(_powerPoint));
-            converters.Add(new ExcelConverter(_excel));
         }
+        var converters = ConverterSet.Create(_capabilities, _word, _powerPoint, _excel);
         _router = new ConversionRouter(converters);
         _jobs = new JobRunner(new ProgressCardHost());
     }
