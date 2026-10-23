@@ -5,6 +5,7 @@
     <PackageReference Include="PDFtoImage" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="ReverseMarkdown" />
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="LimeWin.Core.Tests" />

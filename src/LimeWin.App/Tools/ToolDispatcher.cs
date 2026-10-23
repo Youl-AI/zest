@@ -4,7 +4,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using LimeWin.App.Actions;
-using LimeWin.Core;
 using LimeWin.Core.Catalog;
 using LimeWin.Core.Jobs;
 using LimeWin.Core.Tools;
@@ -12,8 +11,8 @@ using LimeWin.Core.Tools;
 namespace LimeWin.App.Tools;
 
 /// <summary>
-/// Turns a drop on a tool petal into either a tool window (compress, crop, order) or jobs started at once (split, a single
-/// image to PDF). Every tool job runs through <see cref="Jobs.JobRunner"/> with a Korean title. Call on the UI thread.
+/// Turns a drop on a tool petal into either a tool window (compress, crop, order, the model download for background removal)
+/// or jobs started at once (split, a single image to PDF, background removal once the model is there). Every tool job runs through <see cref="Jobs.JobRunner"/> with a Korean title. Call on the UI thread.
 /// </summary>
 public static class ToolDispatcher
 {
@@ -54,12 +53,62 @@ public static class ToolDispatcher
                 CopyText(files, at);
                 break;
 
-            // Not built yet: Task 16 fills RemoveBackground.
             case LimeTool.RemoveBackground:
-            default:
-                Services.Jobs.Run("배경 제거", _ => throw new LimeException("준비 중입니다."));
+                _ = RemoveBackgroundAsync(files, at);
                 break;
         }
+    }
+
+    static ModelDownloadWindow? _download;
+
+    /// <summary>
+    /// Checks the model (hashing it the first time takes about a second, so off the UI thread). Ready: starts the jobs.
+    /// Missing (or an accelerator still to fetch): opens the download window, or adds this drop to the one already open.
+    /// </summary>
+    static async Task RemoveBackgroundAsync(IReadOnlyList<string> files, Native.POINT at)
+    {
+        try
+        {
+            if (await Task.Run(() => ModelStore.IsReady && !BackgroundRemover.AcceleratorsMissing))
+            {
+                RemoveBackground(files);
+                return;
+            }
+            if (_download is { } open)
+            {
+                open.Then(() => RemoveBackground(files));
+                Native.BringToFront(open);
+                return;
+            }
+            var window = new ModelDownloadWindow(() => RemoveBackground(files));
+            window.Closed += (_, _) => _download = null;
+            _download = window;
+            Present(window, at);
+        }
+        catch (Exception e)
+        {
+            // This method's task is discarded, so nothing may throw unseen.
+            FailedCard($"{Several(files, "장")} 배경 제거", e);
+        }
+    }
+
+    /// <summary>One "배경 제거 중" card per image (they take turns on the one model session). The first time, a "모델 불러오는 중" card loads the session first.</summary>
+    static void RemoveBackground(IReadOnlyList<string> files)
+    {
+        if (BackgroundRemover.IsLoaded)
+        {
+            foreach (var file in files)
+                Run($"{Name(file)} 배경 제거 중", ctx => BackgroundRemover.RemoveAsync(file, ctx));
+            return;
+        }
+        var dispatcher = Application.Current.Dispatcher;
+        Services.Jobs.Run("배경 제거 모델 불러오는 중", async ctx =>
+        {
+            await BackgroundRemover.LoadAsync(ctx);
+            ctx.Token.ThrowIfCancellationRequested(); // cancelled while loading: no image jobs
+            await dispatcher.InvokeAsync(() => RemoveBackground(files));
+            return (IReadOnlyList<string>)[];
+        });
     }
 
     /// <summary>Reads every file in one job ("글자 인식 중"), then copies the text and opens the result window on the UI thread.</summary>

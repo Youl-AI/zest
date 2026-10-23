@@ -58,6 +58,14 @@ internal static class ToolWindows
         return Frame(window, dark);
     }
 
+    /// <summary>The background-removal model download, 42 % through.</summary>
+    public static FrameworkElement ModelDownload(bool dark)
+    {
+        var window = new ModelDownloadWindow(() => { });
+        window.Preview(0.42);
+        return Frame(window, dark);
+    }
+
     /// <summary>A shelf holding five sample items (two selected) with Explorer's icons for their types, on a plain desktop colour.</summary>
     public static FrameworkElement Shelf(bool dark, WheelPalette palette)
     {

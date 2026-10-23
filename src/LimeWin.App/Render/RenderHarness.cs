@@ -64,6 +64,7 @@ public static class RenderHarness
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
                 Save(ToolWindows.Shelf(dark, palette), folder, $"shelf{suffix}.png", log);
                 Save(ToolWindows.TextResult(dark), folder, $"text-result{suffix}.png", log);
+                Save(ToolWindows.ModelDownload(dark), folder, $"model-download{suffix}.png", log);
             }
 
             Save(TraySheet(), folder, "tray-icons.png", log);

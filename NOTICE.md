@@ -45,6 +45,9 @@ Libraries are listed here as later tasks add them (name, version, license).
 - ReverseMarkdown 6.3.0 — MIT (HTML to Markdown)
 - AngleSharp 1.5.2 — MIT (transitive via ReverseMarkdown; parses HTML)
 - Pretendard 1.3.9 (Pretendard-SemiBold.otf, embedded) — SIL Open Font License 1.1, full text below (Korean petal labels)
+- Microsoft.Windows.AI.MachineLearning 2.4.89 (Windows ML, self-contained) — Microsoft Software License Terms for the "Microsoft Windows ML Runtime" (the package's license.txt; its binaries are distributable code). Runs background removal.
+- ONNX Runtime 1.27.1 (onnxruntime.dll and the managed Microsoft.ML.OnnxRuntime API, shipped inside the Windows ML package) — MIT, Copyright (c) Microsoft Corporation
+- BiRefNet general model (BiRefNet-general-epoch_244.onnx by ZhengPeng7; not shipped, downloaded on first use of 배경 제거) — MIT, Copyright (c) 2024 ZhengPeng
 
 ### Pretendard license
 

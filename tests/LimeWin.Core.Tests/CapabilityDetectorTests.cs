@@ -6,14 +6,15 @@ public class CapabilityDetectorTests
 {
     // Office and Ffmpeg depend on the machine, so only the probe-backed and not-yet-built engines are asserted.
     [Fact]
-    public void Detect_UsesProbeForHeicAndAvif_AndLeavesLaterEnginesOff()
+    public void Detect_UsesProbesForHeicAvifOcrAndBackgroundRemoval()
     {
         var caps = CapabilityDetector.Detect();
 
         Assert.Equal(CapabilityProbe.CanWrite("heic"), caps.HeicWrite);
         Assert.Equal(CapabilityProbe.CanWrite("avif"), caps.AvifWrite);
         Assert.Equal(LimeWin.Core.Tools.OcrService.IsAvailable, caps.Ocr);
-        Assert.False(caps.BackgroundRemoval);
+        Assert.Equal(LimeWin.Core.Tools.BackgroundRemover.IsAvailable, caps.BackgroundRemoval);
+        Assert.True(caps.BackgroundRemoval); // Windows ML ships with the app, so it loads on any supported Windows
     }
 
     [Fact]

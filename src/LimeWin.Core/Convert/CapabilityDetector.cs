@@ -17,7 +17,8 @@ public static class CapabilityDetector
             HeicWrite: CapabilityProbe.CanWrite("heic"),
             AvifWrite: CapabilityProbe.CanWrite("avif"),
             Ocr: Tools.OcrService.IsAvailable,
-            BackgroundRemoval: false,
+            BackgroundRemoval: Tools.BackgroundRemover.IsAvailable, // the model is downloaded on first use
+
             UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg));
     }
 
