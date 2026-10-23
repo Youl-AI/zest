@@ -88,7 +88,6 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
     {
         dynamic books = app.Workbooks;
         dynamic? book = null;
-        string[] ourNames = [Path.GetFileName(input), Path.GetFileName(saved)]; // before and after SaveAs
         try
         {
             try
@@ -111,7 +110,7 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
             }
             catch (COMException)
             {
-                CloseOurCopy(books, ourNames); // OpenText may have opened it before Item failed
+                CloseOurCopy(books, input, saved); // OpenText may have opened it before Item failed
                 throw new LimeException("문서를 열 수 없습니다.");
             }
 
@@ -156,15 +155,18 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
             if (book is not null)
             {
                 try { book.Close(SaveChanges: false); }
-                catch (COMException) { CloseOurCopy(books, ourNames); }
+                catch (COMException) { CloseOurCopy(books, input, saved); }
                 Marshal.FinalReleaseComObject(book);
             }
             Marshal.FinalReleaseComObject(books);
         }
     }
 
-    /// <summary>Best effort: closes any open workbook that is our private copy (by its name before or after SaveAs).</summary>
-    static void CloseOurCopy(dynamic books, string[] names)
+    /// <summary>
+    /// Best effort: closes any open workbook that is our private copy, matched by its full path before or after SaveAs
+    /// (never by name: the user may have a workbook open under the very name we saved as, e.g. "가계부.csv").
+    /// </summary>
+    static void CloseOurCopy(dynamic books, string input, string saved)
     {
         try
         {
@@ -172,7 +174,7 @@ public sealed class ExcelConverter(OfficeHost excel) : IConverter
             {
                 try
                 {
-                    if (names.Contains((string)b.Name, StringComparer.OrdinalIgnoreCase)) b.Close(SaveChanges: false);
+                    if (OfficeWorkFolder.IsOurCopy((string)b.FullName, input, saved)) b.Close(SaveChanges: false);
                 }
                 catch (COMException) { }
                 finally { Marshal.FinalReleaseComObject(b); }

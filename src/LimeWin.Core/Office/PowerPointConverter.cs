@@ -165,10 +165,7 @@ public sealed class PowerPointConverter(OfficeHost ppt) : IConverter
             {
                 try
                 {
-                    var path = (string)p.FullName;
-                    if (string.Equals(path, input, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(path, savedAs, StringComparison.OrdinalIgnoreCase))
-                        p.Close();
+                    if (OfficeWorkFolder.IsOurCopy((string)p.FullName, input, savedAs)) p.Close();
                 }
                 catch (COMException) { }
                 finally { Marshal.FinalReleaseComObject(p); }
