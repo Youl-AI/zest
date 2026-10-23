@@ -13,7 +13,7 @@ public readonly record struct PixelRect(int X, int Y, int Width, int Height);
 public static class ImageCropper
 {
     public static Task<string> CropAsync(string source, PixelRect rect, OperationContext ctx) =>
-        ToolRunner.RunAsync(ctx, () => Task.Run(() => Crop(source, rect, ctx), ctx.Token));
+        ToolRunner.RunAsync(ctx, () => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() => Crop(source, rect, ctx), ctx.Token)));
 
     static string Crop(string source, PixelRect rect, OperationContext ctx)
     {

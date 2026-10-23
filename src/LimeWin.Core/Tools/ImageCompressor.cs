@@ -47,7 +47,7 @@ public static class ImageCompressor
     static readonly HashSet<string> Lossy = ["jpg", "webp", "heic", "avif"];
 
     public static Task<string> CompressAsync(string source, CompressOptions o, OperationContext ctx) =>
-        ToolRunner.RunAsync(ctx, () => Task.Run(() => Compress(source, o, ctx), ctx.Token));
+        ToolRunner.RunAsync(ctx, () => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() => Compress(source, o, ctx), ctx.Token)));
 
     static string Compress(string source, CompressOptions o, OperationContext ctx)
     {

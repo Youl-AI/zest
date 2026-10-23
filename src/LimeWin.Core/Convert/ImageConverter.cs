@@ -28,7 +28,7 @@ public sealed class ImageConverter : IConverter
     };
 
     public Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx) =>
-        Task.Run<IReadOnlyList<string>>(() => Convert(source, to, ctx), ctx.Token);
+        ctx.InSlotAsync(EngineGates.Image, () => Task.Run<IReadOnlyList<string>>(() => Convert(source, to, ctx), ctx.Token));
 
     static string[] Convert(string source, string to, OperationContext ctx)
     {

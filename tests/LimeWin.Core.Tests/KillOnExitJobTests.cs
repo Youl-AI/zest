@@ -26,6 +26,25 @@ public class KillOnExitJobTests
     }
 
     [Fact]
+    public void ClosingAJobForAProcessWeStarted_KillsIt()
+    {
+        // ffmpeg/ffprobe: started by us, so the Process object's own handle is used (no PID lookup).
+        using var proc = StartStandIn().Proc;
+        var job = KillOnExitJob.TryCreate(proc);
+        Assert.NotNull(job);
+        job.Dispose(); // what Windows does when Lime dies
+        Assert.True(proc.WaitForExit(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public void AnExitedProcess_GetsNoJob()
+    {
+        using var proc = Process.Start(new ProcessStartInfo("cmd.exe", "/c exit 0") { UseShellExecute = false, CreateNoWindow = true })!;
+        proc.WaitForExit();
+        using var job = KillOnExitJob.TryCreate(proc); // must not throw
+    }
+
+    [Fact]
     public void Released_LeavesTheProcessRunning()
     {
         var (proc, id) = StartStandIn();

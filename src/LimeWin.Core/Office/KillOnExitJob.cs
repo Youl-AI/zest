@@ -37,6 +37,25 @@ sealed class KillOnExitJob : IDisposable
         }
     }
 
+    /// <summary>
+    /// Puts a process we started ourselves (ffmpeg, ffprobe) in a new kill-on-close job, through its own handle; call right
+    /// after <see cref="System.Diagnostics.Process.Start()"/> and dispose once it has exited. Null when Windows refuses or it already exited.
+    /// </summary>
+    public static KillOnExitJob? TryCreate(System.Diagnostics.Process process)
+    {
+        var job = CreateJobObject(IntPtr.Zero, null);
+        if (job == IntPtr.Zero) return null;
+        try
+        {
+            if (!SetKillOnClose(job, true) || !AssignProcessToJobObject(job, process.Handle)) return Fail(job);
+            return new KillOnExitJob(job);
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return Fail(job); // exited or no handle
+        }
+    }
+
     /// <summary>Lets the process outlive the job.</summary>
     public void Release() => SetKillOnClose(_job, false);
 

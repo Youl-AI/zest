@@ -28,7 +28,10 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
         };
     }
 
-    public async Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx)
+    public Task<IReadOnlyList<string>> ConvertAsync(string source, string to, OperationContext ctx) =>
+        ctx.InSlotAsync(EngineGates.Ffmpeg, () => ConvertInSlotAsync(source, to, ctx));
+
+    async Task<IReadOnlyList<string>> ConvertInSlotAsync(string source, string to, OperationContext ctx)
     {
         ctx.Token.ThrowIfCancellationRequested();
         var from = FormatCatalog.FormatOf(source) ?? "";
@@ -56,6 +59,7 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
         using var process = new Process { StartInfo = psi };
         try { process.Start(); }
         catch (System.ComponentModel.Win32Exception) { throw new LimeException("변환 실패: ffmpeg를 실행할 수 없습니다."); }
+        using var tiedToUs = Office.KillOnExitJob.TryCreate(process); // if Lime dies, ffmpeg goes with it
 
         // Cancel kills the whole tree; we then wait for exit so the output file is unlocked before the router deletes it.
         using var killOnCancel = ctx.Token.Register(() =>
@@ -124,6 +128,7 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
         try
         {
             using var p = Process.Start(psi)!;
+            using var tiedToUs = Office.KillOnExitJob.TryCreate(p);
             using var kill = token.Register(() => { try { p.Kill(true); } catch (Exception) { } });
             var err = p.StandardError.ReadToEndAsync();
             var text = await p.StandardOutput.ReadToEndAsync();

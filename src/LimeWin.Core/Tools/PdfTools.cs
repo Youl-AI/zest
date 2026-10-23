@@ -14,7 +14,7 @@ public static class PdfTools
 {
     /// <summary>One page per image, in the given order; result is `first (merged).pdf` next to the first image.</summary>
     public static Task<string> ImagesToPdfAsync(IReadOnlyList<string> imagesInOrder, OperationContext ctx) =>
-        ToolRunner.RunAsync(ctx, () => Task.Run(() =>
+        ToolRunner.RunAsync(ctx, () => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() =>
         {
             RequireInputs(imagesInOrder);
             var builder = new PdfDocumentBuilder();
@@ -26,11 +26,11 @@ public static class PdfTools
                 ctx.Report((i + 1) / (double)imagesInOrder.Count);
             }
             return WriteOutput(imagesInOrder[0], builder.Build(), ctx);
-        }, ctx.Token));
+        }, ctx.Token)));
 
     /// <summary>All pages of all PDFs, in the given order; result is `first (merged).pdf` next to the first PDF.</summary>
     public static Task<string> MergeAsync(IReadOnlyList<string> pdfsInOrder, OperationContext ctx) =>
-        ToolRunner.RunAsync(ctx, () => Task.Run(() =>
+        ToolRunner.RunAsync(ctx, () => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() =>
         {
             RequireInputs(pdfsInOrder);
             var files = new List<byte[]>(pdfsInOrder.Count);
@@ -45,11 +45,11 @@ public static class PdfTools
             ctx.Token.ThrowIfCancellationRequested();
             var merged = Guard(() => PdfMerger.Merge(files));
             return WriteOutput(pdfsInOrder[0], merged, ctx);
-        }, ctx.Token));
+        }, ctx.Token)));
 
     /// <summary>Writes each page as `stem NN.pdf` into a new `stem (pages)` folder next to the PDF; returns the folder.</summary>
     public static Task<string> SplitAsync(string pdf, OperationContext ctx) =>
-        ToolRunner.RunAsync(ctx, () => Task.Run(() =>
+        ToolRunner.RunAsync(ctx, () => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() =>
         {
             ctx.Token.ThrowIfCancellationRequested();
             var bytes = ReadPdf(pdf);
@@ -71,7 +71,7 @@ public static class PdfTools
                 }
                 return folder;
             });
-        }, ctx.Token));
+        }, ctx.Token)));
 
     static void RequireInputs(IReadOnlyList<string> inputs)
     {

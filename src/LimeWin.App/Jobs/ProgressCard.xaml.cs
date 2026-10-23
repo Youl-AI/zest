@@ -33,13 +33,35 @@ public partial class ProgressCard : UserControl
         RenderTransform = _rise;
         TitleText.Text = title;
         TitleText.ToolTip = title;
-        CancelButton.Click += (_, _) =>
-        {
-            CancelButton.IsEnabled = false;
-            StatusText.Text = "취소하는 중…";
-            cancel();
-        };
+        _cancel = cancel;
+        CancelButton.Click += (_, _) => RequestCancel();
         MouseLeftButtonUp += OnClick;
+    }
+
+    const string RunningText = "변환 중…"; // the XAML's initial status
+    const string WaitingText = "대기 중";
+
+    readonly Action _cancel;
+    bool _cancelling;
+
+    /// <summary>Whether the job is still running (not done, failed or cancelled).</summary>
+    public bool IsRunning => _state == State.Running;
+
+    /// <summary>The cancel button's action; does nothing once the job has ended or is already cancelling.</summary>
+    public void RequestCancel()
+    {
+        if (_state != State.Running || _cancelling) return;
+        _cancelling = true;
+        CancelButton.IsEnabled = false;
+        StatusText.Text = "취소하는 중…";
+        _cancel();
+    }
+
+    /// <summary>"대기 중" while the job waits for its engine (other jobs are using it), then back to the running text.</summary>
+    public void SetWaiting(bool waiting)
+    {
+        if (_state != State.Running || _cancelling) return;
+        StatusText.Text = waiting ? WaitingText : RunningText;
     }
 
     /// <summary>Entrance: 8 px up and fade in over 200 ms (fade only when animations are off in Windows).</summary>

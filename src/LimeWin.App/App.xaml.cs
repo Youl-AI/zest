@@ -107,23 +107,30 @@ public partial class App : Application
     {
         try
         {
-            _hookHealth?.Stop();
-            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-            TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
-            _hooks?.Dispose(); // ends the hook thread
-            _wheel?.Close();
-            _tray?.Dispose();
-            Services.Stop();
+            try
+            {
+                _hookHealth?.Stop();
+                SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+                TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+                _hooks?.Dispose(); // ends the hook thread
+                _wheel?.Close();
+                _tray?.Dispose();
+            }
+            finally
+            {
+                // Released on every exit path, even if cleanup above throws, and before the waits below, so a new Lime
+                // can start while this one is still finishing its jobs and releasing Office.
+                if (_singleInstance is not null)
+                {
+                    _singleInstance.ReleaseMutex();
+                    _singleInstance.Dispose();
+                    _singleInstance = null;
+                }
+            }
+            Services.Stop(); // cancels running jobs (up to 3 s for their clean-up), then releases Office
         }
         finally
         {
-            // Released on every exit path, even if cleanup above throws.
-            if (_singleInstance is not null)
-            {
-                _singleInstance.ReleaseMutex();
-                _singleInstance.Dispose();
-                _singleInstance = null;
-            }
             base.OnExit(e);
         }
     }

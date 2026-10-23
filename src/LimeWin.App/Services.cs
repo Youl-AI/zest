@@ -33,13 +33,19 @@ public static class Services
         _jobs = new JobRunner(new ProgressCardHost());
     }
 
-    /// <summary>Releases Office (quits each app we started if it has no open document). Called on app exit.</summary>
+    static readonly TimeSpan JobCleanupWait = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Called on app exit (UI thread): cancels running jobs and gives their clean-up up to 3 s, then releases the Office
+    /// apps side by side (each quits if we started it and it holds no document; each may wait for a stuck call).
+    /// </summary>
     public static void Stop()
     {
-        _word?.Dispose();
-        _powerPoint?.Dispose();
-        _excel?.Dispose();
+        _jobs?.CancelAll(JobCleanupWait);
+        var hosts = new[] { _word, _powerPoint, _excel }.OfType<OfficeHost>().ToArray();
         _word = _powerPoint = _excel = null;
+        try { Task.WaitAll([.. hosts.Select(h => Task.Run(h.Dispose))]); }
+        catch (AggregateException) { /* each host released what it could; the process is ending */ }
     }
 
     static InvalidOperationException NotStarted() => new("Services.Start() has not run.");
