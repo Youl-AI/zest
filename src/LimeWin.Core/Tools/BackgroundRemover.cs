@@ -12,7 +12,7 @@ namespace LimeWin.Core.Tools;
 /// <summary>
 /// Cuts the subject out of a photo with BiRefNet (<see cref="ModelStore"/>) on the ONNX Runtime that ships with Windows ML.
 /// The result is <c>name (no background).png</c> next to the source. One inference session is built on first use and
-/// reused; images go through it one at a time.
+/// reused; images go through it one at a time. After <see cref="IdleLimit"/> without use it is released and later rebuilt.
 /// </summary>
 public static class BackgroundRemover
 {
@@ -34,6 +34,11 @@ public static class BackgroundRemover
     static bool _onCpu;
     static readonly Lock AcquisitionLock = new();
     static Task? _acquisition; // the one accelerator download/registration attempt of this process
+
+    /// <summary>How long the session may sit unused before it is released (the model holds about 1 GB); rebuilt on the next use.</summary>
+    internal static TimeSpan IdleLimit { get; set; } = TimeSpan.FromMinutes(5);
+
+    static Timer? _idleTimer; // touched only while holding the gate
 
     /// <summary>
     /// The ONNX Runtime environment, created on first use (never at startup) with ONNX Runtime's own telemetry switched off
@@ -80,15 +85,17 @@ public static class BackgroundRemover
     /// </summary>
     public static async Task LoadAsync(OperationContext ctx)
     {
-        await Gate.WaitAsync(ctx.Token);
-        try
+        using (await ctx.EnterAsync(Gate))
         {
-            await EnsureSessionAsync(ctx.Token, new Relay(f => ctx.Report(0.8 * f)));
-            ctx.Report(1);
-        }
-        finally
-        {
-            Gate.Release();
+            try
+            {
+                await EnsureSessionAsync(ctx.Token, new Relay(f => ctx.Report(0.8 * f)));
+                ctx.Report(1);
+            }
+            finally
+            {
+                ScheduleRelease();
+            }
         }
     }
 
@@ -103,7 +110,8 @@ public static class BackgroundRemover
             throw new LimeException("이 파일은 배경을 지울 수 없습니다.");
 
         // The whole image passes through the gate: only one decoded photo and one 1024 x 1024 tensor exist at a time.
-        await Gate.WaitAsync(ctx.Token);
+        // Waiting for it shows as "대기 중" on the card.
+        using (await ctx.EnterAsync(Gate))
         try
         {
             using var image = await Task.Run(() => ImageConverter.LoadOriented(source, format, singleFrameOnly: true), ctx.Token);
@@ -131,6 +139,31 @@ public static class BackgroundRemover
                 ctx.Report(1);
                 return output;
             }, ctx.Token);
+        }
+        finally
+        {
+            ScheduleRelease();
+        }
+    }
+
+    /// <summary>Call inside the gate, after each use: the session is released once it has been idle for <see cref="IdleLimit"/>.</summary>
+    static void ScheduleRelease()
+    {
+        if (_session is null) return;
+        _idleTimer ??= new Timer(_ => ReleaseIfIdle());
+        _idleTimer.Change(IdleLimit, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Timer callback: disposes the session unless an image is using it (that use schedules a new release when it ends).</summary>
+    static void ReleaseIfIdle()
+    {
+        if (!Gate.Wait(0)) return;
+        try
+        {
+            var session = _session;
+            Volatile.Write(ref _session, null);
+            Device = null;
+            session?.Dispose();
         }
         finally
         {
@@ -169,7 +202,15 @@ public static class BackgroundRemover
     static async Task AcquireAcceleratorsAsync(IProgress<double>? progress, CancellationToken ct)
     {
         Task acquisition;
-        lock (AcquisitionLock) acquisition = _acquisition ??= AcquireAsync(progress);
+        lock (AcquisitionLock)
+        {
+            if (_acquisition is null)
+            {
+                _acquisition = AcquireAsync(progress);
+                _acquisition.ObserveFaults(); // a caller that cancelled no longer awaits it; its failure must not go unobserved
+            }
+            acquisition = _acquisition;
+        }
         try
         {
             await acquisition.WaitAsync(ct);

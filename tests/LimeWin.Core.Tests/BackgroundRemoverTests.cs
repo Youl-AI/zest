@@ -55,6 +55,31 @@ public class BackgroundRemoverTests : IDisposable
     }
 
     [Fact]
+    public async Task IdleSession_IsReleased_AndRebuiltOnNextUse()
+    {
+        Assert.SkipUnless(ModelStore.IsReady, "모델 없음");
+        var limit = BackgroundRemover.IdleLimit;
+        BackgroundRemover.IdleLimit = TimeSpan.FromMilliseconds(300);
+        try
+        {
+            await BackgroundRemover.LoadAsync(Ctx);
+            Assert.True(BackgroundRemover.IsLoaded);
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+            while (BackgroundRemover.IsLoaded && DateTime.UtcNow < deadline)
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+            Assert.False(BackgroundRemover.IsLoaded); // ~1 GB of model memory given back
+
+            var output = await BackgroundRemover.RemoveAsync(RedCircle("다시.png", 128, 128, 64), Ctx);
+            Assert.True(File.Exists(output));
+        }
+        finally
+        {
+            BackgroundRemover.IdleLimit = limit;
+        }
+    }
+
+    [Fact]
     public async Task Remove_ExifRotatedJpg_OutputIsUprightAtOriginalSize()
     {
         Assert.SkipUnless(ModelStore.IsReady, "모델 없음");
