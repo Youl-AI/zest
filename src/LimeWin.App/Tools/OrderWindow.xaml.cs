@@ -4,8 +4,10 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using LimeWin.Core.Pdf;
 using LimeWin.Core.Tools;
 using Wpf.Ui.Controls;
@@ -86,6 +88,8 @@ public partial class OrderWindow : FluentWindow
     Point? _pressAt;
     OrderItem? _dragging;
     volatile bool _closed;
+    readonly DispatcherTimer _autoScroll = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    const double AutoScrollEdge = 24;
 
     public OrderWindow(OrderMode mode, IReadOnlyList<OrderItem> items, Action<IReadOnlyList<string>> go)
     {
@@ -114,7 +118,12 @@ public partial class OrderWindow : FluentWindow
         List.PreviewMouseMove += OnDragMove;
         List.PreviewMouseLeftButtonUp += (_, _) => EndDrag();
         List.LostMouseCapture += (_, _) => EndDrag();
-        Closed += (_, _) => _closed = true;
+        _autoScroll.Tick += (_, _) => AutoScrollTick();
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _autoScroll.Stop();
+        };
         UpdateArrows();
     }
 
@@ -193,10 +202,15 @@ public partial class OrderWindow : FluentWindow
         UpdateArrows();
     }
 
+    /// <summary>A drag starts only on a row itself, never on the scroll bar (which would otherwise pick the row at that height).</summary>
     void OnPress(object sender, MouseButtonEventArgs e)
     {
+        _pressAt = null;
+        _dragging = null;
+        if (e.OriginalSource is not DependencyObject source || IsInside<ScrollBar>(source)) return;
+        if (ItemsControl.ContainerFromElement(List, source) is not ListBoxItem row) return;
         _pressAt = e.GetPosition(List);
-        _dragging = ItemAt(_pressAt.Value);
+        _dragging = row.DataContext as OrderItem;
     }
 
     void OnDragMove(object sender, MouseEventArgs e)
@@ -208,18 +222,55 @@ public partial class OrderWindow : FluentWindow
             if (Math.Abs(p.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
             List.SelectedItem = _dragging;
             List.CaptureMouse();
+            _autoScroll.Start();
         }
-        // The row follows the pointer: once it is over another row, the dragged row takes that row's place.
-        if (ItemAt(p) is { } over && over != _dragging)
-            MoveItem(_items.IndexOf(_dragging), _items.IndexOf(over));
+        FollowPointer(p);
         e.Handled = true;
+    }
+
+    /// <summary>The row follows the pointer: once it is over another row, the dragged row takes that row's place.</summary>
+    void FollowPointer(Point p)
+    {
+        if (_dragging is not null && ItemAt(p) is { } over && over != _dragging)
+            MoveItem(_items.IndexOf(_dragging), _items.IndexOf(over));
+    }
+
+    /// <summary>While a row is dragged near the list's top or bottom edge, scroll one row per tick and keep following the pointer.</summary>
+    void AutoScrollTick()
+    {
+        if (_dragging is null || !List.IsMouseCaptured || Descendant<ScrollViewer>(List) is not { } viewer) return;
+        var p = Mouse.GetPosition(List);
+        if (p.Y < AutoScrollEdge) viewer.LineUp();
+        else if (p.Y > List.ActualHeight - AutoScrollEdge) viewer.LineDown();
+        else return;
+        List.UpdateLayout();
+        FollowPointer(new Point(p.X, Math.Clamp(p.Y, 1, List.ActualHeight - 1)));
     }
 
     void EndDrag()
     {
+        _autoScroll.Stop();
         _pressAt = null;
         _dragging = null;
         if (List.IsMouseCaptured) List.ReleaseMouseCapture();
+    }
+
+    static bool IsInside<T>(DependencyObject d) where T : DependencyObject
+    {
+        for (var node = d; node is not null; node = node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node))
+            if (node is T) return true;
+        return false;
+    }
+
+    static T? Descendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T found) return found;
+            if (Descendant<T>(child) is { } deeper) return deeper;
+        }
+        return null;
     }
 
     OrderItem? ItemAt(Point p)

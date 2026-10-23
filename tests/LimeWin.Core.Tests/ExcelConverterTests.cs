@@ -175,7 +175,7 @@ public class ExcelConverterTests(ExcelFixture fx) : IClassFixture<ExcelFixture>,
         for (var i = 0; i < 12; i++)
         {
             Assert.Equal(0, OfficeProcesses.VisibleWindowCount(p));
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
     }
 

@@ -142,7 +142,8 @@ public sealed class CropCanvas : FrameworkElement
         if (_image is null) return null;
         var sel = ToDisplay(_selection, ImageRect());
         var reach = WheelStyle.CropHandleHit / 2;
-        foreach (var (handle, center) in Handles(sel))
+        // Bottom-right is tried first: on a tiny selection the handles overlap, and that one lets the user grow it again.
+        foreach (var (handle, center) in Handles(sel).OrderBy(h => h.Handle == CropHandle.BottomRight ? 0 : 1))
             if (Math.Abs(p.X - center.X) <= reach && Math.Abs(p.Y - center.Y) <= reach) return handle;
 
         var edge = 4.0;

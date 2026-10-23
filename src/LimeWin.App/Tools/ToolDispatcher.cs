@@ -79,13 +79,25 @@ public static class ToolDispatcher
         }
         catch (Exception e)
         {
-            Services.Jobs.Run($"{Name(file)} 자르기", _ => Task.FromException<IReadOnlyList<string>>(e)); // shows the reason on a card
+            FailedCard($"{Name(file)} 자르기", e);
             return;
         }
-        var window = new CropWindow(file, bitmap, preview.SourceWidth, preview.SourceHeight,
-            rect => Run($"{Name(file)} 자르기", ctx => ImageCropper.CropAsync(file, rect, ctx)));
-        Present(window, at);
+        try
+        {
+            var window = new CropWindow(file, bitmap, preview.SourceWidth, preview.SourceHeight,
+                rect => Run($"{Name(file)} 자르기", ctx => ImageCropper.CropAsync(file, rect, ctx)));
+            Present(window, at);
+        }
+        catch (Exception e)
+        {
+            // This method's task is discarded, so nothing after the decode may throw unseen.
+            FailedCard($"{Name(file)} 자르기", e);
+        }
     }
+
+    /// <summary>Shows an error that happened outside a job on a failed card, like a job failure.</summary>
+    static void FailedCard(string title, Exception e) =>
+        Services.Jobs.Run(title, _ => Task.FromException<IReadOnlyList<string>>(e));
 
     static void OpenOrder(OrderMode mode, IReadOnlyList<string> files, Action<IReadOnlyList<string>> go, Native.POINT at)
     {

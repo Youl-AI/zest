@@ -202,7 +202,7 @@ public class WordConverterTests(WordFixture fx) : IClassFixture<WordFixture>, ID
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
         while (OfficeProcesses.Added(before, OfficeProcesses.Snapshot("WINWORD")).Count > 0 && DateTime.UtcNow < deadline)
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         Assert.Empty(OfficeProcesses.Added(before, OfficeProcesses.Snapshot("WINWORD")));
 
         await host.RunAsync(app => 0, TimeSpan.FromMinutes(1), CancellationToken.None); // recovers

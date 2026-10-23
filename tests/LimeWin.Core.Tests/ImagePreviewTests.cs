@@ -1,3 +1,4 @@
+using ImageMagick;
 using LimeWin.Core.Tests.Fixtures;
 using LimeWin.Core.Tools;
 
@@ -46,6 +47,24 @@ public class ImagePreviewTests : IDisposable
         Assert.Equal("움직이는 이미지는 아직 지원하지 않습니다.", ex.Message);
         var thumb = ImagePreview.Load(src, 100); // thumbnails take the first frame
         Assert.Equal((40, 30), (thumb.Width, thumb.Height));
+    }
+
+    [Fact]
+    public void Load_CmykJpeg_ShowsTheRgbColours()
+    {
+        var src = Path.Combine(Dir, "인쇄용.jpg");
+        using (var image = new MagickImage(new MagickColor("#3366CC"), 40, 30))
+        {
+            image.TransformColorSpace(ColorProfiles.SRGB, ColorProfiles.USWebCoatedSWOP); // CMYK with an embedded profile
+            image.Write(src, MagickFormat.Jpeg);
+        }
+        using (var check = new MagickImage(src)) Assert.Equal(ColorSpace.CMYK, check.ColorSpace);
+
+        var p = ImagePreview.Load(src, 100);
+        var (b, g, r) = (p.Bgra[0], p.Bgra[1], p.Bgra[2]);
+        Assert.InRange(r, 0x33 - 40, 0x33 + 40);
+        Assert.InRange(g, 0x66 - 40, 0x66 + 40);
+        Assert.InRange(b, 0xCC - 40, 0xCC + 40);
     }
 
     [Fact]

@@ -18,9 +18,11 @@ public static class ImagePreview
         using var image = ImageConverter.LoadOriented(source, FormatCatalog.FormatOf(source), singleFrameOnly);
         int sourceW = (int)image.Width, sourceH = (int)image.Height;
         var edge = (uint)Math.Max(1, maxLongEdge);
-        if (Math.Max(image.Width, image.Height) > edge) image.Thumbnail(new MagickGeometry(edge, edge)); // fits inside, aspect kept
         try
         {
+            // BGRA export reads the channels as RGB, so a CMYK image is converted first (its own profile, else US Web Coated SWOP).
+            if (image.ColorSpace == ColorSpace.CMYK) image.TransformColorSpace(ColorProfiles.USWebCoatedSWOP, ColorProfiles.SRGB);
+            if (Math.Max(image.Width, image.Height) > edge) image.Thumbnail(new MagickGeometry(edge, edge)); // fits inside, aspect kept
             using var pixels = image.GetPixels();
             var bgra = pixels.ToByteArray(PixelMapping.BGRA) ?? throw new LimeException("이미지를 읽을 수 없습니다.");
             return new PreviewImage(sourceW, sourceH, (int)image.Width, (int)image.Height, bgra);

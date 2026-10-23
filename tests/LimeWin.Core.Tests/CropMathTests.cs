@@ -82,6 +82,79 @@ public class CropMathTests
         Assert.Equal(new PixelRect(0, 0, 150, 150), got);
     }
 
+    [Fact]
+    public void Resize_TopAndBottom_WithAspect_GrowTheWidthAroundTheCentre()
+    {
+        var r = new PixelRect(100, 100, 100, 100);
+        Assert.Equal(new PixelRect(90, 100, 120, 120), CropMath.Resize(r, CropHandle.Bottom, 0, 20, 1, W, H));
+        Assert.Equal(new PixelRect(90, 80, 120, 120), CropMath.Resize(r, CropHandle.Top, 0, -20, 1, W, H));
+    }
+
+    [Fact]
+    public void Resize_Left_WithAspect_GrowsLeftward()
+    {
+        var r = new PixelRect(200, 100, 100, 100);
+        Assert.Equal(new PixelRect(180, 90, 120, 120), CropMath.Resize(r, CropHandle.Left, -20, 0, 1, W, H));
+    }
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(4.0 / 3)]
+    [InlineData(3.0 / 2)]
+    [InlineData(16.0 / 9)]
+    [InlineData(9.0 / 16)]
+    public void Resize_WithAspect_NeverMovesTheAnchoredEdges(double aspect)
+    {
+        var r = CropMath.FitAspect(new PixelRect(101, 77, 163, 111), aspect, W, H);
+        int left = r.X, top = r.Y, right = r.X + r.Width, bottom = r.Y + r.Height;
+        for (var d = -60.0; d <= 60; d += 0.7)
+        {
+            var l = CropMath.Resize(r, CropHandle.Left, d, 0, aspect, W, H);
+            Assert.Equal(right, l.X + l.Width);
+            var t = CropMath.Resize(r, CropHandle.Top, 0, d, aspect, W, H);
+            Assert.Equal(bottom, t.Y + t.Height);
+            var rr = CropMath.Resize(r, CropHandle.Right, d, 0, aspect, W, H);
+            Assert.Equal(left, rr.X);
+            var b = CropMath.Resize(r, CropHandle.Bottom, 0, d, aspect, W, H);
+            Assert.Equal(top, b.Y);
+
+            var tl = CropMath.Resize(r, CropHandle.TopLeft, d, d, aspect, W, H);
+            Assert.Equal((right, bottom), (tl.X + tl.Width, tl.Y + tl.Height));
+            var tr = CropMath.Resize(r, CropHandle.TopRight, -d, d, aspect, W, H);
+            Assert.Equal((left, bottom), (tr.X, tr.Y + tr.Height));
+            var bl = CropMath.Resize(r, CropHandle.BottomLeft, d, -d, aspect, W, H);
+            Assert.Equal((right, top), (bl.X + bl.Width, bl.Y));
+            var br = CropMath.Resize(r, CropHandle.BottomRight, -d, -d, aspect, W, H);
+            Assert.Equal((left, top), (br.X, br.Y));
+
+            foreach (var got in new[] { l, t, rr, b, tl, tr, bl, br })
+            {
+                if (got.Width >= 20 && got.Height >= 20) // a few pixels cannot hold 9:16 exactly
+                    Assert.InRange(got.Width / (double)got.Height, aspect * 0.9, aspect * 1.1);
+                Assert.Equal(got, CropMath.Clamp(got, W, H)); // inside the image
+            }
+        }
+    }
+
+    [Fact]
+    public void Resize_TopRightAndBottomLeft_WithAspect_KeepTheOppositeCorner()
+    {
+        var r = new PixelRect(100, 100, 100, 100);
+        Assert.Equal(new PixelRect(100, 70, 130, 130), CropMath.Resize(r, CropHandle.TopRight, 30, -10, 1, W, H));
+        Assert.Equal(new PixelRect(60, 100, 140, 140), CropMath.Resize(r, CropHandle.BottomLeft, -40, 10, 1, W, H));
+    }
+
+    [Fact]
+    public void Resize_Side_WithAspect_IsCappedByTheOtherDimension()
+    {
+        // Width could reach 400, but height (300) caps a square at 300 and the centre shifts to fit.
+        Assert.Equal(new PixelRect(0, 0, 300, 300), CropMath.Resize(new PixelRect(0, 100, 50, 50), CropHandle.Right, 1000, 0, 1, W, H));
+        // 2:1 has room for the full width: 400 x 200, centred on y=125 and shifted inside.
+        Assert.Equal(new PixelRect(0, 25, 400, 200), CropMath.Resize(new PixelRect(0, 100, 100, 50), CropHandle.Right, 1000, 0, 2, W, H));
+        // Bottom handle, 2:1: height could reach 300, but the image width (400) caps it at 200; the centre shifts to fit.
+        Assert.Equal(new PixelRect(0, 0, 400, 200), CropMath.Resize(new PixelRect(150, 0, 100, 50), CropHandle.Bottom, 0, 1000, 2, W, H));
+    }
+
     [Theory]
     [InlineData(1.0, 50, 0, 300, 300)]      // square inside the 400x300 selection, centred
     [InlineData(16.0 / 9, 0, 38, 400, 225)]

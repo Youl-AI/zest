@@ -46,32 +46,37 @@ public static class CropMath
         return new PixelRect(left, top, right - left, bottom - top);
     }
 
+    /// <summary>
+    /// Sizes are rounded to whole pixels first and the rect is then placed from its integer anchor (the edge or corner that
+    /// stays put), so the anchored edges never move by a rounding pixel.
+    /// </summary>
     static PixelRect ResizeLocked(PixelRect s, CropHandle handle, double dx, double dy, double a, int iw, int ih)
     {
-        double left = s.X, top = s.Y, right = s.X + s.Width, bottom = s.Y + s.Height;
+        int left = s.X, top = s.Y, right = s.X + s.Width, bottom = s.Y + s.Height;
         var minW = Math.Max(1, a);
 
         if (handle is CropHandle.Left or CropHandle.Right)
         {
             // Width follows the pointer; height follows the width around the selection's vertical centre.
-            var w = handle == CropHandle.Right ? s.Width + dx : s.Width - dx;
             var room = handle == CropHandle.Right ? iw - left : right;
+            var w = handle == CropHandle.Right ? s.Width + dx : s.Width - dx;
             w = Math.Clamp(w, minW, Math.Max(minW, Math.Min(room, ih * a)));
-            var h = w / a;
-            var x = handle == CropHandle.Right ? left : right - w;
-            var y = Math.Clamp(s.Y + s.Height / 2.0 - h / 2, 0, ih - h);
-            return Snap(x, y, w, a, iw, ih);
+            var (wi, hi) = SizeFromWidth(w, a, room, ih);
+            var x = handle == CropHandle.Right ? left : right - wi;
+            var y = Math.Clamp(Round(s.Y + s.Height / 2.0 - hi / 2.0), 0, ih - hi);
+            return new PixelRect(x, y, wi, hi);
         }
         if (handle is CropHandle.Top or CropHandle.Bottom)
         {
-            var h = handle == CropHandle.Bottom ? s.Height + dy : s.Height - dy;
             var room = handle == CropHandle.Bottom ? ih - top : bottom;
             var minH = Math.Max(1, 1 / a);
+            var h = handle == CropHandle.Bottom ? s.Height + dy : s.Height - dy;
             h = Math.Clamp(h, minH, Math.Max(minH, Math.Min(room, iw / a)));
-            var w = h * a;
-            var y = handle == CropHandle.Bottom ? top : bottom - h;
-            var x = Math.Clamp(s.X + s.Width / 2.0 - w / 2, 0, iw - w);
-            return Snap(x, y, w, a, iw, ih);
+            var hi = Math.Clamp(Round(h), 1, room);
+            var wi = Math.Clamp(Round(hi * a), 1, iw);
+            var y = handle == CropHandle.Bottom ? top : bottom - hi;
+            var x = Math.Clamp(Round(s.X + s.Width / 2.0 - wi / 2.0), 0, iw - wi);
+            return new PixelRect(x, y, wi, hi);
         }
 
         // Corner: the opposite corner stays put; the larger of the two pointer moves decides the size.
@@ -85,8 +90,15 @@ public static class CropMath
         var roomW = growsRight ? iw - anchorX : anchorX;
         var roomH = growsDown ? ih - anchorY : anchorY;
         width = Math.Clamp(width, minW, Math.Max(minW, Math.Min(roomW, roomH * a)));
-        var height = width / a;
-        return Snap(growsRight ? anchorX : anchorX - width, growsDown ? anchorY : anchorY - height, width, a, iw, ih);
+        var (cw, ch) = SizeFromWidth(width, a, roomW, roomH);
+        return new PixelRect(growsRight ? anchorX : anchorX - cw, growsDown ? anchorY : anchorY - ch, cw, ch);
+    }
+
+    /// <summary>Whole-pixel width and the height that follows it, each kept within its room and at least 1.</summary>
+    static (int W, int H) SizeFromWidth(double w, double a, int maxW, int maxH)
+    {
+        var wi = Math.Clamp(Round(w), 1, Math.Max(1, maxW));
+        return (wi, Math.Clamp(Round(wi / a), 1, Math.Max(1, maxH)));
     }
 
     /// <summary>The largest rect of the aspect ratio inside the current selection, on the same centre. Null leaves the selection as is.</summary>
@@ -128,14 +140,14 @@ public static class CropMath
 
         double w = field == CropField.Width ? value : value * a;
         w = Math.Clamp(w, Math.Max(1, a), Math.Max(Math.Max(1, a), Math.Min(roomW, roomH * a)));
-        return Snap(r.X, r.Y, w, a, imageWidth, imageHeight);
+        var (wi, hi) = SizeFromWidth(w, a, roomW, roomH); // X and Y stay where they are
+        return new PixelRect(r.X, r.Y, wi, hi);
     }
 
     /// <summary>Rounds a ratio-locked rect to whole pixels (height from the rounded width) and keeps it inside the image.</summary>
     static PixelRect Snap(double x, double y, double w, double a, int iw, int ih)
     {
-        var wi = Math.Clamp(Round(w), 1, iw);
-        var hi = Math.Clamp(Round(wi / a), 1, ih);
+        var (wi, hi) = SizeFromWidth(w, a, iw, ih);
         return Clamp(new PixelRect(Round(x), Round(y), wi, hi), iw, ih);
     }
 

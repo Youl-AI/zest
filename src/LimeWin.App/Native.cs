@@ -148,6 +148,7 @@ internal static class Native
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr processId);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint attach, uint attachTo, bool on);
+    [DllImport("user32.dll")] static extern bool IsHungAppWindow(IntPtr hwnd);
     const uint SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4;
     static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
@@ -156,6 +157,7 @@ internal static class Native
     /// finishes a drop, so plain <c>Activate</c> may only flash the taskbar button. Steps: a topmost on/off flip puts the
     /// window above everything without stealing focus; then our input queue is attached to the foreground window's thread
     /// for the duration of <c>SetForegroundWindow</c>, which Windows allows because the threads then share input state.
+    /// If the foreground window is hung, the attach is skipped (it could block us) and only the flip and Activate remain.
     /// Returns whether the window ended up in the foreground (the z-order flip applies either way).
     /// </summary>
     public static bool BringToFront(Window w)
@@ -166,17 +168,21 @@ internal static class Native
         if (GetForegroundWindow() == hwnd) return true;
 
         var foreground = GetForegroundWindow();
-        var theirs = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, IntPtr.Zero);
-        var ours = GetCurrentThreadId();
-        var attached = theirs != 0 && theirs != ours && AttachThreadInput(ours, theirs, true);
-        try
+        // Attaching to a hung window's thread can block our UI thread; then settle for the z-order flip and Activate.
+        if (foreground == IntPtr.Zero || !IsHungAppWindow(foreground))
         {
-            BringWindowToTop(hwnd);
-            SetForegroundWindow(hwnd);
-        }
-        finally
-        {
-            if (attached) AttachThreadInput(ours, theirs, false);
+            var theirs = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, IntPtr.Zero);
+            var ours = GetCurrentThreadId();
+            var attached = theirs != 0 && theirs != ours && AttachThreadInput(ours, theirs, true);
+            try
+            {
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+            }
+            finally
+            {
+                if (attached) AttachThreadInput(ours, theirs, false);
+            }
         }
         w.Activate();
         return GetForegroundWindow() == hwnd;

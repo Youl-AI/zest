@@ -92,18 +92,9 @@ public partial class CompressOptionsWindow : FluentWindow
         try
         {
             options = Build();
-            foreach (var file in _files)
-            {
-                if (file.Bytes is not { } bytes) continue;
-                try
-                {
-                    options.CheckTarget(bytes);
-                }
-                catch (LimeException e) when (_files.Count > 1)
-                {
-                    throw new LimeException($"{Path.GetFileName(file.Path)}: {e.Message}");
-                }
-            }
+            // One file: an unusable target is said here, before anything starts. Several files: every file starts and
+            // one whose target does not fit fails on its own card with the compressor's message (controller ruling).
+            if (_files is [{ Bytes: { } bytes }]) options.CheckTarget(bytes);
         }
         catch (LimeException e)
         {
