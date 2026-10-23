@@ -37,6 +37,10 @@ public static class FormatCatalog
         ["htm"] = "html", ["xhtml"] = "html",
     };
 
+    /// <summary>Every format the catalog accepts as a source (including input-only ones).</summary>
+    public static IReadOnlyList<string> InputFormats { get; } =
+        [.. Images, .. Gif, .. Audio, .. Video, .. Pdf, .. Documents, .. Slides, .. Spreadsheets];
+
     /// <summary>Normalized lowercase format of a file path, or null for no/empty extension or an existing directory.</summary>
     public static string? FormatOf(string path)
     {

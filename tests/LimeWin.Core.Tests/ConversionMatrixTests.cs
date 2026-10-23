@@ -112,9 +112,9 @@ public class ConversionMatrixTests(MatrixFixture fx, ITestOutputHelper output) :
             output.WriteLine($"  {g}: {all.Count(r => GroupOf(r.From, r.To) == g)}");
         foreach (var c in Enum.GetValues<FormatCategory>())
             output.WriteLine($"  source category {c}: {all.Count(r => FormatCatalog.CategoryOf(r.From) == c)}");
-        // Every catalog source is covered; a new source format must be added to Sources.
-        Assert.All(Sources, s => Assert.NotNull(FormatCatalog.CategoryOf(s)));
+        // Every catalog source is covered; a new input format must be added to Sources.
         Assert.Equal(Sources.Length, Sources.Distinct().Count());
+        Assert.Equal(FormatCatalog.InputFormats.Order(), Sources.Order());
         Assert.NotEmpty(all);
     }
 
@@ -136,6 +136,8 @@ public class ConversionMatrixTests(MatrixFixture fx, ITestOutputHelper output) :
             var src = await fx.SourceAsync(from, dir);
             var hashBefore = Hash(src);
             var ffmpegBefore = OfficeProcesses.Snapshot("ffmpeg");
+            var (officeName, officeHost) = OfficeOf(from, to);
+            var officeBefore = officeName is null ? null : OfficeProcesses.Snapshot(officeName);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
             var results = await fx.Router.ConvertAsync(src, to, new OperationContext(cts.Token));
@@ -158,12 +160,28 @@ public class ConversionMatrixTests(MatrixFixture fx, ITestOutputHelper output) :
 
             var stray = Wait(() => OfficeProcesses.Added(ffmpegBefore, OfficeProcesses.Snapshot("ffmpeg")));
             Assert.True(stray.Count == 0, $"{from}->{to}: ffmpeg still running: {string.Join(", ", stray.Select(p => p.Id))}");
+
+            if (officeBefore is not null)
+            {
+                // The shared host's own app may stay alive (it idles out later); anything else this case started leaked.
+                var leaked = OfficeProcesses.Added(officeBefore, OfficeProcesses.Snapshot(officeName!))
+                    .Where(p => p != officeHost!.LaunchedProcess).ToList();
+                Assert.True(leaked.Count == 0, $"{from}->{to}: {officeName} left running: {string.Join(", ", leaked.Select(p => p.Id))}");
+            }
         }
         finally
         {
             try { Directory.Delete(dir, true); } catch (IOException) { }
         }
     }
+
+    (string? Process, OfficeHost? Host) OfficeOf(string from, string to) => GroupOf(from, to) != Group.Office ? (null, null)
+        : FormatCatalog.CategoryOf(from) switch
+        {
+            FormatCategory.Slides => ("POWERPNT", fx.PowerPoint),
+            FormatCategory.Spreadsheet => ("EXCEL", fx.Excel),
+            _ => ("WINWORD", fx.Word),
+        };
 
     static string Hash(string path) => System.Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
