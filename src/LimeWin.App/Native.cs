@@ -125,5 +125,62 @@ internal static class Native
         return WindowRect(w);
     }
 
+    /// <summary>
+    /// Centres a normal (not topmost) window in the work area of the monitor nearest to a physical point, without
+    /// activating it. Call it before the window is shown: the first move lets WPF rescale for that monitor's DPI
+    /// (PerMonitorV2), the second centres with the final size. A window taller or wider than the work area keeps its top-left inside.
+    /// </summary>
+    public static void CenterInWorkArea(Window w, int x, int y)
+    {
+        var work = MonitorAt(x, y).Work;
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var r = WindowRect(w);
+            var left = work.Left + Math.Max(0, (work.Width - r.Width) / 2);
+            var top = work.Top + Math.Max(0, (work.Height - r.Height) / 2);
+            SetWindowPos(Handle(w), IntPtr.Zero, left, top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr processId);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint attach, uint attachTo, bool on);
+    const uint SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4;
+    static readonly IntPtr HWND_NOTOPMOST = new(-2);
+
+    /// <summary>
+    /// Brings a shown window to the front and gives it the keyboard. A tray app is not the foreground process when Explorer
+    /// finishes a drop, so plain <c>Activate</c> may only flash the taskbar button. Steps: a topmost on/off flip puts the
+    /// window above everything without stealing focus; then our input queue is attached to the foreground window's thread
+    /// for the duration of <c>SetForegroundWindow</c>, which Windows allows because the threads then share input state.
+    /// Returns whether the window ended up in the foreground (the z-order flip applies either way).
+    /// </summary>
+    public static bool BringToFront(Window w)
+    {
+        var hwnd = Handle(w);
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        if (GetForegroundWindow() == hwnd) return true;
+
+        var foreground = GetForegroundWindow();
+        var theirs = foreground == IntPtr.Zero ? 0 : GetWindowThreadProcessId(foreground, IntPtr.Zero);
+        var ours = GetCurrentThreadId();
+        var attached = theirs != 0 && theirs != ours && AttachThreadInput(ours, theirs, true);
+        try
+        {
+            BringWindowToTop(hwnd);
+            SetForegroundWindow(hwnd);
+        }
+        finally
+        {
+            if (attached) AttachThreadInput(ours, theirs, false);
+        }
+        w.Activate();
+        return GetForegroundWindow() == hwnd;
+    }
+
     public const int WM_DPICHANGED = 0x02E0;
 }

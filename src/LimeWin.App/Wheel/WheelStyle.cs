@@ -128,6 +128,20 @@ public static class WheelStyle
         _ => null,
     };
 
+    // ── Tool windows (compress, crop, order) ────────────────────────────────
+    /// <summary>
+    /// File names and numbers: the system UI face, with Hangul in a name from Malgun Gothic (regular weight, like the Latin
+    /// beside it; the embedded Pretendard is SemiBold only and made "제주 바다.jpg" look half bold).
+    /// </summary>
+    public static readonly FontFamily TextFont = new("Segoe UI Variable Text, Malgun Gothic");
+    /// <summary>Crop selection outline and handles use the wheel's highlight lime, so the editor reads as the same product.</summary>
+    public static Color CropAccent(WheelPalette palette) => palette.Highlight;
+    /// <summary>Dimming over the part of the image the crop will cut away.</summary>
+    public static readonly Color CropShade = Hex(0x8C, 0x00, 0x00, 0x00);
+    /// <summary>Hairline just outside the selection outline, so lime stays visible on a bright image.</summary>
+    public static readonly Color CropOutlineShadow = Hex(0x59, 0x00, 0x00, 0x00);
+    public const double CropOutline = 1.5, CropHandleSize = 10, CropHandleHit = 20, CropHandleCorner = 2;
+
     // ── Motion (emil-design-eng values; nothing over 300 ms, no ease-in) ────
     /// <summary>CSS <c>ease</c>: color changes.</summary>
     public static readonly KeySpline Ease = Frozen(new KeySpline(0.25, 0.1, 0.25, 1));

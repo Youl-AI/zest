@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Threading;
 using LimeWin.App.Input;
 using LimeWin.App.Render;
+using LimeWin.App.Tools;
 using LimeWin.App.Tray;
 using LimeWin.App.Wheel;
 using LimeWin.Core;
@@ -153,19 +154,23 @@ public partial class App : Application
 
     void OnItemDropped(WheelItem item, IReadOnlyList<string> files, Point at) =>
         // Start the jobs after OLE's Drop callback has returned, so the drag source is released immediately.
-        Dispatcher.BeginInvoke(() => StartJobs(item, files));
+        Dispatcher.BeginInvoke(() => StartJobs(item, files, at));
 
-    static void StartJobs(WheelItem item, IReadOnlyList<string> files)
+    static void StartJobs(WheelItem item, IReadOnlyList<string> files, Point at)
     {
-        if (item.Operation is ConvertOp convert)
+        switch (item.Operation)
         {
-            foreach (var file in files)
-                Services.Jobs.Run($"{Path.GetFileName(file)} → {item.Label}", ctx => Services.Router.ConvertAsync(file, convert.Target, ctx));
-        }
-        else
-        {
-            // Tools and actions arrive in later tasks.
-            Services.Jobs.Run(item.Label, _ => throw new LimeException("준비 중입니다."));
+            case ConvertOp convert:
+                foreach (var file in files)
+                    Services.Jobs.Run($"{Path.GetFileName(file)} → {item.Label}", ctx => Services.Router.ConvertAsync(file, convert.Target, ctx));
+                break;
+            case ToolOp tool:
+                ToolDispatcher.Handle(tool.Tool, files, at);
+                break;
+            default:
+                // Actions arrive in a later task.
+                Services.Jobs.Run(item.Label, _ => throw new LimeException("준비 중입니다."));
+                break;
         }
     }
 

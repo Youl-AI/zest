@@ -27,6 +27,14 @@ public sealed record CompressOptions(
         SizeGoal.Percentage => (long)(originalBytes * (1 - Math.Clamp(ShrinkPercent, 1, 99) / 100)),
         _ => null,
     };
+
+    /// <summary>Throws the compressor's own message if the target is unusable for a file of this size (preset: never).</summary>
+    public void CheckTarget(long originalBytes)
+    {
+        if (TargetFor(originalBytes) is not { } t) return;
+        if (t < 1000) throw new LimeException("목표 크기는 1KB 이상이어야 합니다.");
+        if (t >= originalBytes) throw new LimeException("목표가 지금 파일보다 작아야 합니다.");
+    }
 }
 
 /// <summary>Makes an image file smaller in its own format; the result is `name (compressed).ext` next to the source.</summary>
@@ -58,12 +66,8 @@ public static class ImageCompressor
             throw new LimeException("원본 파일을 열 수 없습니다.");
         }
 
+        o.CheckTarget(originalBytes);
         var target = o.TargetFor(originalBytes);
-        if (target is { } t)
-        {
-            if (t < 1000) throw new LimeException("목표 크기는 1KB 이상이어야 합니다.");
-            if (t >= originalBytes) throw new LimeException("목표가 지금 파일보다 작아야 합니다.");
-        }
 
         using var image = ImageConverter.LoadOriented(source, format, singleFrameOnly: true);
         CapLongEdge(image, o.Cap);
@@ -195,7 +199,7 @@ public static class ImageCompressor
     }
 
     /// <summary>"182 KB" / "1.4 MB" with decimal units like the target field.</summary>
-    internal static string FormatSize(long bytes) => bytes switch
+    public static string FormatSize(long bytes) => bytes switch
     {
         < 1_000 => $"{bytes} B",
         < 1_000_000 => $"{Math.Round(bytes / 1_000.0):0} KB",

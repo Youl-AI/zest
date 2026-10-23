@@ -57,6 +57,11 @@ public static class RenderHarness
                 Save(Card("running", dark), folder, $"progress-card-running{suffix}.png", log);
                 Save(Card("done", dark), folder, $"progress-card-done{suffix}.png", log);
                 Save(Card("failed", dark), folder, $"progress-card-failed{suffix}.png", log);
+
+                var palette = dark ? WheelStyle.DarkPalette : WheelStyle.LightPalette;
+                Save(ToolWindows.Compress(dark), folder, $"compress-options{suffix}.png", log);
+                Save(ToolWindows.Crop(dark, palette), folder, $"crop{suffix}.png", log);
+                Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
             }
 
             Save(TraySheet(), folder, "tray-icons.png", log);
@@ -195,7 +200,7 @@ public static class RenderHarness
     /// The views use Display text formatting, which on screen hints glyphs to the monitor's real pixels. RenderTargetBitmap
     /// instead rasterizes Display text at 96 DPI and stretches it to 2x; Ideal is what a 200 % screen effectively shows.
     /// </summary>
-    static void AsOnHighDpiScreen(FrameworkElement element) =>
+    internal static void AsOnHighDpiScreen(FrameworkElement element) =>
         TextOptions.SetTextFormattingMode(element, TextFormattingMode.Ideal);
 
     static void Save(FrameworkElement element, string folder, string name, StringBuilder log)
@@ -208,7 +213,7 @@ public static class RenderHarness
         log.AppendLine(CultureInfo.InvariantCulture, $"{name}: {size.Width * Scale}x{size.Height * Scale}");
     }
 
-    static BitmapSource Snapshot(FrameworkElement element, double width, double height)
+    internal static BitmapSource Snapshot(FrameworkElement element, double width, double height)
     {
         element.Measure(new Size(width, height));
         element.Arrange(new Rect(0, 0, width, height));
