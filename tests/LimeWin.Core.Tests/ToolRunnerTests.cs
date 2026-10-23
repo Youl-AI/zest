@@ -21,7 +21,7 @@ public class ToolRunnerTests : IDisposable
             ctx.Track(path);
             throw (Exception)Activator.CreateInstance(exceptionType)!;
         }));
-        Assert.Equal("결과를 저장하지 못했습니다.", ex.Message);
+        Assert.Equal("파일을 읽거나 저장하지 못했습니다.", ex.Message);
         Assert.False(File.Exists(path));
     }
 

@@ -12,7 +12,7 @@ public static class ToolRunner
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             TrackedCleanup.DeleteCreated(ctx);
-            throw new LimeException("결과를 저장하지 못했습니다.");
+            throw new LimeException("파일을 읽거나 저장하지 못했습니다.");
         }
         catch
         {

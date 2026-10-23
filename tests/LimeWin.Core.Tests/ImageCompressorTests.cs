@@ -1,4 +1,6 @@
 using ImageMagick;
+using ImageMagick.Formats;
+using LimeWin.Core.Convert;
 using LimeWin.Core.Jobs;
 using LimeWin.Core.Tests.Fixtures;
 using LimeWin.Core.Tools;
@@ -169,6 +171,69 @@ public class ImageCompressorTests : IDisposable
         File.WriteAllBytes(src, []);
         var ex = await Assert.ThrowsAsync<LimeException>(() => ImageCompressor.CompressAsync(src, new CompressOptions(), Ctx));
         Assert.Equal("이미지를 읽을 수 없습니다.", ex.Message);
+    }
+
+    [Fact]
+    public async Task Preset_Heic_UsesQuality()
+    {
+        Assert.SkipUnless(CapabilityProbe.CanWrite("heic"), "Magick here has no HEIC encoder");
+        var src = FixtureFactory.NoiseImage(Dir, "사진.heic", 600, 400);
+        var gentle = await ImageCompressor.CompressAsync(src, new CompressOptions(), Ctx);
+        var hard = await ImageCompressor.CompressAsync(src, new CompressOptions(Level: SquashLevel.Hard), Ctx);
+        Assert.True(new FileInfo(hard).Length < new FileInfo(gentle).Length);
+    }
+
+    [Fact]
+    public async Task TargetSize_Heic_SearchesQuality()
+    {
+        Assert.SkipUnless(CapabilityProbe.CanWrite("heic"), "Magick here has no HEIC encoder");
+        var src = FixtureFactory.NoiseImage(Dir, "사진.heic", 600, 400);
+        var target = new FileInfo(src).Length / 2;
+        var output = await ImageCompressor.CompressAsync(src, new CompressOptions(SizeGoal.FileSize, TargetBytes: target), Ctx);
+        Assert.True(new FileInfo(output).Length <= target);
+        using var m = new MagickImage(output);
+        Assert.Equal((600u, 400u), (m.Width, m.Height)); // quality alone was enough, no shrinking
+    }
+
+    [Fact]
+    public async Task TargetSize_DropsExifButKeepsIcc()
+    {
+        var src = Path.Combine(Dir, "프로필.jpg");
+        using (var img = new MagickImage(MagickColors.Gray, 300, 300))
+        {
+            img.AddNoise(NoiseType.Random);
+            img.SetProfile(ColorProfiles.SRGB);
+            var exif = new ExifProfile();
+            exif.SetValue(ExifTag.ImageDescription, new string('x', 60_000)); // too big for the target on its own
+            img.SetProfile(exif);
+            img.Write(src, MagickFormat.Jpeg);
+        }
+        var output = await ImageCompressor.CompressAsync(src, new CompressOptions(SizeGoal.FileSize, TargetBytes: 30_000), Ctx);
+        using var m = new MagickImage(output);
+        Assert.InRange(new FileInfo(output).Length, 1, 30_000);
+        Assert.Null(m.GetExifProfile());
+        Assert.NotNull(m.GetColorProfile());
+        Assert.Equal((300u, 300u), (m.Width, m.Height)); // dropping metadata was enough
+    }
+
+    [Fact]
+    public async Task AnimatedSource_IsRefused()
+    {
+        var src = FixtureFactory.AnimatedWebp(Dir, "움직임.webp");
+        var ex = await Assert.ThrowsAsync<LimeException>(() => ImageCompressor.CompressAsync(src, new CompressOptions(Cap: ResizeCap.Px1280), Ctx));
+        Assert.Equal("움직이는 이미지는 아직 지원하지 않습니다.", ex.Message);
+        Assert.Equal([src], Directory.GetFiles(Dir));
+    }
+
+    [Fact]
+    public async Task ExifRotatedSource_OutputHasNoStaleOrientation()
+    {
+        var src = FixtureFactory.NoiseImage(Dir, "회전.jpg", 600, 400);
+        FixtureFactory.AddExifRotate90(src);
+        var output = await ImageCompressor.CompressAsync(src, new CompressOptions(), Ctx);
+        using var m = new MagickImage(output);
+        Assert.Equal((400u, 600u), (m.Width, m.Height));
+        Assert.Contains(m.Orientation, new[] { Orientation.TopLeft, Orientation.Undefined });
     }
 
     sealed class CancelAfter(CancellationTokenSource cts, int reports) : IProgress<double>

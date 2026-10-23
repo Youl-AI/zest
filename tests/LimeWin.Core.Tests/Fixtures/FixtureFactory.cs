@@ -105,6 +105,32 @@ internal static class FixtureFactory
         return path;
     }
 
+    /// <summary>Splices a minimal EXIF APP1 segment (Orientation = 6, rotate 90 degrees) into a jpg, in place.</summary>
+    public static void AddExifRotate90(string jpgPath)
+    {
+        byte[] app1 =
+        [
+            0xFF, 0xE1, 0x00, 0x22, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
+            (byte)'M', (byte)'M', 0x00, 0x2A, 0, 0, 0, 8,
+            0x00, 0x01, 0x01, 0x12, 0x00, 0x03, 0, 0, 0, 1, 0x00, 0x06, 0, 0,
+            0, 0, 0, 0,
+        ];
+        var jpg = File.ReadAllBytes(jpgPath);
+        File.WriteAllBytes(jpgPath, [.. jpg[..2], .. app1, .. jpg[2..]]);
+    }
+
+    /// <summary>Writes a two-frame animated webp.</summary>
+    public static string AnimatedWebp(string dir, string name)
+    {
+        var path = Path.Combine(dir, name);
+        using var frames = new MagickImageCollection();
+        frames.Add(new MagickImage(MagickColors.Red, 40, 30));
+        frames.Add(new MagickImage(MagickColors.Blue, 40, 30));
+        foreach (var f in frames) f.AnimationDelay = 10;
+        frames.Write(path, MagickFormat.WebP);
+        return path;
+    }
+
     /// <summary>Writes a w x h image of random noise (hard to compress) in the format of the extension; <paramref name="quality"/> applies to lossy formats.</summary>
     public static string NoiseImage(string dir, string name, int w, int h, uint quality = 98)
     {
@@ -117,6 +143,7 @@ internal static class FixtureFactory
         {
             "jpg" => MagickFormat.Jpeg,
             "png" => MagickFormat.Png,
+            "heic" => MagickFormat.Heic,
             "webp" => MagickFormat.WebP,
             "tiff" => MagickFormat.Tiff,
             "bmp" => MagickFormat.Bmp,

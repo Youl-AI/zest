@@ -22,7 +22,7 @@ public static class ImageCropper
         if (format is null || format is "svg" || FormatCatalog.CategoryOf(format) != FormatCategory.Image || !CapabilityProbe.CanWrite(format))
             throw new LimeException("이 형식은 자를 수 없습니다.");
 
-        using var image = ImageConverter.LoadOriented(source, format);
+        using var image = ImageConverter.LoadOriented(source, format, singleFrameOnly: true);
         ctx.Report(0.4);
 
         long x0 = Math.Max(0, (long)rect.X), y0 = Math.Max(0, (long)rect.Y);
@@ -37,7 +37,7 @@ public static class ImageCropper
         ctx.Track(output);
         try
         {
-            ImageConverter.Encode(image, format, output);
+            ImageConverter.Encode(image, format, output, lossyQuality: 92); // a crop should not visibly degrade the picture
         }
         catch (MagickException)
         {

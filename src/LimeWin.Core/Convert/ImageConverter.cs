@@ -55,7 +55,8 @@ public sealed class ImageConverter : IConverter
         return [output];
     }
 
-    internal static MagickImage Load(string source, string? from)
+    /// <param name="singleFrameOnly">Tools that write one image back (compress, crop) refuse animated or multi-page sources instead of flattening them.</param>
+    internal static MagickImage Load(string source, string? from, bool singleFrameOnly = false)
     {
         // Read from bytes so the content, not the (possibly wrong) extension, decides the decoder.
         var settings = new MagickReadSettings();
@@ -73,23 +74,36 @@ public sealed class ImageConverter : IConverter
         {
             throw new LimeException("원본 파일을 열 수 없습니다."); // FileNotFoundException is an IOException
         }
-        MagickImage? image = null;
         try
         {
-            image = new MagickImage(bytes, settings); // an empty byte array throws ArgumentException
-            return image;
+            if (singleFrameOnly && FrameCount(bytes, settings) > 1)
+                throw new LimeException("움직이는 이미지는 아직 지원하지 않습니다.");
+            return new MagickImage(bytes, settings); // an empty byte array throws ArgumentException
         }
         catch (Exception e) when (e is MagickException or ArgumentException)
         {
-            image?.Dispose();
             throw new LimeException("이미지를 읽을 수 없습니다.");
         }
     }
 
-    /// <summary>Loads the image and applies its EXIF orientation. The image is disposed if anything after the decode fails.</summary>
-    internal static MagickImage LoadOriented(string source, string? from)
+    static int FrameCount(byte[] bytes, MagickReadSettings settings)
     {
-        var image = Load(source, from);
+        try
+        {
+            using var frames = new MagickImageCollection();
+            frames.Ping(bytes, settings);
+            return frames.Count;
+        }
+        catch (Exception e) when (e is MagickException or ArgumentException)
+        {
+            return 1; // the real decode reports the problem
+        }
+    }
+
+    /// <summary>Loads the image and applies its EXIF orientation. The image is disposed if anything after the decode fails.</summary>
+    internal static MagickImage LoadOriented(string source, string? from, bool singleFrameOnly = false)
+    {
+        var image = Load(source, from, singleFrameOnly);
         try
         {
             image.AutoOrient();
@@ -107,10 +121,10 @@ public sealed class ImageConverter : IConverter
         }
     }
 
-    internal static void Encode(MagickImage image, string to, string output)
+    internal static void Encode(MagickImage image, string to, string output, uint lossyQuality = 80)
     {
         if (to is "jpg" or "bmp") image.ColorAlpha(MagickColors.White);
-        if (to is "jpg" or "webp" or "heic" or "avif") image.Quality = 80;
+        if (to is "jpg" or "webp" or "heic" or "avif") image.Quality = lossyQuality;
         if (to == "png") image.Settings.SetDefine(MagickFormat.Png, "compression-level", "6");
         image.Write(output, MagickFormatOf(to));
     }

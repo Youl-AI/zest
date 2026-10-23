@@ -32,11 +32,11 @@ public sealed record CompressOptions(
 /// <summary>Makes an image file smaller in its own format; the result is `name (compressed).ext` next to the source.</summary>
 public static class ImageCompressor
 {
-    const int MaxRounds = 8;          // round 0: as is, round 1: metadata stripped, rounds 2..7: long edge x 0.8
+    const int MaxRounds = 8;          // round 0: as is, then metadata dropped (if there is any), then long edge x 0.8 each round
     const int SearchSteps = 7;
     const uint MinLongEdge = 32;
 
-    static readonly HashSet<string> Lossy = ["jpg", "webp", "avif"];
+    static readonly HashSet<string> Lossy = ["jpg", "webp", "heic", "avif"];
 
     public static Task<string> CompressAsync(string source, CompressOptions o, OperationContext ctx) =>
         ToolRunner.RunAsync(ctx, () => Task.Run(() => Compress(source, o, ctx), ctx.Token));
@@ -65,7 +65,7 @@ public static class ImageCompressor
             if (t >= originalBytes) throw new LimeException("목표가 지금 파일보다 작아야 합니다.");
         }
 
-        using var image = ImageConverter.LoadOriented(source, format);
+        using var image = ImageConverter.LoadOriented(source, format, singleFrameOnly: true);
         CapLongEdge(image, o.Cap);
         ctx.Report(0.05);
 
@@ -98,13 +98,22 @@ public static class ImageCompressor
         var done = 0;
         long smallest = long.MaxValue;
 
+        var dropped = !HasDroppableMetadata(image);
         for (var round = 0; round < MaxRounds; round++)
         {
-            if (round == 1) image.Strip();
-            if (round >= 2)
+            if (round > 0)
             {
-                if (Math.Max(image.Width, image.Height) < MinLongEdge) break;
-                image.Resize(new MagickGeometry(Scale(image.Width), Scale(image.Height)) { IgnoreAspectRatio = true });
+                if (!dropped)
+                {
+                    DropMetadata(image);
+                    dropped = true;
+                }
+                else
+                {
+                    var (w, h) = (Scale(image.Width), Scale(image.Height));
+                    if (Math.Max(w, h) < MinLongEdge) break;
+                    image.Resize(new MagickGeometry(w, h) { IgnoreAspectRatio = true });
+                }
             }
 
             byte[]? best = null;
@@ -133,6 +142,16 @@ public static class ImageCompressor
             if (best is not null) return best;
         }
         throw new LimeException($"{FormatSize(smallest)}까지 줄였지만 더 작게는 안 됩니다.");
+    }
+
+    static bool HasDroppableMetadata(MagickImage image) =>
+        image.GetExifProfile() is not null || image.GetXmpProfile() is not null
+        || image.GetIptcProfile() is not null || image.Get8BimProfile() is not null;
+
+    /// <summary>Removes EXIF, XMP, IPTC and Photoshop data but keeps the ICC colour profile, so colours do not shift.</summary>
+    static void DropMetadata(MagickImage image)
+    {
+        foreach (var name in new[] { "exif", "xmp", "iptc", "8bim" }) image.RemoveProfile(name);
     }
 
     static uint Scale(uint edge) => Math.Max(1, (uint)Math.Round(edge * 0.8));

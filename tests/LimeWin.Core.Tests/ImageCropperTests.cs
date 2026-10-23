@@ -50,16 +50,7 @@ public class ImageCropperTests : IDisposable
     public async Task Crop_UsesTheOrientedImage_AndLeavesSourceUntouched()
     {
         var src = FixtureFactory.Image(Dir, "회전.jpg", 100, 50);
-        // Splice a minimal EXIF APP1 segment (Orientation = 6, rotate 90 degrees) in after the SOI marker; displayed as 50 x 100.
-        byte[] app1 =
-        [
-            0xFF, 0xE1, 0x00, 0x22, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
-            (byte)'M', (byte)'M', 0x00, 0x2A, 0, 0, 0, 8,
-            0x00, 0x01, 0x01, 0x12, 0x00, 0x03, 0, 0, 0, 1, 0x00, 0x06, 0, 0,
-            0, 0, 0, 0,
-        ];
-        var jpg = File.ReadAllBytes(src);
-        File.WriteAllBytes(src, [.. jpg[..2], .. app1, .. jpg[2..]]);
+        FixtureFactory.AddExifRotate90(src); // displayed as 50 x 100
         var before = File.ReadAllBytes(src);
         var output = await ImageCropper.CropAsync(src, new PixelRect(0, 0, 50, 100), Ctx);
         using var m = new MagickImage(output);
@@ -74,5 +65,33 @@ public class ImageCropperTests : IDisposable
         File.WriteAllBytes(src, []);
         var ex = await Assert.ThrowsAsync<LimeException>(() => ImageCropper.CropAsync(src, new PixelRect(0, 0, 5, 5), Ctx));
         Assert.Equal("이미지를 읽을 수 없습니다.", ex.Message);
+    }
+
+    [Fact]
+    public async Task Crop_OfRotatedSource_HasNoStaleOrientation()
+    {
+        var src = FixtureFactory.Image(Dir, "회전.jpg", 100, 50);
+        FixtureFactory.AddExifRotate90(src);
+        var output = await ImageCropper.CropAsync(src, new PixelRect(0, 0, 50, 100), Ctx);
+        using var m = new MagickImage(output);
+        Assert.Contains(m.Orientation, new[] { Orientation.TopLeft, Orientation.Undefined });
+    }
+
+    [Fact]
+    public async Task Crop_KeepsLossyQualityHigh()
+    {
+        var src = FixtureFactory.NoiseImage(Dir, "고화질.jpg", 400, 300, quality: 98);
+        var output = await ImageCropper.CropAsync(src, new PixelRect(0, 0, 200, 150), Ctx);
+        using var m = new MagickImage(output);
+        Assert.True(m.Quality >= 90, $"estimated quality {m.Quality}");
+    }
+
+    [Fact]
+    public async Task AnimatedSource_IsRefused()
+    {
+        var src = FixtureFactory.AnimatedWebp(Dir, "움직임.webp");
+        var ex = await Assert.ThrowsAsync<LimeException>(() => ImageCropper.CropAsync(src, new PixelRect(0, 0, 10, 10), Ctx));
+        Assert.Equal("움직이는 이미지는 아직 지원하지 않습니다.", ex.Message);
+        Assert.Equal([src], Directory.GetFiles(Dir));
     }
 }
