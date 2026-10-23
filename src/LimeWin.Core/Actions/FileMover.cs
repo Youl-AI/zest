@@ -39,25 +39,27 @@ public static class FileMover
         {
             token.ThrowIfCancellationRequested();
             var source = Normalize(paths[i]);
-            var name = Path.GetFileName(source);
+            var name = OutputNaming.DisplayName(source);
             var isFolder = Directory.Exists(source);
             if (!isFolder && !File.Exists(source))
                 failures.Add($"‘{name}’을 찾을 수 없습니다.");
             else if (IsSameOrInside(destination, source))
                 failures.Add($"‘{name}’은 자기 안으로 옮길 수 없습니다.");
+            else if (Path.GetFileName(source).Length == 0)
+                failures.Add($"‘{name}’은 옮길 수 없습니다."); // a drive or share root
             else if (!SamePath(Path.GetDirectoryName(source), destination))
             {
-                var target = UniqueTarget(destination, name, isFolder);
+                var target = UniqueTarget(destination, Path.GetFileName(source), isFolder);
                 try
                 {
                     if (isFolder) MoveFolder(source, target, ops, token);
                     else File.Move(source, target);
                     moved.Add(target);
                 }
-                catch (SourceNotRemovedException e)
+                catch (SourceNotRemovedException)
                 {
                     moved.Add(target);
-                    failures.Add($"‘{name}’을 옮겼지만 원래 폴더를 다 지우지 못했습니다: {Reason(e.InnerException!)}");
+                    failures.Add($"‘{name}’의 원래 폴더에 옮기지 못한 항목이 남아 있습니다.");
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or LimeException)
                 {
@@ -80,8 +82,8 @@ public static class FileMover
 
     /// <summary>
     /// A rename when source and target share a volume. Across volumes <see cref="Directory.Move"/> cannot work, so the
-    /// folder is copied, and the source is deleted only after the whole copy succeeded; a failed or cancelled copy is
-    /// removed again and the source stays untouched.
+    /// folder is copied and then exactly what was copied is removed from the source (see <see cref="RemoveCopied"/>).
+    /// A failed or cancelled copy removes only what it created, and the source stays untouched.
     /// </summary>
     static void MoveFolder(string source, string target, Ops ops, CancellationToken token)
     {
@@ -98,70 +100,152 @@ public static class FileMover
             }
         }
 
+        var copied = new List<Copied>();
         try
         {
-            CopyTree(source, target, ops, token);
+            CopyTree(source, target, ops, token, copied);
         }
         catch
         {
-            TryDeleteTree(target);
+            RemoveCreated(copied);
             throw;
         }
-
-        try
-        {
-            DeleteTree(source);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            throw new SourceNotRemovedException(e);
-        }
+        if (!RemoveCopied(copied)) throw new SourceNotRemovedException();
     }
 
-    static void CopyTree(string source, string target, Ops ops, CancellationToken token)
+    /// <summary>One file or folder the cross-volume copy created, with the source's state when it was copied.</summary>
+    sealed record Copied(string Source, string Target, bool IsFolder, long Length, DateTime LastWriteUtc);
+
+    /// <summary>
+    /// Copies a folder tree, recording each folder and file it creates (in creation order, parents first). The folder's
+    /// listing is taken once up front, so items that appear later are not copied (and stay in the source). A name that
+    /// already exists in the target is never written into or recorded. Folder attributes and times are applied after
+    /// each subtree, read-only last.
+    /// </summary>
+    static void CopyTree(string source, string target, Ops ops, CancellationToken token, List<Copied> copied)
     {
+        var from = new DirectoryInfo(source);
+        if (Exists(target)) throw new IOException(target, unchecked((int)(0x80070000 | ErrorAlreadyExists)));
         Directory.CreateDirectory(target);
-        foreach (var entry in new DirectoryInfo(source).EnumerateFileSystemInfos())
+        copied.Add(new Copied(source, target, IsFolder: true, 0, default));
+
+        foreach (var entry in from.EnumerateFileSystemInfos().ToList())
         {
             token.ThrowIfCancellationRequested();
             var to = Path.Combine(target, entry.Name);
             if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
                 throw new LimeException("링크가 들어 있는 폴더는 다른 드라이브로 옮길 수 없습니다.");
-            if (entry is DirectoryInfo) CopyTree(entry.FullName, to, ops, token);
-            else ops.CopyFile(entry.FullName, to);
+            if (entry is DirectoryInfo)
+            {
+                CopyTree(entry.FullName, to, ops, token, copied);
+                continue;
+            }
+            if (Exists(to)) throw new IOException(to, unchecked((int)(0x80070000 | ErrorFileExists)));
+            entry.Refresh();
+            var file = (FileInfo)entry;
+            var state = new Copied(entry.FullName, to, IsFolder: false, file.Length, file.LastWriteTimeUtc);
+            copied.Add(state); // before the copy, so a half-written target is cleaned up too
+            ops.CopyFile(entry.FullName, to);
+        }
+
+        var made = new DirectoryInfo(target)
+        {
+            CreationTimeUtc = from.CreationTimeUtc,
+            LastWriteTimeUtc = from.LastWriteTimeUtc,
+        };
+        made.Attributes = FileAttributes.Directory | (from.Attributes & (FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReadOnly));
+    }
+
+    /// <summary>
+    /// Deletes from the source exactly the files that were copied and are unchanged since (same size and last-write
+    /// time), then the copied folders deepest first, each only if empty. Anything added, changed or undeletable stays.
+    /// Returns false when anything of the source is left.
+    /// </summary>
+    static bool RemoveCopied(List<Copied> copied)
+    {
+        var complete = true;
+        for (var i = copied.Count - 1; i >= 0; i--)
+        {
+            var item = copied[i];
+            try
+            {
+                if (item.IsFolder)
+                {
+                    var attributes = File.GetAttributes(item.Source);
+                    ClearReadOnly(item.Source);
+                    try
+                    {
+                        Directory.Delete(item.Source, recursive: false);
+                    }
+                    catch (IOException)
+                    {
+                        File.SetAttributes(item.Source, attributes); // still there (not empty): as it was
+                        throw;
+                    }
+                }
+                else
+                {
+                    var file = new FileInfo(item.Source);
+                    if (!file.Exists || file.Length != item.Length || file.LastWriteTimeUtc != item.LastWriteUtc)
+                    {
+                        complete &= !file.Exists; // gone already is fine; changed stays
+                        continue;
+                    }
+                    ClearReadOnly(item.Source);
+                    file.Delete();
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                complete = false;
+            }
+        }
+        return complete;
+    }
+
+    /// <summary>Undoes a failed copy: deletes only the files and folders it created, deepest first, folders only if empty.</summary>
+    static void RemoveCreated(List<Copied> copied)
+    {
+        for (var i = copied.Count - 1; i >= 0; i--)
+        {
+            var target = copied[i].Target;
+            try
+            {
+                if (copied[i].IsFolder)
+                {
+                    if (!Directory.Exists(target)) continue;
+                    ClearReadOnly(target);
+                    Directory.Delete(target, recursive: false);
+                }
+                else if (File.Exists(target))
+                {
+                    ClearReadOnly(target);
+                    File.Delete(target);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Leaves part of the copy; the source is still complete, which is what matters.
+            }
         }
     }
 
-    /// <summary>Recursive delete that also removes read-only files (a plain recursive delete refuses them).</summary>
-    static void DeleteTree(string folder)
+    static void ClearReadOnly(string path)
     {
-        foreach (var file in new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories))
-            if (file.Attributes.HasFlag(FileAttributes.ReadOnly)) file.Attributes &= ~FileAttributes.ReadOnly;
-        Directory.Delete(folder, recursive: true);
+        var attributes = File.GetAttributes(path);
+        if (attributes.HasFlag(FileAttributes.ReadOnly)) File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
     }
 
-    static void TryDeleteTree(string folder)
-    {
-        try
-        {
-            if (Directory.Exists(folder)) DeleteTree(folder);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Leaves a partial copy; the source is still complete, which is what matters.
-        }
-    }
+    static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 
     /// <summary>Same name in the destination, numbered on a clash: files keep their extension last, folders are numbered as a whole.</summary>
     static string UniqueTarget(string destination, string name, bool isFolder)
     {
         var ext = isFolder ? "" : Path.GetExtension(name);
         var stem = Path.GetFileNameWithoutExtension(name);
-        if (ext.Length > 1 && stem.Length > 0) return OutputNaming.UniquePath(destination, stem, ext[1..]);
-        var candidate = Path.Combine(destination, name);
-        for (var n = 2; File.Exists(candidate) || Directory.Exists(candidate); n++)
-            candidate = Path.Combine(destination, $"{name} {n}");
-        return candidate;
+        return ext.Length > 1 && stem.Length > 0
+            ? OutputNaming.UniquePath(destination, stem, ext[1..])
+            : OutputNaming.UniqueName(destination, name);
     }
 
     /// <summary>A short Korean reason for a failed move.</summary>
@@ -191,6 +275,6 @@ public static class FileMover
     static bool IsSameOrInside(string path, string folder) =>
         SamePath(path, folder) || path.StartsWith(Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The copy is complete in the destination, but deleting the source failed part way.</summary>
-    sealed class SourceNotRemovedException(Exception inner) : Exception(inner.Message, inner);
+    /// <summary>The copy is complete in the destination, but part of the source was left (added, changed or undeletable).</summary>
+    sealed class SourceNotRemovedException : Exception;
 }

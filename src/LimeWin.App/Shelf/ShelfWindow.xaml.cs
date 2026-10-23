@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using LimeWin.App.Wheel;
+using LimeWin.Core.Output;
 
 namespace LimeWin.App.Shelf;
 
@@ -15,7 +16,7 @@ public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : IN
     bool _missing = missing;
 
     public string Path { get; } = path;
-    public string Name { get; } = System.IO.Path.GetFileName(path);
+    public string Name { get; } = OutputNaming.DisplayName(path);
     public ImageSource? Icon { get; } = icon;
 
     /// <summary>No longer at <see cref="Path"/> (moved or deleted elsewhere): shown dimmed and left out of drags.</summary>
@@ -64,6 +65,11 @@ public partial class ShelfWindow : Window
         UpdateHeader();
 
         SourceInitialized += (_, _) => Native.MakeToolWindow(this);
+        // Rows added near the bottom edge grow the window (SizeToContent) past the work area; pull it back in.
+        SizeChanged += (_, _) =>
+        {
+            if (IsVisible) Native.KeepInWorkArea(this);
+        };
         Header.MouseLeftButtonDown += (_, e) =>
         {
             if (e.ButtonState == MouseButtonState.Pressed) DragMove();
@@ -124,7 +130,8 @@ public partial class ShelfWindow : Window
         PileBack.Visibility = _items.Count > 1 ? Visibility.Visible : Visibility.Hidden;
     }
 
-    void RefreshMissing()
+    /// <summary>Re-checks which rows still exist where they were.</summary>
+    public void RefreshMissing()
     {
         foreach (var item in _items) item.Missing = !ShelfItem.Exists(item.Path);
     }

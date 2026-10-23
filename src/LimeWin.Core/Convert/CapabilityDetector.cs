@@ -22,7 +22,7 @@ public static class CapabilityDetector
     }
 
     /// <summary>True when <paramref name="fileName"/> exists in one of the folders of a PATH-style list.</summary>
-    public static bool FindOnPath(string fileName, string? pathList) => FfmpegLocator.Find(fileName, pathList) is not null;
+    public static bool FindOnPath(string fileName, string? pathList) => PathLookup.Find(fileName, pathList) is not null;
 
     static bool IsProgIdRegistered(string progId)
     {

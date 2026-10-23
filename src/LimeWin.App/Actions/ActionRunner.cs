@@ -9,7 +9,7 @@ using LimeWin.App.Shelf;
 using LimeWin.Core;
 using LimeWin.Core.Actions;
 using LimeWin.Core.Catalog;
-using LimeWin.Core.Convert;
+using LimeWin.Core.Output;
 using Microsoft.Win32;
 
 namespace LimeWin.App.Actions;
@@ -112,11 +112,19 @@ public static class ActionRunner
         if (chosen != true) return;
 
         var destination = dialog.FolderName;
+        var dispatcher = Application.Current.Dispatcher;
         Services.Jobs.Run($"{files.Count}개 옮기는 중", ctx =>
         {
-            var result = FileMover.Move(files, destination, ctx);
-            if (result.Failures.Count > 0) throw new LimeException(FileMover.FailureSummary(result));
-            return Task.FromResult(result.Moved);
+            try
+            {
+                var result = FileMover.Move(files, destination, ctx);
+                if (result.Failures.Count > 0) throw new LimeException(FileMover.FailureSummary(result));
+                return Task.FromResult(result.Moved);
+            }
+            finally
+            {
+                dispatcher.BeginInvoke(Shelves.RefreshAll); // moved files on a shelf show as gone
+            }
         });
     }
 
@@ -160,7 +168,7 @@ public static class ActionRunner
     static string? WindowsTerminal()
     {
         var alias = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", "wt.exe");
-        return File.Exists(alias) ? alias : FfmpegLocator.Find("wt.exe", Environment.GetEnvironmentVariable("PATH"));
+        return File.Exists(alias) ? alias : PathLookup.Find("wt.exe", Environment.GetEnvironmentVariable("PATH"));
     }
 
     /// <summary>Starts a program with each argument passed as one argument (never pasted into a command string).</summary>
@@ -182,7 +190,7 @@ public static class ActionRunner
     static void FailedCard(string title, string message) =>
         Services.Jobs.Run(title, _ => Task.FromException<IReadOnlyList<string>>(new LimeException(message)));
 
-    static string Name(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
+    static string Name(string path) => OutputNaming.DisplayName(path);
 
     /// <summary>"보고서.pdf" or "보고서.pdf 외 2개".</summary>
     static string Several(IReadOnlyList<string> files) =>

@@ -14,6 +14,19 @@ public static class OutputNaming
         return candidate;
     }
 
+    /// <summary>`name`, or `name 2`, `name 3`... when taken: the whole name is numbered (folders, names without an extension).</summary>
+    public static string UniqueName(string directory, string name)
+    {
+        var candidate = Path.Combine(directory, name);
+        for (var n = 2; File.Exists(candidate) || Directory.Exists(candidate); n++)
+            candidate = Path.Combine(directory, $"{name} {n}");
+        return candidate;
+    }
+
+    /// <summary>The last part of a path for messages and lists (a trailing separator ignored); a drive or share root as a whole.</summary>
+    public static string DisplayName(string path) =>
+        Path.GetFileName(Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
+
     public static string ConvertOutput(string source, string targetFormat) =>
         UniquePath(DirectoryOf(source), Stem(source), targetFormat);
 
@@ -24,11 +37,7 @@ public static class OutputNaming
     /// <summary>Creates a unique `name (pages)` (or `name (pages) 2`...) folder next to the source and returns its path.</summary>
     public static string CreatePagesFolder(string source)
     {
-        var dir = DirectoryOf(source);
-        var baseName = $"{Stem(source)} (pages)";
-        var candidate = Path.Combine(dir, baseName);
-        for (var n = 2; File.Exists(candidate) || Directory.Exists(candidate); n++)
-            candidate = Path.Combine(dir, $"{baseName} {n}");
+        var candidate = UniqueName(DirectoryOf(source), $"{Stem(source)} (pages)");
         Directory.CreateDirectory(candidate);
         return candidate;
     }

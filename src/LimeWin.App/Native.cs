@@ -134,6 +134,17 @@ internal static class Native
         }
     }
 
+    /// <summary>Moves a shown window back inside the work area of the monitor under its centre, if it sticks out (e.g. after growing).</summary>
+    public static void KeepInWorkArea(Window w)
+    {
+        var r = WindowRect(w);
+        var work = MonitorAt(r.Left + r.Width / 2, r.Top + r.Height / 2).Work;
+        var left = Math.Clamp(r.Left, work.Left, Math.Max(work.Left, work.Right - r.Width));
+        var top = Math.Clamp(r.Top, work.Top, Math.Max(work.Top, work.Bottom - r.Height));
+        if (left != r.Left || top != r.Top)
+            SetWindowPos(Handle(w), IntPtr.Zero, left, top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
     /// <summary>
     /// Moves a SizeToContent window so its centre sits at a physical point, clamped inside that point's monitor.
     /// Moving first lets WPF rescale for the target monitor's DPI (PerMonitorV2); the second move uses the final size.

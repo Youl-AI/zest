@@ -15,4 +15,10 @@ public sealed class ShelfManager
         _shelves.Add(shelf);
         shelf.ShowAt((int)screenPx.X, (int)screenPx.Y);
     }
+
+    /// <summary>Dims rows whose files were moved or deleted (e.g. by a 이동 job).</summary>
+    public void RefreshAll()
+    {
+        foreach (var shelf in _shelves) shelf.RefreshMissing();
+    }
 }

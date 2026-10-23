@@ -217,16 +217,165 @@ public class FileMoverTests : IDisposable
     }
 
     [Fact]
-    public void Move_Cancelled_StopsBeforeNextItem()
+    public void Move_FolderAcrossVolumes_FileAddedDuringCopy_StaysInSource()
+    {
+        var dest = Folder("dest");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        Write(folder, "a.txt", "a");
+        Write(Folder(Path.Combine("src", "프로젝트", "sub")), "b.txt", "b");
+        var ops = new FileMover.Ops
+        {
+            MoveDirectory = CrossVolume,
+            CopyFile = (s, d) =>
+            {
+                File.Copy(s, d);
+                if (Path.GetFileName(s) == "a.txt") Write(folder, "new.txt", "saved meanwhile");
+            },
+        };
+
+        var r = FileMover.Move([folder], dest, ops: ops);
+
+        var moved = Path.Combine(dest, "프로젝트");
+        Assert.Equal([moved], r.Moved);
+        Assert.Equal(["‘프로젝트’의 원래 폴더에 옮기지 못한 항목이 남아 있습니다."], r.Failures);
+        Assert.Equal("saved meanwhile", File.ReadAllText(Path.Combine(folder, "new.txt")));
+        Assert.False(File.Exists(Path.Combine(folder, "a.txt")));
+        Assert.False(Directory.Exists(Path.Combine(folder, "sub")));
+        Assert.Equal("b", File.ReadAllText(Path.Combine(moved, "sub", "b.txt")));
+    }
+
+    [Fact]
+    public void Move_FolderAcrossVolumes_FileChangedAfterCopy_StaysInSource()
+    {
+        var dest = Folder("dest");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        var a = Write(folder, "a.txt", "a");
+        Write(folder, "b.txt", "b");
+        var ops = new FileMover.Ops
+        {
+            MoveDirectory = CrossVolume,
+            CopyFile = (s, d) =>
+            {
+                File.Copy(s, d);
+                if (Path.GetFileName(s) == "b.txt") File.AppendAllText(a, " edited"); // a.txt was copied before this edit
+            },
+        };
+
+        var r = FileMover.Move([folder], dest, ops: ops);
+
+        Assert.Equal(["‘프로젝트’의 원래 폴더에 옮기지 못한 항목이 남아 있습니다."], r.Failures);
+        Assert.Equal("a edited", File.ReadAllText(a));
+        Assert.False(File.Exists(Path.Combine(folder, "b.txt")));
+    }
+
+    [Fact]
+    public void Move_FolderAcrossVolumes_TargetAppearsMeanwhile_IsLeftAlone()
+    {
+        var dest = Folder("dest");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        Write(folder, "a.txt", "a");
+        var theirs = Path.Combine(dest, "프로젝트");
+        var ops = new FileMover.Ops
+        {
+            MoveDirectory = (s, d) =>
+            {
+                // Someone else creates the target name after the clash check.
+                Write(Directory.CreateDirectory(theirs).FullName, "theirs.txt", "theirs");
+                CrossVolume(s, d);
+            },
+        };
+
+        var r = FileMover.Move([folder], dest, ops: ops);
+
+        Assert.Empty(r.Moved);
+        Assert.Single(r.Failures);
+        Assert.Equal("theirs", File.ReadAllText(Path.Combine(theirs, "theirs.txt")));
+        Assert.False(File.Exists(Path.Combine(theirs, "a.txt")));
+        Assert.True(File.Exists(Path.Combine(folder, "a.txt")));
+    }
+
+    [Fact]
+    public void Move_FolderAcrossVolumes_KeepsFolderAttributesAndTimes()
+    {
+        var dest = Folder("dest");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        var sub = Folder(Path.Combine("src", "프로젝트", "sub"));
+        Write(sub, "b.txt", "b");
+        var stamp = new DateTime(2020, 5, 6, 7, 8, 9, DateTimeKind.Utc);
+        Directory.SetLastWriteTimeUtc(sub, stamp);
+        Directory.SetCreationTimeUtc(sub, stamp);
+        File.SetAttributes(sub, FileAttributes.Directory | FileAttributes.Hidden | FileAttributes.ReadOnly);
+
+        var r = FileMover.Move([folder], dest, ops: new FileMover.Ops { MoveDirectory = CrossVolume });
+
+        Assert.Empty(r.Failures);
+        var copied = new DirectoryInfo(Path.Combine(dest, "프로젝트", "sub"));
+        Assert.Equal(stamp, copied.LastWriteTimeUtc);
+        Assert.Equal(stamp, copied.CreationTimeUtc);
+        Assert.True(copied.Attributes.HasFlag(FileAttributes.Hidden));
+        Assert.True(copied.Attributes.HasFlag(FileAttributes.ReadOnly));
+        Assert.False(Directory.Exists(folder));
+        copied.Attributes = FileAttributes.Directory; // let Dispose clean up
+    }
+
+    [Fact]
+    public void Move_FolderAcrossVolumes_LinkInside_RefusedAndSourceKept()
+    {
+        var dest = Folder("dest");
+        var outside = Folder("outside");
+        Write(outside, "keep.txt", "keep");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        Write(folder, "a.txt", "a");
+        Junction(Path.Combine(folder, "link"), outside);
+
+        var r = FileMover.Move([folder], dest, ops: new FileMover.Ops { MoveDirectory = CrossVolume });
+
+        Assert.Empty(r.Moved);
+        Assert.Equal(["‘프로젝트’을 옮기지 못했습니다: 링크가 들어 있는 폴더는 다른 드라이브로 옮길 수 없습니다."], r.Failures);
+        Assert.True(File.Exists(Path.Combine(folder, "a.txt")));
+        Assert.True(Directory.Exists(Path.Combine(folder, "link")));
+        Assert.Equal("keep", File.ReadAllText(Path.Combine(outside, "keep.txt")));
+        Assert.False(Directory.Exists(Path.Combine(dest, "프로젝트")));
+    }
+
+    [Fact]
+    public void Move_FolderAcrossVolumes_CancelledMidCopy_RemovesPartialCopyKeepsSource()
+    {
+        var dest = Folder("dest");
+        var folder = Folder(Path.Combine("src", "프로젝트"));
+        Write(folder, "a.txt", "a");
+        Write(folder, "b.txt", "b");
+        using var cts = new CancellationTokenSource();
+        var ops = new FileMover.Ops
+        {
+            MoveDirectory = CrossVolume,
+            CopyFile = (s, d) =>
+            {
+                File.Copy(s, d);
+                cts.Cancel();
+            },
+        };
+
+        Assert.Throws<OperationCanceledException>(() => FileMover.Move([folder], dest, ops, new Jobs.OperationContext(cts.Token)));
+        Assert.True(File.Exists(Path.Combine(folder, "a.txt")));
+        Assert.True(File.Exists(Path.Combine(folder, "b.txt")));
+        Assert.False(Directory.Exists(Path.Combine(dest, "프로젝트")));
+    }
+
+    [Fact]
+    public void Move_CancelledAfterFirstItem_StopsBeforeNext()
     {
         var src = Folder("src");
         var dest = Folder("dest");
         var a = Write(src, "a.txt", "a");
+        var b = Write(src, "b.txt", "b");
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        var context = new Jobs.OperationContext(cts.Token, new SyncProgress(_ => cts.Cancel()));
 
-        Assert.Throws<OperationCanceledException>(() => FileMover.Move([a], dest, new Jobs.OperationContext(cts.Token)));
-        Assert.True(File.Exists(a));
+        Assert.Throws<OperationCanceledException>(() => FileMover.Move([a, b], dest, context));
+        Assert.True(File.Exists(Path.Combine(dest, "a.txt")));
+        Assert.True(File.Exists(b));
+        Assert.False(File.Exists(Path.Combine(dest, "b.txt")));
     }
 
     [Fact]
@@ -248,4 +397,21 @@ public class FileMoverTests : IDisposable
     /// <summary>What <see cref="Directory.Move"/> throws when the destination is on another volume (ERROR_NOT_SAME_DEVICE).</summary>
     static void CrossVolume(string source, string destination) =>
         throw new IOException("Cannot move to a different disk drive.", unchecked((int)0x80070011));
+
+    /// <summary>A directory junction (no privilege needed, unlike a symbolic link).</summary>
+    static void Junction(string link, string target)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+        foreach (var arg in new[] { "/c", "mklink", "/J", link, target }) start.ArgumentList.Add(arg);
+        using var p = System.Diagnostics.Process.Start(start)!;
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        Assert.True(Directory.Exists(link), "junction was not created");
+    }
+
+    /// <summary>Reports synchronously on the calling thread (Progress&lt;T&gt; would post).</summary>
+    sealed class SyncProgress(Action<double> report) : IProgress<double>
+    {
+        public void Report(double value) => report(value);
+    }
 }

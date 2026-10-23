@@ -9,7 +9,7 @@ public static partial class FfmpegLocator
 {
     /// <summary>Full path of ffmpeg.exe in the first PATH folder that has it, or null.</summary>
     public static string? Locate(string? pathList = null) =>
-        Find("ffmpeg.exe", pathList ?? Environment.GetEnvironmentVariable("PATH"));
+        PathLookup.Find("ffmpeg.exe", pathList ?? Environment.GetEnvironmentVariable("PATH"));
 
     /// <summary>
     /// ffprobe.exe next to <paramref name="ffmpegPath"/>, else next to its link target (WinGet "Links" holds symlinks),
@@ -30,25 +30,7 @@ public static partial class FfmpegLocator
             var candidate = Path.Combine(dir, "ffprobe.exe");
             if (File.Exists(candidate)) return candidate;
         }
-        return Find("ffprobe.exe", Environment.GetEnvironmentVariable("PATH"));
-    }
-
-    /// <summary>Full path of <paramref name="fileName"/> in the first folder of a PATH-style list that has it, or null.</summary>
-    public static string? Find(string fileName, string? pathList)
-    {
-        if (string.IsNullOrEmpty(pathList)) return null;
-        foreach (var raw in pathList.Split(Path.PathSeparator))
-        {
-            var dir = raw.Trim().Trim('"');
-            if (dir.Length == 0) continue;
-            try
-            {
-                var candidate = Path.Combine(dir, fileName);
-                if (File.Exists(candidate)) return candidate;
-            }
-            catch (ArgumentException) { /* malformed PATH entry */ }
-        }
-        return null;
+        return PathLookup.Find("ffprobe.exe", Environment.GetEnvironmentVariable("PATH"));
     }
 
     /// <summary>Audio/video/GIF targets whose encoders this ffmpeg lacks; empty when the encoder list cannot be read.</summary>
