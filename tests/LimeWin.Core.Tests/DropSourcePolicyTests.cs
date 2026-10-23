@@ -49,14 +49,33 @@ public class DropSourcePolicyTests
     }
 
     [Fact]
-    public void OtherDriveAndUncPathsAreAcceptedWithoutTouchingTheNetwork()
+    public void OtherDriveAndUncPathsAreAcceptedWithoutAnyFileSystemProbe()
     {
+        var probes = 0;
+        bool Exists(string _) { probes++; return false; }
+        string? Long(string _) { probes++; return null; }
         var other = Path.GetPathRoot(Temp)!.StartsWith('Z') ? @"Y:\" : @"Z:\";
-        Assert.True(DropSourcePolicy.IsRealUserFiles([other + @"Temp\x.png"], Temp));
-        DropSourcePolicy.IsRealUserFiles([other + @"warm.png"], Temp); // JIT outside the timing
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        Assert.True(DropSourcePolicy.IsRealUserFiles([@"\\nonexistent-host\share\x~1.txt"], Temp));
-        Assert.True(sw.ElapsedMilliseconds < 200, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.True(DropSourcePolicy.IsRealUserFiles(
+            [other + @"Temp\x~1.png", @"\\nonexistent-host\share\x~1.txt", @"\\?\UNC\nonexistent-host\share\y~1.txt"], Temp, Exists, Long));
+        Assert.Equal(0, probes);
+    }
+
+    [Fact]
+    public void UncDevicePrefixIsNormalizedAndStillRefusedInsideTemp()
+    {
+        Assert.True(DropSourcePolicy.IsRealUserFiles([@"\\?\UNC\host\share\a.png"], Temp, _ => false, _ => null));
+        Assert.False(DropSourcePolicy.IsRealUserFiles([@"\\?\" + Path.Combine(Temp, "BNZ.1", "a.png")], Temp));
+    }
+
+    [Fact]
+    public void TempRootIsExpandedOncePerCall()
+    {
+        var longCalls = 0;
+        var tilde = Path.Combine(Path.GetPathRoot(Temp)!, "Users", "HAYOUL~1", "Temp");
+        string? Long(string p) { longCalls++; return null; }
+        var outside = Path.Combine(Path.GetPathRoot(Temp)!, "Other");
+        Assert.True(DropSourcePolicy.IsRealUserFiles([outside + @"\a~1.png", outside + @"\b~1.png", outside + @"\c~1.png"], tilde, _ => true, Long));
+        Assert.Equal(4, longCalls); // one per path, plus the temp root once
     }
 
     [Fact]

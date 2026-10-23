@@ -211,10 +211,17 @@ public partial class ShelfWindow : Window
     // ── Drag in ─────────────────────────────────────────────────────────────
 
     // Decided once per drag (the policy touches the file system; DragOver fires at mouse-move rate).
-    bool _acceptDrag;
+    bool _acceptDrag, _dragDecided;
 
     void OnDragEnter(object sender, DragEventArgs e)
     {
+        // DragEnter bubbles on every child crossing; the decision holds for the whole drag.
+        if (_dragDecided)
+        {
+            OnDragOver(sender, e);
+            return;
+        }
+        _dragDecided = true;
         // Archive-extracted temp copies vanish with the archiver's clean-up; never shelve them.
         _acceptDrag = !_draggingOut && e.Data.GetData(DataFormats.FileDrop) is string[] files
             && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath());
@@ -235,7 +242,7 @@ public partial class ShelfWindow : Window
         // DragLeave also bubbles up when the pointer only crosses from one child to another; ignore it while still over the card.
         var p = e.GetPosition(Card);
         if (p.X >= 0 && p.Y >= 0 && p.X < Card.ActualWidth && p.Y < Card.ActualHeight) return;
-        _acceptDrag = false;
+        _acceptDrag = _dragDecided = false;
         SetDropTarget(false);
     }
 
@@ -243,7 +250,7 @@ public partial class ShelfWindow : Window
     {
         SetDropTarget(false);
         var accepted = _acceptDrag;
-        _acceptDrag = false;
+        _acceptDrag = _dragDecided = false;
         if (_draggingOut || e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
         if (!accepted)
         {
