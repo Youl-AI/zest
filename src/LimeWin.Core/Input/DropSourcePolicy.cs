@@ -16,38 +16,56 @@ public static class DropSourcePolicy
     public static bool IsRealUserFiles(IReadOnlyList<string> paths, string tempRoot)
     {
         if (paths.Count == 0 || string.IsNullOrWhiteSpace(tempRoot)) return false;
-        var temp = Normalize(tempRoot);
+        var temp = Full(tempRoot);
         if (temp is null) return false;
-        var prefix = temp.TrimEnd(Sep) + "\\";
+        var tempRootDir = Path.GetPathRoot(temp) ?? "";
         foreach (var p in paths)
         {
             if (string.IsNullOrWhiteSpace(p) || !Path.IsPathFullyQualified(p)) return false;
-            var full = Normalize(p);
+            var full = Full(p);
             if (full is null) return false;
-            if (full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            // Another drive or a UNC share cannot be inside the local temp folder: no file-system access for those.
+            if (!string.Equals(Path.GetPathRoot(full), tempRootDir, StringComparison.OrdinalIgnoreCase)) continue;
+            // Only names containing '~' can be 8.3 aliases; without one the plain full-path prefix test is exact.
+            var t = temp;
+            if (full.Contains(Tilde) || t.Contains(Tilde))
+            {
+                full = ExpandShort(full);
+                t = ExpandShort(t);
+            }
+            if (full.StartsWith(t.TrimEnd(Sep) + Sep, StringComparison.OrdinalIgnoreCase)) return false;
         }
         return true;
     }
 
-    /// <summary>Full path with 8.3 segments expanded: the longest existing ancestor goes through GetLongPathName, the rest is kept as is.</summary>
-    static string? Normalize(string path)
+    const char Tilde = '~';
+
+    /// <summary>Full path without a trailing separator and without a leading <c>\?\</c> / <c>\?\UNC\</c> prefix.</summary>
+    static string? Full(string path)
     {
         string full;
         try { full = Path.GetFullPath(path); }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { return null; }
-        full = full.TrimEnd(Sep);
+        var dev = new string(Sep, 2) + "?" + Sep;
+        if (full.StartsWith(dev + "UNC" + Sep, StringComparison.OrdinalIgnoreCase)) full = new string(Sep, 2) + full[(dev.Length + 4)..];
+        else if (full.StartsWith(dev, StringComparison.Ordinal)) full = full[dev.Length..];
+        return full.Length > 3 ? full.TrimEnd(Sep) : full;
+    }
 
+    /// <summary>8.3 segments expanded: the longest existing ancestor goes through GetLongPathName, the rest is kept as is.</summary>
+    static string ExpandShort(string full)
+    {
         var existing = full;
         var tail = "";
         while (existing.Length > 3 && !Path.Exists(existing))
         {
-            tail = existing[(existing.LastIndexOf(Sep) + 1)..] + (tail.Length == 0 ? "" : "\\" + tail);
+            tail = existing[(existing.LastIndexOf(Sep) + 1)..] + (tail.Length == 0 ? "" : Sep + tail);
             existing = existing[..existing.LastIndexOf(Sep)];
         }
         var sb = new StringBuilder(1024);
         var len = GetLongPathName(existing, sb, sb.Capacity);
         var resolved = len > 0 && len < sb.Capacity ? sb.ToString() : existing;
-        return tail.Length == 0 ? resolved : resolved.TrimEnd(Sep) + "\\" + tail;
+        return tail.Length == 0 ? resolved : resolved.TrimEnd(Sep) + Sep + tail;
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

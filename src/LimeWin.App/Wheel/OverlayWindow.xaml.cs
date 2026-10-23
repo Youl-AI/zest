@@ -91,12 +91,7 @@ public partial class OverlayWindow : Window
 
     void OnDrop(object sender, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files || !DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath()))
-        {
-            e.Effects = DragDropEffects.None;
-            e.Handled = true;
-            return;
-        }
+        // HitTest is null unless DragEnter accepted the files (ReceivedFiles), so a refused drag ends as Dropped(null): None + close.
         var petal = HitTest();
         // Copy tells the source we used the data; never Move, which would make Explorer delete the originals.
         e.Effects = petal is null ? DragDropEffects.None : DragDropEffects.Copy;

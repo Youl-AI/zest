@@ -26,14 +26,43 @@ public class DropSourcePolicyTests
     public void ArchiveExtractionFoldersAreRefused(string rel)
     {
         Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(Temp, rel)], Temp));
+        Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(Temp, rel).ToUpperInvariant()], Temp));
+    }
+
+    [Theory]
+    [InlineData(@"BNZ.1a2b3c\photo.png")]
+    [InlineData(@"7zO12345678\photo.png")]
+    [InlineData(@"Rar$DRa1234.567\photo.png")]
+    [InlineData(@"Temp1_archive.zip\photo.png")]
+    public void ArchiveExtractionFoldersAreRefusedInShortForm(string rel)
+    {
+        if (ShortForm(Temp) == Temp) Assert.Skip("8.3 names are disabled on this volume");
         Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(ShortForm(Temp), rel)], Temp));
         Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(Temp, rel)], ShortForm(Temp)));
-        Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(Temp, rel).ToUpperInvariant()], Temp));
+    }
+
+    [Fact]
+    public void DevicePathPrefixIsIgnored()
+    {
+        Assert.False(DropSourcePolicy.IsRealUserFiles([@"\\?\" + Path.Combine(Temp, "BNZ.1", "a.png")], Temp));
+        Assert.True(DropSourcePolicy.IsRealUserFiles([@"\\?\D:\Pictures\a.png"], Temp));
+    }
+
+    [Fact]
+    public void OtherDriveAndUncPathsAreAcceptedWithoutTouchingTheNetwork()
+    {
+        var other = Path.GetPathRoot(Temp)!.StartsWith('Z') ? @"Y:\" : @"Z:\";
+        Assert.True(DropSourcePolicy.IsRealUserFiles([other + @"Temp\x.png"], Temp));
+        DropSourcePolicy.IsRealUserFiles([other + @"warm.png"], Temp); // JIT outside the timing
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Assert.True(DropSourcePolicy.IsRealUserFiles([@"\\nonexistent-host\share\x~1.txt"], Temp));
+        Assert.True(sw.ElapsedMilliseconds < 200, $"took {sw.ElapsedMilliseconds} ms");
     }
 
     [Fact]
     public void ExistingFileInShortFormTempIsRefused()
     {
+        if (ShortForm(Temp) == Temp) Assert.Skip("8.3 names are disabled on this volume");
         var dir = TestFiles.TempDir();
         var file = TestFiles.Touch(dir, "a.png");
         var shortFile = ShortForm(file);
@@ -63,7 +92,7 @@ public class DropSourcePolicyTests
     }
 
     [Fact]
-    public void TempFolderItselfIsRefusedAndTrailingSlashIsTolerated()
+    public void FileInsideTempIsRefusedWhenTheRootHasATrailingSlash()
     {
         Assert.False(DropSourcePolicy.IsRealUserFiles([Path.Combine(Temp, "x.png")], Temp + "\\"));
     }
