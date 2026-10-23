@@ -1,5 +1,7 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Interop;
+using LimeWin.Core.Input;
 using LimeWin.Core.Wheel;
 
 namespace LimeWin.App.Wheel;
@@ -64,14 +66,16 @@ public partial class OverlayWindow : Window
 
     void OnDragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+        if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0
+            && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath()))
         {
             ReceivedFiles = true;
             FilesEntered?.Invoke(files);
             OnDragOver(sender, e);
             return;
         }
-        // Text, virtual items (zip contents, MTP) and the like are not ours: refuse, and let the controller close the
+        // Text, virtual items (zip contents, MTP), files an archiver extracted into %TEMP% (Bandizip deletes the archive entry
+        // when a drop with Shift is accepted) and the like are not ours: refuse, and let the controller close the
         // overlay so OLE re-targets the window underneath on its next poll.
         e.Effects = DragDropEffects.None;
         e.Handled = true;
@@ -87,6 +91,12 @@ public partial class OverlayWindow : Window
 
     void OnDrop(object sender, DragEventArgs e)
     {
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files || !DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath()))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
         var petal = HitTest();
         // Copy tells the source we used the data; never Move, which would make Explorer delete the originals.
         e.Effects = petal is null ? DragDropEffects.None : DragDropEffects.Copy;

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using LimeWin.App.Wheel;
+using LimeWin.Core.Input;
 using LimeWin.Core.Output;
 
 namespace LimeWin.App.Shelf;
@@ -212,7 +213,8 @@ public partial class ShelfWindow : Window
     void OnDragOver(object sender, DragEventArgs e)
     {
         // Copy, never Move: the source must not delete anything because it landed on a shelf. Our own rows don't drop back in.
-        var accept = !_draggingOut && e.Data.GetDataPresent(DataFormats.FileDrop);
+        var accept = !_draggingOut && e.Data.GetData(DataFormats.FileDrop) is string[] files
+            && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath());
         e.Effects = accept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
         SetDropTarget(accept);
@@ -230,6 +232,13 @@ public partial class ShelfWindow : Window
     {
         SetDropTarget(false);
         if (_draggingOut || e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+        // Archive-extracted temp copies vanish with the archiver's clean-up; never shelve them (and don't take their drop).
+        if (!DropSourcePolicy.IsRealUserFiles(paths, Path.GetTempPath()))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
         e.Effects = DragDropEffects.Copy;
         e.Handled = true;
         Add(paths);
