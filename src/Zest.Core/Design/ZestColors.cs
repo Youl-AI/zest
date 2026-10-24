@@ -47,13 +47,13 @@ public static class ZestColors
         Window: Argb.Hex("#FBFBF9"), Raised: Argb.Hex("#FFFFFF"), Sunken: Argb.Hex("#F2F2ED"),
         Line: Argb.Hex("#171D1B16"), LineStrong: Argb.Hex("#2E1D1B16"), Seg: Argb.Hex("#0F1D1B16"),
         Text: Argb.Hex("#1D1B16"), Text2: Argb.Hex("#5F5B52"), Text3: Argb.Hex("#8A867C"),
-        Danger: Argb.Hex("#B42D1A"), DangerWash: Argb.Hex("#FBE6E2"));
+        Danger: Argb.Hex("#B42D1A"), DangerWash: Argb.Hex("#FCE6E2"));
 
     public static readonly Surface Dark = new(
         Window: Argb.Hex("#1D1B16"), Raised: Argb.Hex("#27251F"), Sunken: Argb.Hex("#18170F"),
         Line: Argb.Hex("#14FFFFFF"), LineStrong: Argb.Hex("#2EFFFFFF"), Seg: Argb.Hex("#12FFFFFF"),
         Text: Argb.Hex("#F1EEE6"), Text2: Argb.Hex("#ABA79C"), Text3: Argb.Hex("#7F7B71"),
-        Danger: Argb.Hex("#FF8A7A"), DangerWash: Argb.Hex("#22FF8A7A"));
+        Danger: Argb.Hex("#FF8A7A"), DangerWash: Argb.Hex("#21FF7B6B"));
 
     public static readonly Citrus Lemon = new("Lemon",
         Argb.Hex("#FFD43B"), Argb.Hex("#241C00"), Argb.Hex("#A67C00"), Argb.Hex("#FFF5CC"));

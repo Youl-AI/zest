@@ -39,6 +39,13 @@ public class ZestColorsTests
     }
 
     [Fact]
+    public void DangerWash_IsPinned()
+    {
+        Assert.Equal(Argb.Hex("#FCE6E2"), ZestColors.Light.DangerWash);
+        Assert.Equal(Argb.Hex("#21FF7B6B"), ZestColors.Dark.DangerWash);
+    }
+
+    [Fact]
     public void Ratio_KnownPair()
     {
         Assert.Equal(21.0, Contrast.Ratio(Argb.Hex("#000000"), Argb.Hex("#FFFFFF")), 0.01);
