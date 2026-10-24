@@ -37,13 +37,13 @@ public sealed class CropCanvas : FrameworkElement
         Focusable = false;
         ClipToBounds = true;
         RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
-        SetAccent(WheelStyle.LightPalette.Highlight);
+        SetAccent(WheelStyle.CropAccent);
     }
 
     /// <summary>Width / height to keep while dragging, or null for free.</summary>
     public double? Aspect { get; set; }
 
-    /// <summary>Outline and handle color (the wheel's lime for the current theme).</summary>
+    /// <summary>Outline and handle color (<see cref="WheelStyle.CropAccent"/> unless a caller overrides it).</summary>
     public void SetAccent(Color accent)
     {
         _accent = Frozen(new SolidColorBrush(accent));

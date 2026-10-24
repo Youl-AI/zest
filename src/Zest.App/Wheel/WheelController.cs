@@ -93,6 +93,7 @@ public sealed class WheelController
         _fallbackArmed = false;
         _droppedOnPetal = false;
         HideWheel(); // a previous wheel may still be fading out
+        _view.Mode = _mode;
         _view.Palette = WheelStyle.SystemPalette();
         _overlay.ShowOverVirtualScreen();
         _safety.Start();
@@ -103,6 +104,8 @@ public sealed class WheelController
     {
         if (!IsOpen || mode == _mode) return;
         _mode = mode;
+        _view.Mode = _mode;
+        _view.Palette = WheelStyle.SystemPalette();
         if (_files is not null) DrawWheel();
     }
 
@@ -172,13 +175,8 @@ public sealed class WheelController
         var x = (int)_anchor.X;
         var y = (int)_anchor.Y;
         var showing = !_wheelWindow.IsVisible;
-        if (showing)
-        {
-            // Place while hidden so it does not flash at its old spot, then grab the screen it will cover for the glass.
-            // A mode switch keeps the first capture: the wheel itself is on screen by then.
-            var area = Native.CenterOn(_wheelWindow, x, y);
-            _view.SetBackdrop(BackdropCapture.Capture(area));
-        }
+        // Place while hidden so it does not flash at its old spot.
+        if (showing) Native.CenterOn(_wheelWindow, x, y);
 
         _items = WheelCatalog.Items(_files!, _mode, _caps);
         if (_items.Count == 0) _view.ShowEmpty();

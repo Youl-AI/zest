@@ -8,7 +8,16 @@ public class WheelGeometryTests
     public void PetalAt_CardinalPoints(double dx, double dy, int count, int expected) => Assert.Equal(expected, new WheelGeometry().PetalAt(dx, dy, count));
     [Fact] public void PetalAt_Hole_IsNull() => Assert.Null(new WheelGeometry().PetalAt(0, -30, 4));
     [Fact] public void PetalAt_Outside_IsNull() => Assert.Null(new WheelGeometry().PetalAt(0, -140, 4));
-    [Fact] public void PetalAt_Gutter_IsNull() => Assert.Null(new WheelGeometry().PetalAt(Math.Sin(Math.PI / 4) * 90, -Math.Cos(Math.PI / 4) * 90, 4)); // 0번과 1번 경계
+    [Fact] public void PetalAt_Gutter_GoesToNextPetalClockwise()
+    {
+        var a = Math.PI / 4 + 0.001; // 0번과 1번 사이 간격, 경계 바로 뒤: 놓아도 취소되지 않고 시계 방향 다음 꽃잎
+        Assert.Equal(1, new WheelGeometry().PetalAt(Math.Sin(a) * 90, -Math.Cos(a) * 90, 4));
+    }
+    [Fact] public void PetalAt_GutterBeforeBoundary_GoesToPreviousPetal()
+    {
+        var a = Math.PI / 4 - 0.001; // 같은 간격, 경계 바로 앞: 이전 꽃잎
+        Assert.Equal(0, new WheelGeometry().PetalAt(Math.Sin(a) * 90, -Math.Cos(a) * 90, 4));
+    }
     [Fact] public void PetalAt_SinglePetal_WholeRing() => Assert.Equal(0, new WheelGeometry().PetalAt(0, 90, 1));
 
     [Fact] public void PetalAt_JustPastGutter_BelongsToNeighbour()
@@ -25,7 +34,7 @@ public class WheelGeometryTests
         var a = 2 * Math.PI - 0.05;
         Assert.Equal(0, new WheelGeometry().PetalAt(Math.Sin(a) * 90, -Math.Cos(a) * 90, 4));
     }
-    [Fact] public void PetalAt_TwoPetals() { var g = new WheelGeometry(); Assert.Equal(0, g.PetalAt(0, -90, 2)); Assert.Equal(1, g.PetalAt(0, 90, 2)); Assert.Null(g.PetalAt(90, 0, 2)); }
+    [Fact] public void PetalAt_TwoPetals() { var g = new WheelGeometry(); Assert.Equal(0, g.PetalAt(0, -90, 2)); Assert.Equal(1, g.PetalAt(0, 90, 2)); Assert.Equal(1, g.PetalAt(90, 0, 2)); }
 
     [Fact] public void BearingOf_IsClockwiseFromTwelve()
     {

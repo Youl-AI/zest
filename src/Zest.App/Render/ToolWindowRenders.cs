@@ -25,11 +25,11 @@ internal static class ToolWindows
         return Frame(window, dark);
     }
 
-    public static FrameworkElement Crop(bool dark, WheelPalette palette)
+    public static FrameworkElement Crop(bool dark)
     {
         var preview = Photo(1472, 920, 0);
         var window = new CropWindow(@"C:\Users\me\Pictures\제주 바다.jpg", preview, PhotoW, PhotoH, _ => { });
-        window.Preview(palette, ratioIndex: 4, new PixelRect(720, 420, 2600, 1500)); // 16:9
+        window.Preview(ratioIndex: 4, new PixelRect(720, 420, 2600, 1500)); // 16:9
         return Frame(window, dark);
     }
 

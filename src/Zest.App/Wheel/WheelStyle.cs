@@ -1,36 +1,28 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using Zest.Core.Catalog;
+using Zest.Core.Design;
 using Zest.App.Theme;
 
 namespace Zest.App.Wheel;
 
-/// <summary>Colors of the glass wheel for one system theme.</summary>
-/// <param name="Tint">Film over the blurred screen capture inside the disc.</param>
-/// <param name="TintOpaque">Disc fill when no capture is available.</param>
-/// <param name="Petal">Petal fill, one step lighter than the tint.</param>
-/// <param name="PetalEdge">Hairline around each petal so petals stay distinct over a plain white or black screen.</param>
+/// <summary>Neutral colors of the wheel for one system theme; the accent comes from the mode's citrus (<see cref="WheelStyle.Accent"/>).</summary>
+/// <param name="Petal">Petal fill.</param>
+/// <param name="Label">Petal label and icon color.</param>
 /// <param name="Hub">Round readout in the hole.</param>
-/// <param name="Label">Petal and hub text.</param>
-/// <param name="Highlight">Lime fill of the highlighted petal.</param>
-/// <param name="HighlightTop">Top of the highlight gradient (the original's lime at 82 %).</param>
-/// <param name="HighlightStroke">Hairline around the highlighted petal.</param>
-/// <param name="InnerHighlight">0.5 px light line just inside the disc edge.</param>
-/// <param name="Ring">1 px lime ring on the disc edge.</param>
+/// <param name="HubText">Hovered label in the hub.</param>
+/// <param name="ShadowColor">Drop shadow under the petals and the hub, so they stay distinct over a page of their own color.</param>
+/// <param name="ShadowOpacity">Opacity of that shadow.</param>
 public sealed record WheelPalette(
     bool Dark,
-    Color Tint,
-    Color TintOpaque,
     Color Petal,
-    Color PetalEdge,
-    Color Hub,
     Color Label,
-    Color Highlight,
-    Color HighlightTop,
-    Color HighlightStroke,
-    Color InnerHighlight,
-    Color Ring);
+    Color Hub,
+    Color HubText,
+    Color ShadowColor,
+    double ShadowOpacity);
 
 /// <summary>Every color, radius, stroke, font, size and motion value of the wheel, in one place.</summary>
 public static class WheelStyle
@@ -38,59 +30,79 @@ public static class WheelStyle
     // ── Colors ──────────────────────────────────────────────────────────────
     public static readonly WheelPalette LightPalette = new(
         Dark: false,
-        Tint: Hex(0xB3, 0xF2, 0xF2, 0xF2),
-        TintOpaque: Hex(0xFF, 0xF2, 0xF2, 0xF2),
-        Petal: Hex(0xCC, 0xFF, 0xFF, 0xFF),
-        PetalEdge: Hex(0x14, 0x00, 0x00, 0x00),
-        Hub: Hex(0xB3, 0xFF, 0xFF, 0xFF),
-        Label: Hex(0xFF, 0x1F, 0x1F, 0x1F),
-        Highlight: Hex(0xFF, 0x8B, 0xC3, 0x4A),
-        HighlightTop: Hex(0xD1, 0x8B, 0xC3, 0x4A),
-        HighlightStroke: Hex(0x80, 0xFF, 0xFF, 0xFF),
-        InnerHighlight: Hex(0x40, 0xFF, 0xFF, 0xFF),
-        Ring: Hex(0x59, 0x8B, 0xC3, 0x4A));
+        Petal: Hex(0xFF, 0xFF, 0xFF, 0xFF),
+        Label: Hex(0xFF, 0x2A, 0x26, 0x22),
+        Hub: Hex(0xFF, 0xFF, 0xFF, 0xFF),
+        HubText: ToColor(ZestColors.Light.Text),
+        ShadowColor: Hex(0xFF, 0x1D, 0x1B, 0x16),
+        ShadowOpacity: 0.16);
 
     public static readonly WheelPalette DarkPalette = new(
         Dark: true,
-        // Brief: tint #B31C1C1C, petal #CC3A3A3A. Over a bright page those made petals darker than the disc (#41 vs #5D);
-        // a denser film and a lighter petal keep "petal one step lighter" on any backdrop (see docs/decisions.md).
-        Tint: Hex(0xD9, 0x1C, 0x1C, 0x1C),
-        TintOpaque: Hex(0xFF, 0x1C, 0x1C, 0x1C),
-        Petal: Hex(0xCC, 0x48, 0x48, 0x48),
-        PetalEdge: Hex(0x14, 0xFF, 0xFF, 0xFF),
-        Hub: Hex(0x14, 0xFF, 0xFF, 0xFF), // a step above the disc, like the original dark wheel's #2E hub
-        Label: Hex(0xFF, 0xFF, 0xFF, 0xFF),
-        Highlight: Hex(0xFF, 0x6F, 0xA8, 0x3A),
-        HighlightTop: Hex(0xD1, 0x6F, 0xA8, 0x3A),
-        HighlightStroke: Hex(0x80, 0xFF, 0xFF, 0xFF),
-        InnerHighlight: Hex(0x40, 0xFF, 0xFF, 0xFF),
-        Ring: Hex(0x59, 0x6F, 0xA8, 0x3A));
-
-    public static readonly Color HighlightText = Colors.White;
+        Petal: Hex(0xFF, 0x24, 0x22, 0x1C),
+        Label: Hex(0xFF, 0xEC, 0xE7, 0xD8),
+        Hub: Hex(0xFF, 0x1D, 0x1B, 0x16),
+        HubText: ToColor(ZestColors.Dark.Text),
+        ShadowColor: Hex(0xFF, 0x1D, 0x1B, 0x16),
+        ShadowOpacity: 0.45);
 
     /// <summary>Palette for the current Windows app theme (<c>AppsUseLightTheme</c>; light when unset).</summary>
-    public static WheelPalette SystemPalette()
-        => ZestTheme.IsDark ? DarkPalette : LightPalette;
+    public static WheelPalette SystemPalette() => Palette(ZestTheme.IsDark);
+
+    public static WheelPalette Palette(bool dark) => dark ? DarkPalette : LightPalette;
+
+    /// <summary>The mode's accent: Shift lemon, Alt tangerine, Ctrl lime.</summary>
+    public static Citrus Accent(WheelMode mode) => ZestColors.For(mode);
+
+    /// <summary>1 px line around every petal and the hub: the citrus fill at alpha 0x38 on dark, its ink at 0x59 on light.</summary>
+    public static Color PetalEdge(Citrus citrus, bool dark) =>
+        dark ? WithAlpha(citrus.Fill, 0x38) : WithAlpha(citrus.InkLight, 0x59);
+
+    /// <summary>Text of the mode chip under the hub label.</summary>
+    public static string ModeChip(WheelMode mode) => mode switch
+    {
+        WheelMode.Convert => "Shift 변환",
+        WheelMode.Tools => "Alt 도구",
+        WheelMode.Actions => "Ctrl 액션",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
+    };
+
+    public static Color ToColor(Argb c) => Color.FromArgb(c.A, c.R, c.G, c.B);
+
+    /// <summary>One shadow under the petals canvas and one under the hub (direction 270 = straight down).</summary>
+    public static DropShadowEffect Shadow(WheelPalette palette)
+    {
+        var effect = new DropShadowEffect
+        {
+            Color = palette.ShadowColor,
+            Opacity = palette.ShadowOpacity,
+            BlurRadius = ShadowBlur,
+            ShadowDepth = palette.Dark ? ShadowDepthDark : ShadowDepthLight,
+            Direction = 270,
+        };
+        effect.Freeze();
+        return effect;
+    }
+
+    public const double ShadowBlur = 18, ShadowDepthDark = 6, ShadowDepthLight = 4;
 
     // ── Geometry (canvas units = DIP; the wheel canvas is 320 x 320) ───────
-    /// <summary>Tinted disc behind the petals (original: outer + 8).</summary>
-    public const double DiscRadius = 136;
-    /// <summary>Round readout in the hole (original: hole * 2 - 4 wide).</summary>
-    public const double HubRadius = 44;
-    public const double OuterCorner = 9, InnerCorner = 5;
+    /// <summary>Round readout in the hole.</summary>
+    public const double HubRadius = 40;
+    public const double OuterCorner = 10, InnerCorner = 7;
     /// <summary>Label centres sit on this radius (original: (inner + outer) / 2 + 2).</summary>
     public const double LabelRadius = 93;
     /// <summary>How far the highlighted petal rises outward (original <c>liftDistance</c>).</summary>
-    public const double Lift = 5;
-    public const double RingThickness = 1, InnerHighlightThickness = 0.5, HighlightStrokeThickness = 1, PetalEdgeThickness = 1;
+    public const double Lift = 6;
+    public const double PetalEdgeThickness = 1;
     /// <summary>Gap between a petal's icon and its label.</summary>
     public const double IconGap = 2;
     /// <summary>Horizontal room a label may use, as a fraction of the petal chord at <see cref="LabelRadius"/>.</summary>
     public const double LabelChordFraction = 0.8;
-    public const double HubTextWidth = 76;
-
-    // ── Glass ───────────────────────────────────────────────────────────────
-    public const double BlurRadius = 24;
+    public const double HubTextWidth = 72;
+    /// <summary>Mode chip under the hub label: 10 px bold, padding 2 x 8, fully round.</summary>
+    public static readonly Thickness ChipPadding = new(8, 2, 8, 2);
+    public const double ChipSize = 10, ChipGap = 2;
 
     // ── Empty state ─────────────────────────────────────────────────────────
     public const string NothingToDo = "할 수 있는 작업 없음";
@@ -101,11 +113,17 @@ public static class WheelStyle
     public const double FormatSize = 15;
     public static readonly FontFamily KoreanFont = new(new Uri("pack://application:,,,/Zest;component/"), "./Assets/Fonts/#Pretendard");
     public const double KoreanSize = 12;
+    /// <summary>Mode chip ("Shift 변환"): the modifier in Segoe UI Variable Display, the Hangul in Pretendard.</summary>
+    public static readonly FontFamily ChipFont = new(new Uri("pack://application:,,,/Zest;component/"), "Segoe UI Variable Display, ./Assets/Fonts/#Pretendard");
     public static readonly FontFamily IconFont = new("Segoe Fluent Icons");
     public const double IconSize = 20;
-    public const double HubSize = 13;
+    /// <summary>Hovered label in the hub: format names, Korean names.</summary>
+    public const double HubFormatSize = 18, HubKoreanSize = 15;
     public const double EmptySize = 13;
+    /// <summary>Korean text (the embedded Pretendard is SemiBold only).</summary>
     public static readonly FontWeight LabelWeight = FontWeights.SemiBold;
+    /// <summary>Format names and the mode chip.</summary>
+    public static readonly FontWeight FormatWeight = FontWeights.Bold;
 
     /// <summary>Segoe Fluent Icons glyph shown above a tool or action label (null for format petals, which are text only).</summary>
     public static string? IconFor(Operation operation) => operation switch
@@ -131,11 +149,11 @@ public static class WheelStyle
     /// beside it; the embedded Pretendard is SemiBold only and made "제주 바다.jpg" look half bold).
     /// </summary>
     public static readonly FontFamily TextFont = new("Segoe UI Variable Text, Malgun Gothic");
-    /// <summary>Crop selection outline and handles use the wheel's highlight lime, so the editor reads as the same product.</summary>
-    public static Color CropAccent(WheelPalette palette) => palette.Highlight;
+    /// <summary>Crop selection outline and handles: the tools wheel's tangerine, so the editor reads as the same product.</summary>
+    public static readonly Color CropAccent = ToColor(ZestColors.Tangerine.Fill);
     /// <summary>Dimming over the part of the image the crop will cut away.</summary>
     public static readonly Color CropShade = Hex(0x8C, 0x00, 0x00, 0x00);
-    /// <summary>Hairline just outside the selection outline, so lime stays visible on a bright image.</summary>
+    /// <summary>Hairline just outside the selection outline, so the accent stays visible on a bright image.</summary>
     public static readonly Color CropOutlineShadow = Hex(0x59, 0x00, 0x00, 0x00);
     public const double CropOutline = 1.5, CropHandleSize = 10, CropHandleHit = 20, CropHandleCorner = 2;
 
@@ -152,6 +170,8 @@ public static class WheelStyle
     public const double CardRise = 8;
 
     static Color Hex(byte a, byte r, byte g, byte b) => Color.FromArgb(a, r, g, b);
+
+    static Color WithAlpha(Argb c, byte alpha) => Color.FromArgb(alpha, c.R, c.G, c.B);
 
     static KeySpline Frozen(KeySpline k)
     {

@@ -18,8 +18,9 @@ namespace Zest.App.Render;
 
 /// <summary>
 /// <c>Zest.exe --render &lt;folder&gt;</c>: draws the real <see cref="WheelView"/>, progress cards and tray glyphs into PNGs at 2x
-/// for visual review, without tray, hooks or windows. The glass sits on a fixed backdrop like the original's screenshot
-/// (dark-green window on the left, a white file list on the right) so the frosting is visible.
+/// for visual review, without tray, hooks or windows. The wheel floats over a fixed backdrop like the original's screenshot
+/// (dark-green window on the left, a white file list on the right), and again over plain white and black, where only the
+/// petal edges and shadow keep petals apart from the page.
 /// </summary>
 public static class RenderHarness
 {
@@ -34,21 +35,22 @@ public static class RenderHarness
             Directory.CreateDirectory(folder);
             LogFonts(log);
             var backdrop = Backdrop();
+            var white = Plain(Colors.White);
+            var black = Plain(Colors.Black);
             foreach (var palette in new[] { WheelStyle.LightPalette, WheelStyle.DarkPalette })
             {
                 var theme = palette.Dark ? "dark" : "light";
-                foreach (var (count, items, highlight) in Sets())
+                foreach (var (count, mode, items, highlight) in Sets())
                 {
                     if (items.Count != count) throw new InvalidOperationException($"expected {count} items, catalog gave {items.Count}");
-                    Save(Wheel(backdrop, palette, items, null), folder, $"wheel-{theme}-{count}petals-plain.png", log);
-                    Save(Wheel(backdrop, palette, items, highlight), folder, $"wheel-{theme}-{count}petals-hl.png", log);
+                    var name = $"wheel-{theme}-{ModeName(mode)}-{count}petals";
+                    Save(Wheel(backdrop, palette, mode, items, null), folder, $"{name}-plain.png", log);
+                    Save(Wheel(backdrop, palette, mode, items, highlight), folder, $"{name}-hl.png", log);
+                    // Worst cases for floating petals: a blank white page and a black screen behind the wheel.
+                    Save(Wheel(white, palette, mode, items, highlight), folder, $"{name}-on-white.png", log);
+                    Save(Wheel(black, palette, mode, items, highlight), folder, $"{name}-on-black.png", log);
                 }
-                Save(Wheel(backdrop, palette, [], null), folder, $"wheel-{theme}-empty.png", log);
-
-                // Worst cases for the glass: a blank white page and a black screen behind the wheel.
-                var seven = Sets().First(s => s.Count == 7);
-                Save(Wheel(Plain(Colors.White), palette, seven.Items, seven.Highlight), folder, $"wheel-{theme}-7petals-hl-on-white.png", log);
-                Save(Wheel(Plain(Colors.Black), palette, seven.Items, seven.Highlight), folder, $"wheel-{theme}-7petals-hl-on-black.png", log);
+                Save(Wheel(backdrop, palette, WheelMode.Convert, [], null), folder, $"wheel-{theme}-empty.png", log);
             }
 
             foreach (var dark in new[] { false, true })
@@ -60,9 +62,9 @@ public static class RenderHarness
                 Save(Card("done", dark), folder, $"progress-card-done{suffix}.png", log);
                 Save(Card("failed", dark), folder, $"progress-card-failed{suffix}.png", log);
 
-                var palette = dark ? WheelStyle.DarkPalette : WheelStyle.LightPalette;
+                var palette = WheelStyle.Palette(dark);
                 Save(ToolWindows.Compress(dark), folder, $"compress-options{suffix}.png", log);
-                Save(ToolWindows.Crop(dark, palette), folder, $"crop{suffix}.png", log);
+                Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
                 Save(ToolWindows.Shelf(dark, palette), folder, $"shelf{suffix}.png", log);
                 Save(ToolWindows.TextResult(dark), folder, $"text-result{suffix}.png", log);
@@ -82,25 +84,35 @@ public static class RenderHarness
         }
     }
 
-    /// <summary>Petal counts with real catalog items; 9 is a stress set (all tools plus four actions) since no single wheel has that many.</summary>
-    static IEnumerable<(int Count, IReadOnlyList<WheelItem> Items, int Highlight)> Sets()
+    /// <summary>
+    /// Petal counts with real catalog items, each drawn in the citrus of the wheel it comes from. 9 is a stress set (all tools
+    /// plus four actions) since no single wheel has that many, so it is drawn as both the tools and the actions wheel.
+    /// </summary>
+    static IEnumerable<(int Count, WheelMode Mode, IReadOnlyList<WheelItem> Items, int Highlight)> Sets()
     {
         var noOcr = Capabilities.All with { Ocr = false, BackgroundRemoval = false };
         var ocr = Capabilities.All with { BackgroundRemoval = false };
-        yield return (1, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0);
-        yield return (4, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 1);
-        yield return (5, WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All), 2);
-        yield return (7, WheelCatalog.Items(["photo.png"], WheelMode.Convert, Capabilities.All), 1);
+        yield return (1, WheelMode.Tools, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0);
+        yield return (4, WheelMode.Tools, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 2); // "PDF 만들기": the longest hub name
+        yield return (5, WheelMode.Actions, WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All), 2);
+        yield return (7, WheelMode.Convert, WheelCatalog.Items(["photo.png"], WheelMode.Convert, Capabilities.All), 1);
         var nine = WheelCatalog.Items(["photo.png"], WheelMode.Tools, Capabilities.All)
             .Concat(WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All).Take(4)).ToList();
-        yield return (9, nine, 3);
+        yield return (9, WheelMode.Tools, nine, 3);
+        yield return (9, WheelMode.Actions, nine, 3);
     }
 
-    static FrameworkElement Wheel(BitmapSource backdrop, WheelPalette palette, IReadOnlyList<WheelItem> items, int? highlight)
+    static string ModeName(WheelMode mode) => mode switch
     {
-        var view = new WheelView { Animate = false, Palette = palette };
+        WheelMode.Convert => "convert",
+        WheelMode.Tools => "tools",
+        _ => "actions",
+    };
+
+    static FrameworkElement Wheel(BitmapSource backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
+    {
+        var view = new WheelView { Animate = false, Palette = palette, Mode = mode };
         AsOnHighDpiScreen(view);
-        view.SetBackdrop(backdrop);
         if (items.Count == 0) view.ShowEmpty();
         else view.SetItems(items);
         view.Highlight(highlight);

@@ -46,7 +46,6 @@ public partial class CropWindow : FluentWindow
         var title = $"{Path.GetFileName(source)} 자르기";
         Title = title;
         Bar.Title = title;
-        Canvas.SetAccent(WheelStyle.CropAccent(WheelStyle.SystemPalette()));
         Canvas.SetImage(preview, sourceWidth, sourceHeight);
 
         // Initial preview height follows the image's aspect at the window's width; released after the first frame so the window can be resized.
@@ -73,10 +72,9 @@ public partial class CropWindow : FluentWindow
 
     double? Aspect => Ratios[Math.Max(0, AspectBox.SelectedIndex)].Aspect;
 
-    /// <summary>Render harness: the theme's accent, a preset and a selection drawn with it.</summary>
-    internal void Preview(WheelPalette palette, int ratioIndex, PixelRect selection)
+    /// <summary>Render harness: a preset and a selection drawn with the tangerine accent.</summary>
+    internal void Preview(int ratioIndex, PixelRect selection)
     {
-        Canvas.SetAccent(WheelStyle.CropAccent(palette));
         AspectBox.SelectedIndex = ratioIndex;
         Canvas.Selection = CropMath.FitAspect(selection, Aspect, _w, _h);
         ShowNumbers();

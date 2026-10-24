@@ -1,18 +1,18 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
-using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Zest.Core.Catalog;
+using Zest.Core.Design;
 using G = Zest.Core.Wheel.WheelGeometry;
 using S = Zest.App.Wheel.WheelStyle;
 
 namespace Zest.App.Wheel;
 
 /// <summary>
-/// The glass wheel: blurred screen capture under a tint film, rounded petals with labels (and icons for tools and actions),
-/// a lime highlight that lifts outward, and a round hub naming the highlighted item. Every value comes from <see cref="WheelStyle"/>.
+/// The wheel: rounded petals floating over the screen (no disc behind them), each with a 1 px edge in the mode's citrus and
+/// one shared drop shadow, labels (and icons for tools and actions), a citrus highlight that lifts outward, and a round hub
+/// naming the highlighted item above a mode chip. Every value comes from <see cref="WheelStyle"/>.
 /// </summary>
 public partial class WheelView : UserControl
 {
@@ -26,24 +26,32 @@ public partial class WheelView : UserControl
     public WheelView()
     {
         InitializeComponent();
-        Backdrop.Effect = new BlurEffect { Radius = S.BlurRadius, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Quality };
         Hub.Width = Hub.Height = S.HubRadius * 2;
+        Chip.Padding = S.ChipPadding;
+        Chip.Margin = new Thickness(0, S.ChipGap, 0, 0);
+        ChipText.FontFamily = S.ChipFont;
+        ChipText.FontSize = S.ChipSize;
+        ChipText.FontWeight = S.FormatWeight;
+        EmptyPill.Height = S.EmptyHeight;
+        EmptyPill.Padding = new Thickness(S.EmptyPadding, 0, S.EmptyPadding, 0);
+        EmptyPill.CornerRadius = new CornerRadius(S.EmptyCorner);
+        EmptyPill.BorderThickness = new Thickness(S.PetalEdgeThickness);
+        EmptyText.FontFamily = S.KoreanFont;
+        EmptyText.FontSize = S.EmptySize;
+        EmptyText.FontWeight = S.LabelWeight;
+        EmptyText.Text = S.NothingToDo;
     }
 
-    /// <summary>Colors used by the next <see cref="SetItems"/> or <see cref="ShowEmpty"/>.</summary>
+    /// <summary>Theme colors used by the next <see cref="SetItems"/> or <see cref="ShowEmpty"/>.</summary>
     public WheelPalette Palette { get; set; } = S.LightPalette;
+
+    /// <summary>Which wheel this is (picks the citrus and the hub chip); set before <see cref="SetItems"/>.</summary>
+    public WheelMode Mode { get; set; } = WheelMode.Convert;
 
     /// <summary>False renders state changes instantly (the <c>--render</c> harness).</summary>
     public bool Animate { get; set; } = true;
 
     public int PetalCount => _items.Count;
-
-    /// <summary>The screen behind the wheel (physical pixels of the wheel window's area), or null for an opaque disc.</summary>
-    public void SetBackdrop(BitmapSource? image)
-    {
-        Backdrop.Source = image;
-        Glass.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
-    }
 
     public void SetItems(IReadOnlyList<WheelItem> items)
     {
@@ -57,19 +65,13 @@ public partial class WheelView : UserControl
         _highlight = null;
         _petals.Clear();
         Petals.Children.Clear();
-        SetSurface(new EllipseGeometry(PetalPath.Center, S.DiscRadius, S.DiscRadius),
-            new EllipseGeometry(PetalPath.Center, S.DiscRadius - S.RingThickness / 2, S.DiscRadius - S.RingThickness / 2),
-            new EllipseGeometry(PetalPath.Center, S.DiscRadius - S.RingThickness - S.InnerHighlightThickness / 2,
-                S.DiscRadius - S.RingThickness - S.InnerHighlightThickness / 2));
+        EmptyPill.Visibility = Visibility.Collapsed;
 
+        var citrus = S.Accent(Mode);
+        var edge = Frozen(S.PetalEdge(citrus, Palette.Dark));
         var petalFill = Frozen(Palette.Petal);
-        var petalEdge = Frozen(Palette.PetalEdge);
-        var glowFill = new LinearGradientBrush(Palette.HighlightTop, Palette.Highlight, new Point(0, 0), new Point(0, G.CanvasSide))
-        {
-            MappingMode = BrushMappingMode.Absolute,
-        };
-        glowFill.Freeze();
-        var glowStroke = Frozen(Palette.HighlightStroke);
+        var selectedFill = Frozen(S.ToColor(citrus.Fill));
+        Petals.Effect = S.Shadow(Palette);
 
         for (var i = 0; i < items.Count; i++)
         {
@@ -77,8 +79,9 @@ public partial class WheelView : UserControl
             var text = new SolidColorBrush(Palette.Label);
             var lift = new TranslateTransform();
             var group = new Canvas { RenderTransform = lift };
-            group.Children.Add(new Path { Data = outline, Fill = petalFill, Stroke = petalEdge, StrokeThickness = S.PetalEdgeThickness });
-            var glow = new Path { Data = outline, Fill = glowFill, Stroke = glowStroke, StrokeThickness = S.HighlightStrokeThickness, Opacity = 0 };
+            group.Children.Add(new Path { Data = outline, Fill = petalFill, Stroke = edge, StrokeThickness = S.PetalEdgeThickness });
+            // The selected fill covers the edge too, so a highlighted petal is one solid citrus shape.
+            var glow = new Path { Data = outline, Fill = selectedFill, Stroke = selectedFill, StrokeThickness = S.PetalEdgeThickness, Opacity = 0 };
             group.Children.Add(glow);
             group.Children.Add(Label(items[i], i, items.Count, text));
             Petals.Children.Add(group);
@@ -86,11 +89,19 @@ public partial class WheelView : UserControl
         }
 
         Hub.Fill = Frozen(Palette.Hub);
+        Hub.Stroke = edge;
+        Hub.StrokeThickness = S.PetalEdgeThickness;
+        Hub.Effect = S.Shadow(Palette);
         Hub.Visibility = Visibility.Visible;
-        SetCenterText("", null);
+        Chip.CornerRadius = new CornerRadius(S.HubRadius); // fully round at any text width
+        Chip.Background = Frozen(S.ToColor(citrus.Wash(Palette.Dark)));
+        ChipText.Foreground = Frozen(S.ToColor(citrus.Ink(Palette.Dark)));
+        ChipText.Text = S.ModeChip(Mode);
+        HubContent.Visibility = Visibility.Visible;
+        SetCenterText(null);
     }
 
-    /// <summary>No common operation: a small glass pill with the note, no petals.</summary>
+    /// <summary>No common operation: a small pill in the window color with the note, no petals.</summary>
     public void ShowEmpty()
     {
         _items = [];
@@ -98,21 +109,14 @@ public partial class WheelView : UserControl
         _petals.Clear();
         Petals.Children.Clear();
         Hub.Visibility = Visibility.Collapsed;
+        HubContent.Visibility = Visibility.Collapsed;
 
-        CenterText.Text = S.NothingToDo;
-        CenterText.FontFamily = S.KoreanFont;
-        CenterText.FontSize = S.EmptySize;
-        CenterText.FontWeight = S.LabelWeight;
-        CenterText.Foreground = Frozen(Palette.Label);
-        CenterText.Width = double.NaN;
-        CenterText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
-        var width = Math.Ceiling(CenterText.DesiredSize.Width) + 2 * S.EmptyPadding;
-        var pill = new Rect(PetalPath.Center.X - width / 2, PetalPath.Center.Y - S.EmptyHeight / 2, width, S.EmptyHeight);
-        Rect Inset(double by) { var r = pill; r.Inflate(-by, -by); return r; }
-        SetSurface(new RectangleGeometry(pill, S.EmptyCorner, S.EmptyCorner),
-            new RectangleGeometry(Inset(S.RingThickness / 2), S.EmptyCorner, S.EmptyCorner),
-            new RectangleGeometry(Inset(S.RingThickness + S.InnerHighlightThickness / 2), S.EmptyCorner, S.EmptyCorner));
+        var surface = ZestColors.For(Palette.Dark);
+        EmptyPill.Background = Frozen(S.ToColor(surface.Window));
+        EmptyPill.BorderBrush = Frozen(S.ToColor(surface.Line));
+        EmptyPill.Effect = S.Shadow(Palette);
+        EmptyText.Foreground = Frozen(S.ToColor(surface.Text2));
+        EmptyPill.Visibility = Visibility.Visible;
     }
 
     /// <summary>Highlights one petal (null clears) and names it in the hub.</summary>
@@ -125,8 +129,7 @@ public partial class WheelView : UserControl
         _highlight = index;
         if (index is { } now) Paint(_petals[now], true);
 
-        if (index is { } n) SetCenterText(_items[n].Label, _items[n].Operation);
-        else SetCenterText("", null);
+        SetCenterText(index is { } n ? _items[n] : null);
     }
 
     /// <summary>Cancel: fade the whole wheel out, then call <paramref name="done"/> unless <see cref="StopFade"/> came first.</summary>
@@ -149,7 +152,7 @@ public partial class WheelView : UserControl
     void Paint(PetalVisual petal, bool on)
     {
         var glow = on ? 1.0 : 0.0;
-        var text = on ? S.HighlightText : Palette.Label;
+        var text = on ? S.ToColor(S.Accent(Mode).OnFill) : Palette.Label;
         // Reduced motion keeps the color change but not the rise.
         var lift = on && !Motion.ReduceMotion ? petal.LiftBy : new Vector();
         if (!Animate)
@@ -166,29 +169,24 @@ public partial class WheelView : UserControl
         Motion.To(petal.Lift, TranslateTransform.YProperty, lift.Y, S.HighlightLift, S.EaseOut);
     }
 
-    /// <summary>Clips the blurred capture and shapes the tint and rim lines (disc or empty-state pill).</summary>
-    void SetSurface(Geometry shape, Geometry ring, Geometry innerLine)
+    /// <summary>
+    /// The hovered item's name above the chip. With nothing hovered the line keeps its height (hidden), so the chip does not
+    /// jump when a name appears; the font follows the mode then, since a wheel shows either format names or Korean names.
+    /// </summary>
+    void SetCenterText(WheelItem? item)
     {
-        Glass.Clip = shape;
-        Tint.Data = shape;
-        Tint.Fill = Frozen(Backdrop.Source is null ? Palette.TintOpaque : Palette.Tint);
-        Ring.Data = ring;
-        Ring.Stroke = Frozen(Palette.Ring);
-        Ring.StrokeThickness = S.RingThickness;
-        InnerLine.Data = innerLine;
-        InnerLine.Stroke = Frozen(Palette.InnerHighlight);
-        InnerLine.StrokeThickness = S.InnerHighlightThickness;
-    }
-
-    void SetCenterText(string label, Operation? operation)
-    {
-        var format = operation is ConvertOp;
-        CenterText.Text = format ? label.ToUpperInvariant() : label;
+        var format = item is null ? Mode == WheelMode.Convert : item.Operation is ConvertOp;
+        CenterText.Text = item is null ? " " : format ? item.Label.ToUpperInvariant() : item.Label;
         CenterText.FontFamily = format ? S.FormatFont : S.KoreanFont;
-        CenterText.FontSize = S.HubSize;
-        CenterText.FontWeight = S.LabelWeight;
-        CenterText.Foreground = Frozen(Palette.Label);
-        CenterText.Width = S.HubTextWidth;
+        CenterText.FontSize = format ? S.HubFormatSize : S.HubKoreanSize;
+        CenterText.FontWeight = format ? S.FormatWeight : S.LabelWeight;
+        CenterText.Foreground = Frozen(Palette.HubText);
+        CenterText.Visibility = item is null ? Visibility.Hidden : Visibility.Visible;
+        // A long name ("PDF 만들기") shrinks to the hub's width instead of being cut off.
+        CenterText.MaxWidth = double.PositiveInfinity;
+        CenterText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        if (CenterText.DesiredSize.Width > S.HubTextWidth) CenterText.FontSize *= S.HubTextWidth / CenterText.DesiredSize.Width;
+        CenterText.MaxWidth = S.HubTextWidth;
     }
 
     /// <summary>A petal's label (format petals: uppercase text; tools and actions: icon above Korean text), centred on the label radius.</summary>
@@ -216,7 +214,7 @@ public partial class WheelView : UserControl
             Text = format ? item.Label.ToUpperInvariant() : item.Label,
             FontFamily = format ? S.FormatFont : S.KoreanFont,
             FontSize = format ? S.FormatSize : S.KoreanSize,
-            FontWeight = S.LabelWeight,
+            FontWeight = format ? S.FormatWeight : S.LabelWeight,
             Foreground = text,
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,

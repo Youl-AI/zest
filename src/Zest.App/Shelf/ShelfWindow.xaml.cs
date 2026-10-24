@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Zest.App.Wheel;
+using Zest.Core.Design;
 using Zest.Core.Input;
 using Zest.Core.Output;
 
@@ -77,7 +78,7 @@ public partial class ShelfWindow : Window
     internal ShelfWindow(IEnumerable<ShelfItem> items, WheelPalette palette)
     {
         InitializeComponent();
-        Resources["ShelfAccentBrush"] = Frozen(new SolidColorBrush(palette.Highlight));
+        Resources["ShelfAccentBrush"] = Frozen(new SolidColorBrush(WheelStyle.ToColor(ZestColors.Lime.Ink(palette.Dark))));
         List.ItemsSource = _items;
         foreach (var item in items) AddUnique(item);
         UpdateHeader();

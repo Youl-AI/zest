@@ -6,8 +6,9 @@ using G = Zest.Core.Wheel.WheelGeometry;
 namespace Zest.App.Wheel;
 
 /// <summary>
-/// Petal outlines matching <see cref="WheelGeometry.PetalAt"/>: ring sectors between Inner and Outer, separated by straight
-/// gutters of width Gap, with every corner rounded by an exact fillet (outer 9, inner 5, as in the original).
+/// Petal outlines over the sectors of <see cref="WheelGeometry.PetalAt"/>: ring sectors between Inner and Outer, separated by
+/// straight gutters of width Gap (drawn only; a release there still picks the nearest petal), with every corner rounded by an
+/// exact fillet (outer 10, inner 7).
 /// </summary>
 public static class PetalPath
 {
