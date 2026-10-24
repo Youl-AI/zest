@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Windows;
+using Zest.App.Theme;
 using Zest.Core;
 using Zest.Core.Tools;
-using Wpf.Ui.Controls;
 
 namespace Zest.App.Tools;
 
@@ -12,7 +12,7 @@ namespace Zest.App.Tools;
 /// 다시 시도 works. On success the window closes and runs the queued work (one action per drop that arrived while it was
 /// open). Windows ML accelerators are not handled here (see <c>BackgroundRemover.LoadAsync</c>).
 /// </summary>
-public partial class ModelDownloadWindow : FluentWindow
+public partial class ModelDownloadWindow : ZestWindow
 {
     readonly List<Action> _then = [];
     CancellationTokenSource? _running;
@@ -21,6 +21,7 @@ public partial class ModelDownloadWindow : FluentWindow
     {
         _then.Add(ready);
         InitializeComponent();
+        SizeRun.Text = string.Create(CultureInfo.InvariantCulture, $"{ModelStore.ExpectedBytes / 1_000_000.0:0} MB");
         DownloadButton.Click += async (_, _) => await DownloadAsync();
         CancelButton.Click += (_, _) => Close();
         Closing += (_, _) => _running?.Cancel();
@@ -35,6 +36,9 @@ public partial class ModelDownloadWindow : FluentWindow
         ShowRunning();
         ShowModelProgress(fraction);
     }
+
+    /// <summary>For the render harness: shows the window after a failed download.</summary>
+    internal void PreviewFailed(string message) => ShowFailed(message);
 
     async Task DownloadAsync()
     {

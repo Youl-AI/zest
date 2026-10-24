@@ -11,6 +11,7 @@ using Zest.App.Theme;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
+using Zest.Core.Tools;
 using Wpf.Ui.Appearance;
 using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
 
@@ -65,12 +66,18 @@ public static class RenderHarness
                 var palette = WheelStyle.Palette(dark);
                 Save(ToolWindows.ZestWindowSample(dark), folder, $"zest-window{suffix}.png", log);
                 Save(ToolWindows.ZestControlsSample(dark), folder, $"zest-controls{suffix}.png", log);
-                Save(ToolWindows.Compress(dark), folder, $"compress-options{suffix}.png", log);
+                Save(ToolWindows.Compress(dark, SizeGoal.Percentage), folder, $"compress-options{suffix}.png", log);
+                Save(ToolWindows.Compress(dark, SizeGoal.Preset), folder, $"compress-options-preset{suffix}.png", log);
+                Save(ToolWindows.Compress(dark, SizeGoal.FileSize), folder, $"compress-options-target{suffix}.png", log);
                 Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
                 Save(ToolWindows.Shelf(dark, palette), folder, $"shelf{suffix}.png", log);
-                Save(ToolWindows.TextResult(dark), folder, $"text-result{suffix}.png", log);
-                Save(ToolWindows.ModelDownload(dark), folder, $"model-download{suffix}.png", log);
+                Save(ToolWindows.TextResult(dark, copied: true), folder, $"text-result{suffix}.png", log);
+                Save(ToolWindows.TextResult(dark, copied: false), folder, $"text-result-busy{suffix}.png", log);
+                Save(ToolWindows.TextResult(dark, copied: false, empty: true), folder, $"text-result-empty{suffix}.png", log);
+                Save(ToolWindows.ModelDownload(dark, "ask"), folder, $"model-download{suffix}.png", log);
+                Save(ToolWindows.ModelDownload(dark, "progress"), folder, $"model-download-progress{suffix}.png", log);
+                Save(ToolWindows.ModelDownload(dark, "failed"), folder, $"model-download-failed{suffix}.png", log);
             }
 
             Save(TraySheet(), folder, "tray-icons.png", log);

@@ -3,23 +3,24 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using Zest.App.Wheel;
+using Zest.App.Theme;
 using Zest.Core.Tools;
-using Wpf.Ui.Controls;
 
 namespace Zest.App.Tools;
 
 /// <summary>
-/// Crop editor: the selection on the preview and the X/Y/폭/높이 fields (original pixels) edit the same rect; an aspect
-/// preset constrains both and snaps the selection at once. 자르기 (or Enter) hands the rect to the caller.
+/// Crop editor: the selection on the preview and the X/Y/폭/높이 fields (original pixels) edit the same rect; a ratio chip
+/// constrains both and snaps the selection at once. 자르기 (or Enter) hands the rect to the caller.
 /// </summary>
-public partial class CropWindow : FluentWindow
+public partial class CropWindow : ZestWindow
 {
     /// <summary>Largest initial preview in DIP; the caller decodes the preview for this size at the monitor's scale.</summary>
     public const double PreviewMaxLongEdge = 736;
     const double PreviewMinHeight = 240, PreviewMaxHeight = 520;
-    /// <summary>Preview area chrome around the image: canvas inset (16 each side) + 1 px border each side.</summary>
-    const double PreviewChrome = 2 * 16 + 2;
+    /// <summary>Preview area chrome around the image: the canvas inset, 16 each side.</summary>
+    const double PreviewChrome = 2 * 16;
+    /// <summary>Window width outside the preview area: the shadow margins, the frame's 1 px edges and the preview's 16 px insets.</summary>
+    const double PreviewOutside = 2 * ShadowMargin + 2 + 2 * 16;
 
     static readonly (string Label, double? Aspect)[] Ratios =
     [
@@ -33,6 +34,8 @@ public partial class CropWindow : FluentWindow
 
     readonly int _w, _h;
     readonly Action<PixelRect> _crop;
+    readonly RadioButton[] _chips;
+    int _ratio;
 
     /// <param name="preview">Orientation-applied, downscaled preview.</param>
     /// <param name="sourceWidth">Original width in pixels (orientation applied), the unit of the fields and of the result.</param>
@@ -43,13 +46,11 @@ public partial class CropWindow : FluentWindow
         _crop = crop;
         InitializeComponent();
 
-        var title = $"{Path.GetFileName(source)} 자르기";
-        Title = title;
-        Bar.Title = title;
+        Heading = $"자르기 · {Path.GetFileName(source)}";
         Canvas.SetImage(preview, sourceWidth, sourceHeight);
 
         // Initial preview height follows the image's aspect at the window's width; released after the first frame so the window can be resized.
-        var innerWidth = Width - 32 - PreviewChrome;
+        var innerWidth = Width - PreviewOutside - PreviewChrome;
         PreviewArea.Height = Math.Clamp(innerWidth * sourceHeight / Math.Max(1, sourceWidth) + PreviewChrome, PreviewMinHeight, PreviewMaxHeight);
         ContentRendered += (_, _) =>
         {
@@ -57,9 +58,28 @@ public partial class CropWindow : FluentWindow
             PreviewArea.Height = double.NaN;
         };
 
-        foreach (var (label, _) in Ratios) AspectBox.Items.Add(new ComboBoxItem { Content = label, FontFamily = label == "자유" ? WheelStyle.KoreanFont : WheelStyle.TextFont });
-        AspectBox.SelectedIndex = 0;
-        AspectBox.SelectionChanged += (_, _) => ApplyAspect();
+        // One chip per Ratios entry; chip i is ratio i (the indices the render harness and the old combo used).
+        var chipStyle = (Style)FindResource("Zest.ChoiceChip");
+        _chips = new RadioButton[Ratios.Length];
+        for (var i = 0; i < Ratios.Length; i++)
+        {
+            var index = i;
+            var chip = new RadioButton
+            {
+                Content = Ratios[i].Label,
+                GroupName = "Ratio",
+                IsChecked = i == 0,
+                Margin = new Thickness(i == 0 ? 0 : 4, 0, 0, 0),
+                Style = chipStyle,
+            };
+            chip.Checked += (_, _) =>
+            {
+                _ratio = index;
+                ApplyAspect();
+            };
+            _chips[i] = chip;
+            RatioPanel.Children.Add(chip);
+        }
 
         Canvas.SelectionChanged += _ => ShowNumbers();
         Bind(XBox, CropField.X);
@@ -70,12 +90,12 @@ public partial class CropWindow : FluentWindow
         ShowNumbers();
     }
 
-    double? Aspect => Ratios[Math.Max(0, AspectBox.SelectedIndex)].Aspect;
+    double? Aspect => Ratios[_ratio].Aspect;
 
-    /// <summary>Render harness: a preset and a selection drawn with the tangerine accent.</summary>
+    /// <summary>Render harness: a ratio chip and a selection drawn with the tangerine accent.</summary>
     internal void Preview(int ratioIndex, PixelRect selection)
     {
-        AspectBox.SelectedIndex = ratioIndex;
+        _chips[ratioIndex].IsChecked = true;
         Canvas.Selection = CropMath.FitAspect(selection, Aspect, _w, _h);
         ShowNumbers();
     }

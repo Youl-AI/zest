@@ -14,17 +14,19 @@ namespace Zest.App.Render;
 
 /// <summary>
 /// Review renders of the tool windows for <c>--render</c>. A window cannot be drawn without being shown, so each scene
-/// builds the real window, lifts its content out and draws it inside a stand-in frame: the Mica fallback brush, a 1 px
-/// stroke and Windows 11's 8 px corners, on a plain desktop colour.
+/// builds the real <see cref="ZestWindow"/> and draws its frame as it is (shadow margin included) on a plain desktop colour.
 /// </summary>
 internal static class ToolWindows
 {
     const int PhotoW = 4000, PhotoH = 2500; // what the sample "photo" claims to be in original pixels
 
-    public static FrameworkElement Compress(bool dark)
+    /// <summary>The compress options in one mode; the target-size scene also shows an error on the bottom bar.</summary>
+    public static FrameworkElement Compress(bool dark, SizeGoal goal)
     {
-        var window = new CompressOptionsWindow([new CompressSource(@"C:\Users\me\Pictures\제주 바다.jpg", 3_412_000)], _ => { });
-        return Frame(window, dark);
+        var window = new CompressOptionsWindow([new CompressSource(@"C:\Users\me\Pictures\제주 바다.jpg", 5_600_000)], _ => { });
+        if (goal == SizeGoal.FileSize) window.Preview(goal, "9", "목표 크기는 원본보다 작아야 합니다.");
+        else window.Preview(goal);
+        return Shot(window, dark);
     }
 
     public static FrameworkElement Crop(bool dark)
@@ -32,40 +34,46 @@ internal static class ToolWindows
         var preview = Photo(1472, 920, 0);
         var window = new CropWindow(@"C:\Users\me\Pictures\제주 바다.jpg", preview, PhotoW, PhotoH, _ => { });
         window.Preview(ratioIndex: 4, new PixelRect(720, 420, 2600, 1500)); // 16:9
-        return Frame(window, dark);
+        return Shot(window, dark);
     }
 
+    /// <summary>Four images (the last with a long Korean name), the first selected.</summary>
     public static FrameworkElement Order(bool dark)
     {
-        var names = new[] { "여행 1.jpg", "여행 2.jpg", "여행 3.png" };
-        var details = new[] { "4000 × 2500 · 3.4 MB", "3024 × 4032 · 2.8 MB", "1920 × 1080 · 1.1 MB" };
+        var names = new[] { "여행 1.jpg", "여행 2.jpg", "여행 3.png", "2026 제주 가족 여행 바다 사진 원본 (보정 전).jpg" };
+        var details = new[] { "4000 × 2500 · 3.4 MB", "3024 × 4032 · 2.8 MB", "1920 × 1080 · 1.1 MB", "4032 × 3024 · 5.6 MB" };
         var items = new List<OrderItem>();
         for (var i = 0; i < names.Length; i++)
         {
             var item = new OrderItem($@"C:\Users\me\Pictures\{names[i]}", isPdf: false)
             {
-                Thumbnail = Photo(80, 80, i),
+                Thumbnail = Photo(120, 90, i),
                 Detail = details[i],
             };
             items.Add(item);
         }
         var window = new OrderWindow(OrderMode.ImagesToPdf, items, _ => { });
-        return Frame(window, dark);
+        return Shot(window, dark);
     }
 
-    public static FrameworkElement TextResult(bool dark)
+    /// <summary>
+    /// The text right after it was copied (the chip), with the clipboard busy (the reason under the text), or nothing found
+    /// (<paramref name="empty"/>: the message, 텍스트로 저장 and 복사 disabled).
+    /// </summary>
+    public static FrameworkElement TextResult(bool dark, bool copied, bool empty = false)
     {
-        const string text = "── 회의록 스캔.png ──\n오늘 회의에서 논의한 내용을 정리합니다.\n1. 다음 분기 일정: 2026년 11월 3일\n2. Quarterly report 검토 담당: 김하늘\n\n── 견적서.pdf ──\n견적 번호 2026-1022\n합계 금액 1,250,000원";
-        var window = new TextResultWindow([@"C:\Users\me\Documents\회의록 스캔.png", @"C:\Users\me\Documents\견적서.pdf"], text, true, _ => { });
-        return Frame(window, dark);
+        var text = empty ? "" : "── 회의록 스캔.png ──\n오늘 회의에서 논의한 내용을 정리합니다.\n1. 다음 분기 일정: 2026년 11월 3일\n2. Quarterly report 검토 담당: 김하늘\n\n── 견적서.pdf ──\n견적 번호 2026-1022\n합계 금액 1,250,000원";
+        var window = new TextResultWindow([@"C:\Users\me\Documents\회의록 스캔.png", @"C:\Users\me\Documents\견적서.pdf"], text, copied, _ => { });
+        return Shot(window, dark);
     }
 
-    /// <summary>The background-removal model download, 42 % through.</summary>
-    public static FrameworkElement ModelDownload(bool dark)
+    /// <summary>The background-removal model download: "ask" (before 내려받기), "progress" (42 % through) or "failed".</summary>
+    public static FrameworkElement ModelDownload(bool dark, string state)
     {
         var window = new ModelDownloadWindow(() => { });
-        window.Preview(0.42);
-        return Frame(window, dark);
+        if (state == "progress") window.Preview(0.42);
+        else if (state == "failed") window.PreviewFailed("모델을 내려받지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도하세요.");
+        return Shot(window, dark);
     }
 
     /// <summary>The bare <see cref="ZestWindow"/> frame: heading "압축", a two-line body and a footer with a hint, 취소 and 압축.</summary>
@@ -172,8 +180,10 @@ internal static class ToolWindows
         RenderHarness.AsOnHighDpiScreen(window);
         window.ApplyTemplate();
         var root = (FrameworkElement)VisualTreeHelper.GetChild(window, 0);
-        root.Measure(new Size(window.Width, double.PositiveInfinity));
-        var size = new Size(window.Width, Math.Ceiling(root.DesiredSize.Height));
+        // A fixed-height window (글자 복사) is drawn at its height; a sized-to-content one at what its frame measures.
+        var fixedHeight = !window.SizeToContent.HasFlag(SizeToContent.Height) && !double.IsNaN(window.Height);
+        root.Measure(new Size(window.Width, fixedHeight ? window.Height : double.PositiveInfinity));
+        var size = new Size(window.Width, fixedHeight ? window.Height : Math.Ceiling(root.DesiredSize.Height));
         root.Arrange(new Rect(size));
         root.UpdateLayout(); // raises the size notifications that ActualHeight bindings (round chips) wait for
         var picture = new RenderTargetBitmap((int)Math.Ceiling(size.Width * RenderHarness.Scale), (int)Math.Ceiling(size.Height * RenderHarness.Scale),
@@ -207,34 +217,6 @@ internal static class ToolWindows
             Padding = new Thickness(24, 24, 24, 8),
             Background = new SolidColorBrush(dark ? Color.FromRgb(0x2B, 0x2B, 0x2B) : Color.FromRgb(0xDD, 0xE3, 0xE8)),
             Child = content,
-        };
-    }
-
-    static FrameworkElement Frame(FluentWindow window, bool dark)
-    {
-        var content = (FrameworkElement)window.Content;
-        window.Content = null;
-        content.Resources.MergedDictionaries.Add(window.Resources); // lifted content keeps the window's styles
-        RenderHarness.AsOnHighDpiScreen(content);
-
-        var surface = new Border
-        {
-            Width = window.Width,
-            CornerRadius = new CornerRadius(8),
-            BorderThickness = new Thickness(1),
-            ClipToBounds = true,
-            Child = content,
-        };
-        if (window.SizeToContent == SizeToContent.Manual) surface.Height = window.Height; // a fixed-size window, not a sized-to-content one
-        surface.SetResourceReference(Border.BackgroundProperty, "ApplicationBackgroundBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SurfaceStrokeColorDefaultBrush");
-        window.Close();
-
-        return new Border
-        {
-            Padding = new Thickness(24),
-            Background = new SolidColorBrush(dark ? Color.FromRgb(0x2B, 0x2B, 0x2B) : Color.FromRgb(0xDD, 0xE3, 0xE8)),
-            Child = surface,
         };
     }
 

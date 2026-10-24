@@ -1,10 +1,10 @@
 using System.IO;
-using Wpf.Ui.Controls;
+using Zest.App.Theme;
 
 namespace Zest.App.Tray;
 
 /// <summary>Shows NOTICE.md (embedded at build time) read-only.</summary>
-public partial class LicenseWindow : FluentWindow
+public partial class LicenseWindow : ZestWindow
 {
     public LicenseWindow()
     {

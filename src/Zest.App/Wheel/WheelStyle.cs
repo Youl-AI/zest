@@ -155,7 +155,7 @@ public static class WheelStyle
     public static readonly Color CropShade = Hex(0x8C, 0x00, 0x00, 0x00);
     /// <summary>Hairline just outside the selection outline, so the accent stays visible on a bright image.</summary>
     public static readonly Color CropOutlineShadow = Hex(0x59, 0x00, 0x00, 0x00);
-    public const double CropOutline = 1.5, CropHandleSize = 10, CropHandleHit = 20, CropHandleCorner = 2;
+    public const double CropOutline = 1.5, CropHandleSize = 12, CropHandleHit = 20, CropHandleCorner = 3;
 
     // ── Motion (emil-design-eng values; nothing over 300 ms, no ease-in) ────
     /// <summary>CSS <c>ease</c>: color changes.</summary>

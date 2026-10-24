@@ -1,50 +1,251 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:wheel="clr-namespace:Zest.App.Wheel">
-    <!-- Shared look of the tool windows: 8 px grid, Pretendard for Korean labels, the system face for names and numbers. -->
+    <!--
+        What the tool windows share on top of Theme/ZestControls.xaml (values from the approved popup page). Korean labels use
+        ChipFont (Pretendard for Hangul, Segoe UI Variable for Latin); file names and numbers use TextFont with tabular numerals.
+        Every colour is a DynamicResource so a live light/dark switch repaints.
+    -->
 
+    <!-- ── Text ───────────────────────────────────────────────────────────── -->
+    <!-- A row's label ("최대 크기", "줄이기", "저장 위치"): 13 px text-2. -->
     <Style x:Key="Label" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.KoreanFont}" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
     </Style>
 
-    <Style x:Key="SecondaryLabel" TargetType="TextBlock" BasedOn="{StaticResource Label}">
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    <!-- A row's value ("37%", "410 / 973 MB"): 14 SemiBold text, tabular numerals. -->
+    <Style x:Key="Value" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
     </Style>
 
+    <!-- A file name or detail line: 13 px text-2, one line with an ellipsis. -->
     <Style x:Key="Detail" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
         <Setter Property="FontSize" Value="13" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
     </Style>
 
+    <!-- The one line that matters in a window ("원본 크기 5.6 MB", "배경 제거 모델이 필요합니다"): 16 Bold text. -->
+    <Style x:Key="Big" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+    </Style>
+
+    <!-- A short explanation: 13 px text-2, wrapping (put explicit LineBreaks: WPF breaks Korean inside words). -->
+    <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource Label}">
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="LineHeight" Value="20" />
+    </Style>
+
+    <!-- Still used by the shelf (restyled in its own task): a 13 px text line and a hairline. -->
     <Style x:Key="Number" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
     </Style>
+    <Style x:Key="Divider" TargetType="Border" BasedOn="{StaticResource Zest.Hairline}" />
 
-    <Style x:Key="ErrorText" TargetType="TextBlock" BasedOn="{StaticResource Label}">
+    <!-- The bottom bar's error line: a Zest.Hint in the danger colour that may wrap. -->
+    <Style x:Key="ErrorText" TargetType="TextBlock" BasedOn="{StaticResource Zest.Hint}">
         <Setter Property="TextWrapping" Value="Wrap" />
-        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="TextTrimming" Value="None" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Danger}" />
     </Style>
 
-    <!-- Hairline between groups, like the original's dividers. -->
-    <Style x:Key="Divider" TargetType="Border">
-        <Setter Property="Height" Value="1" />
-        <Setter Property="Background" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
-    </Style>
-
-    <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="HorizontalContentAlignment" Value="Right" />
-        <Setter Property="VerticalAlignment" Value="Center" />
+    <!-- ── Inputs ─────────────────────────────────────────────────────────── -->
+    <!-- A number field: Zest.Field, right-aligned digits, no IME. -->
+    <Style x:Key="NumberField" TargetType="TextBox" BasedOn="{StaticResource Zest.Field}">
+        <Setter Property="TextAlignment" Value="Right" />
         <Setter Property="InputMethod.IsInputMethodEnabled" Value="False" />
     </Style>
+
+    <!-- WPF-UI's combo with the field look: 32 px, raised, 1 px line-strong (focus: tangerine ink, set in ZestTheme). -->
+    <Style x:Key="Combo" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,0,8,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Zest.LineStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!--
+        Multi-line text (글자 복사, 라이선스): raised, 1 px line inset, radius 10, 12 x 14 padding; keyboard focus = tangerine
+        ink edge. The content host keeps WPF-UI's ScrollViewer (thin scroll bars).
+    -->
+    <Style x:Key="TextArea" TargetType="TextBox">
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource Zest.Tangerine.Fill}" />
+        <Setter Property="SelectionOpacity" Value="0.4" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Zest.Line}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Box" CornerRadius="10" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Margin="0,2"
+                                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Zest.Tangerine.Ink}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Slider ─────────────────────────────────────────────────────────── -->
+    <!-- A 4 px track: tangerine ink up to the thumb, line-strong after it; a 20 px white thumb with a knob shadow. -->
+    <Style x:Key="SliderPart" TargetType="RepeatButton">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <!-- The transparent grid is the hit area; the visible part is the 4 px bar in its middle. -->
+                    <Grid Background="Transparent">
+                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{TemplateBinding Background}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SliderThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid>
+                        <!-- Shadow on its own layer (0 1 3 at 20 %), then the white knob with a 1 px dark ring. -->
+                        <Ellipse Fill="#FFFFFFFF">
+                            <Ellipse.Effect>
+                                <DropShadowEffect BlurRadius="3" ShadowDepth="1" Direction="270" Opacity="0.3" Color="Black" />
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <Ellipse Fill="#FFFFFFFF" Stroke="#1F000000" StrokeThickness="1" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Slider" TargetType="Slider">
+        <Setter Property="Height" Value="20" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Background="Transparent">
+                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{DynamicResource Zest.LineStrong}" />
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource SliderPart}" Background="{DynamicResource Zest.Tangerine.Ink}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource SliderPart}" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource SliderThumb}" />
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Progress bar ───────────────────────────────────────────────────── -->
+    <!--
+        4 px, radius 2: the line colour with a tangerine-ink fill. Indeterminate: ProgressBar stretches PART_Indicator to the
+        full track and slides PART_GlowRect across it (its own linear animation), so only the 72 px glow is painted then.
+    -->
+    <Style x:Key="Bar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="4" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Tangerine.Ink}" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Line}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border x:Name="PART_Track" CornerRadius="2" Background="{TemplateBinding Background}" />
+                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="2" ClipToBounds="True">
+                            <Grid>
+                                <Border x:Name="Fill" CornerRadius="2" Background="{TemplateBinding Foreground}" />
+                                <Border x:Name="PART_GlowRect" Width="72" HorizontalAlignment="Left" CornerRadius="2"
+                                        Background="{TemplateBinding Foreground}" Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsIndeterminate" Value="True">
+                            <Setter TargetName="Fill" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_GlowRect" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Glyphs ─────────────────────────────────────────────────────────── -->
+    <!-- The order list's six-dot grip (page: 20 x 20, r 1.3). -->
+    <GeometryGroup x:Key="GripGlyph">
+        <EllipseGeometry Center="7.5,5" RadiusX="1.3" RadiusY="1.3" />
+        <EllipseGeometry Center="12.5,5" RadiusX="1.3" RadiusY="1.3" />
+        <EllipseGeometry Center="7.5,10" RadiusX="1.3" RadiusY="1.3" />
+        <EllipseGeometry Center="12.5,10" RadiusX="1.3" RadiusY="1.3" />
+        <EllipseGeometry Center="7.5,15" RadiusX="1.3" RadiusY="1.3" />
+        <EllipseGeometry Center="12.5,15" RadiusX="1.3" RadiusY="1.3" />
+    </GeometryGroup>
+
+    <!-- A check for chips (page: 12 x 12 viewbox, stroke 1.8). -->
+    <PathGeometry x:Key="CheckGlyph" Figures="M2.5,6.4 L5,8.8 L9.6,3.4" />
+
+    <!-- The download tile's cloud with an arrow (page: 24 x 24 viewbox, stroke 1.6). -->
+    <PathGeometry x:Key="CloudDownloadGlyph"
+                  Figures="M7,17.5 L6.5,17.5 A4,4 0 0 1 5.9,9.54 A5.5,5.5 0 0 1 16.6,8.1 A4.5,4.5 0 0 1 17.5,17.5 L17,17.5 M12,11 L12,19 M9,16 L12,19 L15,16" />
 </ResourceDictionary>

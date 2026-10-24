@@ -82,7 +82,10 @@ public static class ToolDispatcher
                 return;
             }
             var window = new ModelDownloadWindow(() => RemoveBackground(files));
-            window.Closed += (_, _) => _download = null;
+            // Closing, not only Closed: Closed comes after the 150 ms exit fade, and a drop in that gap would be queued on
+            // a window that will never run it.
+            window.Closing += (_, _) => { if (_download == window) _download = null; };
+            window.Closed += (_, _) => { if (_download == window) _download = null; };
             _download = window;
             Present(window, at);
         }

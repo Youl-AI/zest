@@ -25,8 +25,8 @@ public sealed class CropCanvas : FrameworkElement
     (CropHandle Handle, Point Start, PixelRect From)? _drag;
     static readonly Brush Shade = Frozen(new SolidColorBrush(WheelStyle.CropShade));
     static readonly Pen OutlineShadow = Frozen(new Pen(Frozen(new SolidColorBrush(WheelStyle.CropOutlineShadow)), 1));
-    static readonly Pen HandleStroke = Frozen(new Pen(Brushes.White, 1));
-    Brush _accent = Brushes.Transparent;
+    /// <summary>The rule-of-thirds lines inside the selection: 1 px white at 35 %.</summary>
+    static readonly Pen Thirds = Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF))), 1));
     Pen _outline = new(Brushes.Transparent, 0);
 
     /// <summary>The selection changed under the pointer.</summary>
@@ -43,11 +43,10 @@ public sealed class CropCanvas : FrameworkElement
     /// <summary>Width / height to keep while dragging, or null for free.</summary>
     public double? Aspect { get; set; }
 
-    /// <summary>Outline and handle color (<see cref="WheelStyle.CropAccent"/> unless a caller overrides it).</summary>
+    /// <summary>Outline and handle ring color (<see cref="WheelStyle.CropAccent"/> unless a caller overrides it).</summary>
     public void SetAccent(Color accent)
     {
-        _accent = Frozen(new SolidColorBrush(accent));
-        _outline = Frozen(new Pen(_accent, WheelStyle.CropOutline));
+        _outline = Frozen(new Pen(Frozen(new SolidColorBrush(accent)), WheelStyle.CropOutline));
         InvalidateVisual();
     }
 
@@ -103,15 +102,24 @@ public sealed class CropCanvas : FrameworkElement
         var shade = new CombinedGeometry(GeometryCombineMode.Exclude, new RectangleGeometry(image), new RectangleGeometry(sel));
         dc.DrawGeometry(Shade, null, shade);
 
+        for (var i = 1; i <= 2; i++)
+        {
+            var x = sel.X + sel.Width * i / 3;
+            var y = sel.Y + sel.Height * i / 3;
+            dc.DrawLine(Thirds, new Point(x, sel.Top), new Point(x, sel.Bottom));
+            dc.DrawLine(Thirds, new Point(sel.Left, y), new Point(sel.Right, y));
+        }
+
         var half = WheelStyle.CropOutline / 2;
         dc.DrawRectangle(null, OutlineShadow, Inflate(sel, half + 0.5));
         dc.DrawRectangle(null, _outline, sel);
 
+        // White handles with an accent ring of the outline's width.
         foreach (var (_, center) in Handles(sel))
         {
             var size = WheelStyle.CropHandleSize;
             var box = new Rect(center.X - size / 2, center.Y - size / 2, size, size);
-            dc.DrawRoundedRectangle(_accent, HandleStroke, box, WheelStyle.CropHandleCorner, WheelStyle.CropHandleCorner);
+            dc.DrawRoundedRectangle(Brushes.White, _outline, box, WheelStyle.CropHandleCorner, WheelStyle.CropHandleCorner);
         }
     }
 

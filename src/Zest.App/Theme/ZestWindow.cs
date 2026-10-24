@@ -29,6 +29,8 @@ public class ZestWindow : Window
     const double LightShadowOpacity = 0.14, DarkShadowOpacity = 0.45;
     static readonly TimeSpan Enter = WheelStyle.CardEnter, Exit = WheelStyle.CardExit;
     const double EnterScale = 0.96;
+    /// <summary>The frame's 14 px corner minus its 1 px edge: the radius the content is clipped to.</summary>
+    const double InnerRadius = 13;
 
     public static readonly DependencyProperty HeadingProperty = DependencyProperty.Register(
         nameof(Heading), typeof(string), typeof(ZestWindow), new PropertyMetadata("", OnHeadingChanged));
@@ -49,6 +51,7 @@ public class ZestWindow : Window
     Border? _shadow;
     ButtonBase? _close;
     FrameworkElement? _header;
+    FrameworkElement? _content;
     bool _exiting, _exited;
 
     public ZestWindow()
@@ -108,6 +111,12 @@ public class ZestWindow : Window
         _header = GetTemplateChild("PART_Header") as FrameworkElement;
 
         if (_frame is not null) _frame.RenderTransform = _scale;
+        if (GetTemplateChild("PART_Content") is FrameworkElement content && content != _content)
+        {
+            if (_content is not null) _content.SizeChanged -= OnContentSizeChanged;
+            _content = content;
+            content.SizeChanged += OnContentSizeChanged;
+        }
         if (_close is not null) _close.Click += OnCloseClick;
         if (_header is not null) _header.MouseLeftButtonDown += OnHeaderMouseDown;
         UpdateShadow();
@@ -208,6 +217,14 @@ public class ZestWindow : Window
     /// <summary>Dark theme = the applied <c>Zest.Window</c> colour is dark (#1D1B16 vs #FBFBF9).</summary>
     bool IsDarkSurface() =>
         GetValue(SurfaceProperty) is SolidColorBrush { Color: var c } && 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B < 128;
+
+    /// <summary>A Border does not clip its child to its corners; the content grid is clipped to the frame's inner radius instead.</summary>
+    static void OnContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var clip = new RectangleGeometry(new Rect(e.NewSize), InnerRadius, InnerRadius);
+        clip.Freeze();
+        ((FrameworkElement)sender).Clip = clip;
+    }
 
     void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 

@@ -8,9 +8,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Zest.App.Theme;
 using Zest.Core.Pdf;
 using Zest.Core.Tools;
-using Wpf.Ui.Controls;
 
 namespace Zest.App.Tools;
 
@@ -79,9 +79,10 @@ public sealed class OrderItem : INotifyPropertyChanged
 /// Puts the files for PDF 만들기 / 합치기 in order: drag a row (it moves as the pointer crosses other rows, no animation)
 /// or use ↑/↓; the primary button hands the paths, in order, to the caller.
 /// </summary>
-public partial class OrderWindow : FluentWindow
+public partial class OrderWindow : ZestWindow
 {
-    const double ThumbnailDip = 40;
+    /// <summary>Long edge to decode a thumbnail at: fills the 44 x 33 tile even for a portrait image (33 x 44 would leave it short).</summary>
+    const double ThumbnailDip = 60;
 
     readonly ObservableCollection<OrderItem> _items;
     readonly Action<IReadOnlyList<string>> _go;
@@ -98,8 +99,7 @@ public partial class OrderWindow : FluentWindow
         InitializeComponent();
 
         var (title, verb) = mode == OrderMode.ImagesToPdf ? ("PDF 만들기", "만들기") : ("PDF 합치기", "합치기");
-        Title = title;
-        Bar.Title = title;
+        Heading = title;
         GoButton.Content = verb;
 
         List.ItemsSource = _items;

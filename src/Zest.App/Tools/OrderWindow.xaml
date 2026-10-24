@@ -1,117 +1,96 @@
-<ui:FluentWindow x:Class="Zest.App.Tools.OrderWindow"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 xmlns:wheel="clr-namespace:Zest.App.Wheel"
-                 Title="PDF 만들기" Width="440" SizeToContent="Height" ResizeMode="NoResize"
-                 MinWidth="0" MinHeight="0"
-                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowStartupLocation="Manual">
-    <ui:FluentWindow.Resources>
+<theme:ZestWindow x:Class="Zest.App.Tools.OrderWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:theme="clr-namespace:Zest.App.Theme"
+                  xmlns:wheel="clr-namespace:Zest.App.Wheel"
+                  Heading="PDF 만들기" Width="488" SizeToContent="Height">
+    <!-- Width = the page's 440 px frame + 2 x ZestWindow.ShadowMargin. -->
+    <theme:ZestWindow.Resources>
         <ResourceDictionary Source="ToolStyles.xaml" />
-    </ui:FluentWindow.Resources>
-    <Grid x:Name="Root">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="Bar" Title="PDF 만들기" ShowMinimize="False" ShowMaximize="False"
-                     Padding="24,0,0,0" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" />
+    </theme:ZestWindow.Resources>
 
-        <Grid Grid.Row="1" Margin="24,8,24,24">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <TextBlock x:Name="HintText" Text="끌거나 화살표로 순서를 바꾸세요." Style="{StaticResource SecondaryLabel}" />
+    <theme:ZestWindow.Footer>
+        <!-- Right to left: the verb (8 px more air before it, as on the page), then ↓ and ↑. -->
+        <DockPanel Style="{StaticResource Zest.FooterBar}">
+            <ui:Button x:Name="GoButton" Margin="16,0,0,0" Appearance="Primary" IsDefault="True" Content="만들기" />
+            <ui:Button x:Name="DownButton" Width="32" Padding="0" ToolTip="아래로" AutomationProperties.Name="아래로">
+                <TextBlock Text="&#xE74B;" FontFamily="Segoe Fluent Icons" FontSize="14" Foreground="{DynamicResource Zest.Text}" />
+            </ui:Button>
+            <ui:Button x:Name="UpButton" Width="32" Padding="0" ToolTip="위로" AutomationProperties.Name="위로">
+                <TextBlock Text="&#xE74A;" FontFamily="Segoe Fluent Icons" FontSize="14" Foreground="{DynamicResource Zest.Text}" />
+            </ui:Button>
+        </DockPanel>
+    </theme:ZestWindow.Footer>
 
-            <Border Grid.Row="1" Margin="0,16,0,16" CornerRadius="8" Padding="4"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <ListBox x:Name="List" Background="Transparent" BorderThickness="0" MaxHeight="336"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemContainerStyle>
-                        <!-- Fluent list row: subtle fill on hover and selection, a short accent pill marks the selected row. -->
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding" Value="8" />
-                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="Row" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
-                                            <Grid>
-                                                <Rectangle x:Name="Pill" Width="3" Height="16" RadiusX="1.5" RadiusY="1.5" Margin="-6,0,0,0"
-                                                           HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="Collapsed"
-                                                           Fill="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                <ContentPresenter />
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-                                                <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Height="40">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="24" />
-                                    <ColumnDefinition Width="40" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Position}" Margin="4,0,0,0" Style="{StaticResource Detail}" HorizontalAlignment="Left" />
-                                <!-- Thumbnail (images) or a PDF glyph, rounded 4 inside a 40 px square. -->
-                                <Border Grid.Column="1" Width="40" Height="40" CornerRadius="4"
-                                        Background="{DynamicResource ControlFillColorSecondaryBrush}">
-                                    <Grid>
-                                        <TextBlock Text="&#xEA90;" FontFamily="Segoe Fluent Icons" FontSize="20"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                   Visibility="{Binding GlyphVisibility}" />
-                                        <Border CornerRadius="4" Visibility="{Binding ThumbnailVisibility}">
-                                            <Border.Background>
-                                                <ImageBrush ImageSource="{Binding Thumbnail}" Stretch="UniformToFill" />
-                                            </Border.Background>
-                                        </Border>
-                                    </Grid>
+    <StackPanel Margin="20,0">
+        <TextBlock x:Name="HintText" Margin="0,2,0,0" Text="끌거나 화살표로 순서를 바꾸세요." Style="{StaticResource Zest.Hint}" />
+
+        <ListBox x:Name="List" Margin="0,4,0,8" Padding="0" Background="Transparent" BorderThickness="0" MaxHeight="336"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemContainerStyle>
+                <!-- A row: radius 9, seg on hover; the selected row is washed in tangerine (no accent pill). -->
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="8,6,10,6" />
+                    <Setter Property="Margin" Value="0,2,0,0" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Border x:Name="Row" CornerRadius="9" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter />
                                 </Border>
-                                <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Number}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding Detail}" Margin="0,2,0,0" FontSize="12" Style="{StaticResource Detail}" />
-                                </StackPanel>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-
-            <Grid Grid.Row="2">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ui:Button x:Name="UpButton" Width="40" Height="32" Padding="0" ToolTip="위로">
-                    <TextBlock Text="&#xE74A;" FontFamily="Segoe Fluent Icons" FontSize="14" />
-                </ui:Button>
-                <ui:Button x:Name="DownButton" Grid.Column="2" Width="40" Height="32" Padding="0" ToolTip="아래로">
-                    <TextBlock Text="&#xE74B;" FontFamily="Segoe Fluent Icons" FontSize="14" />
-                </ui:Button>
-                <ui:Button x:Name="GoButton" Grid.Column="4" Appearance="Primary" IsDefault="True"
-                           MinWidth="96" Padding="16,6" Content="만들기" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
-            </Grid>
-        </Grid>
-    </Grid>
-</ui:FluentWindow>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource Zest.Seg}" />
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Row" Property="Background" Value="{DynamicResource Zest.Tangerine.Wash}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <!-- position · 44 x 33 thumbnail · name over detail · grip, 12 px apart. -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="44" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="20" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Position}" FontSize="12" HorizontalAlignment="Center" TextAlignment="Center" Style="{StaticResource Detail}" />
+                        <!-- Thumbnail (images) or a PDF glyph, radius 5 with a 1 px line edge. -->
+                        <Grid Grid.Column="2" Width="44" Height="33" VerticalAlignment="Center">
+                            <Border CornerRadius="5" Background="{DynamicResource Zest.Seg}" />
+                            <TextBlock Text="&#xEA90;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Zest.Text2}" Visibility="{Binding GlyphVisibility}" />
+                            <Border CornerRadius="5" Visibility="{Binding ThumbnailVisibility}">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                </Border.Background>
+                            </Border>
+                            <Border CornerRadius="5" BorderThickness="1" BorderBrush="{DynamicResource Zest.Line}" />
+                        </Grid>
+                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Name}" FontFamily="{x:Static wheel:WheelStyle.TextFont}" FontSize="13" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Zest.Text}" />
+                            <TextBlock Text="{Binding Detail}" Margin="0,1,0,0" FontSize="12" Style="{StaticResource Detail}" />
+                        </StackPanel>
+                        <Path Grid.Column="6" Width="20" Height="20" VerticalAlignment="Center" Data="{StaticResource GripGlyph}"
+                              Fill="{DynamicResource Zest.Text3}" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </StackPanel>
+</theme:ZestWindow>

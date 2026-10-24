@@ -1,16 +1,13 @@
-<ui:FluentWindow x:Class="Zest.App.Tray.LicenseWindow"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="Zest 라이선스" Width="720" Height="600" WindowStartupLocation="CenterScreen"
-                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <ui:TitleBar Title="Zest 라이선스" ShowMinimize="False" ShowMaximize="False" />
-        <TextBox x:Name="NoticeText" Grid.Row="1" Margin="16,8,16,16" IsReadOnly="True" TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" />
-    </Grid>
-</ui:FluentWindow>
+<theme:ZestWindow x:Class="Zest.App.Tray.LicenseWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:theme="clr-namespace:Zest.App.Theme"
+                  Heading="Zest 라이선스" Width="768" Height="648" MinWidth="448" MinHeight="348" IsResizable="True"
+                  WindowStartupLocation="CenterScreen">
+    <!-- Width / Height = a 720 x 600 frame + 2 x ZestWindow.ShadowMargin. -->
+    <theme:ZestWindow.Resources>
+        <ResourceDictionary Source="../Tools/ToolStyles.xaml" />
+    </theme:ZestWindow.Resources>
+    <TextBox x:Name="NoticeText" Margin="16,0,16,16" IsReadOnly="True" Style="{StaticResource TextArea}"
+             FontFamily="Consolas" FontSize="12" />
+</theme:ZestWindow>

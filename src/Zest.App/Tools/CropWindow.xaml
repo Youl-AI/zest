@@ -1,65 +1,54 @@
-<ui:FluentWindow x:Class="Zest.App.Tools.CropWindow"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 xmlns:wheel="clr-namespace:Zest.App.Wheel"
-                 xmlns:tools="clr-namespace:Zest.App.Tools"
-                 Title="자르기" Width="768" SizeToContent="Height" MinWidth="768" MinHeight="360"
-                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowStartupLocation="Manual">
-    <ui:FluentWindow.Resources>
+<theme:ZestWindow x:Class="Zest.App.Tools.CropWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:theme="clr-namespace:Zest.App.Theme"
+                  xmlns:tools="clr-namespace:Zest.App.Tools"
+                  Heading="자르기" Width="816" MinWidth="816" MinHeight="408" SizeToContent="Height" IsResizable="True">
+    <!-- Width = the page's 768 px frame + 2 x ZestWindow.ShadowMargin; the minimum keeps the control row on one line. -->
+    <theme:ZestWindow.Resources>
         <ResourceDictionary Source="ToolStyles.xaml" />
-    </ui:FluentWindow.Resources>
-    <Grid x:Name="Root">
+    </theme:ZestWindow.Resources>
+
+    <theme:ZestWindow.Footer>
+        <DockPanel Style="{StaticResource Zest.FooterBar}">
+            <ui:Button x:Name="CropButton" Appearance="Primary" IsDefault="True" Content="자르기" />
+        </DockPanel>
+    </theme:ZestWindow.Footer>
+
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="Bar" Title="자르기" ShowMinimize="False" ShowMaximize="False"
-                     Padding="16,0,0,0" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-        <!-- Preview area: rounded 8, a quiet card fill so the image edge reads against the window. -->
-        <Border x:Name="PreviewArea" Grid.Row="1" Margin="16,8,16,0" CornerRadius="8"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+        <!-- Preview: inset 16 from the frame, radius 10 on the sunken colour; the canvas keeps the image 16 px inside it. -->
+        <Border x:Name="PreviewArea" Margin="16,0" CornerRadius="10" Background="{DynamicResource Zest.Sunken}">
             <tools:CropCanvas x:Name="Canvas" />
         </Border>
 
-        <Grid Grid.Row="2" Margin="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" /> <!-- 비율 -->
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="24" />
-                <ColumnDefinition Width="Auto" /> <!-- X -->
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="Auto" /> <!-- Y -->
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="Auto" /> <!-- 폭 -->
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="Auto" /> <!-- 높이 -->
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" /> <!-- 자르기 -->
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Text="비율" Margin="0,0,8,0" Style="{StaticResource Label}" />
-            <ComboBox x:Name="AspectBox" Grid.Column="1" Width="104" VerticalAlignment="Center"
-                      FontFamily="{x:Static wheel:WheelStyle.TextFont}" />
-
-            <TextBlock Grid.Column="3" Text="X" Margin="0,0,8,0" Style="{StaticResource SecondaryLabel}" />
-            <TextBox x:Name="XBox" Grid.Column="4" Width="72" Style="{StaticResource NumberBox}" />
-            <TextBlock Grid.Column="6" Text="Y" Margin="0,0,8,0" Style="{StaticResource SecondaryLabel}" />
-            <TextBox x:Name="YBox" Grid.Column="7" Width="72" Style="{StaticResource NumberBox}" />
-            <TextBlock Grid.Column="9" Text="폭" Margin="0,0,8,0" Style="{StaticResource SecondaryLabel}" />
-            <TextBox x:Name="WidthBox" Grid.Column="10" Width="72" Style="{StaticResource NumberBox}" />
-            <TextBlock Grid.Column="12" Text="높이" Margin="0,0,8,0" Style="{StaticResource SecondaryLabel}" />
-            <TextBox x:Name="HeightBox" Grid.Column="13" Width="72" Style="{StaticResource NumberBox}" />
-
-            <ui:Button x:Name="CropButton" Grid.Column="15" Appearance="Primary" IsDefault="True"
-                       MinWidth="96" Padding="16,6" Content="자르기" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
-        </Grid>
+        <!-- One control row: the ratio chips (built from CropWindow.Ratios), then X / Y / 폭 / 높이. -->
+        <StackPanel Grid.Row="1" Margin="16,14" Orientation="Horizontal">
+            <StackPanel x:Name="RatioPanel" Orientation="Horizontal" VerticalAlignment="Center" />
+            <StackPanel Margin="16,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel.Resources>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Label}">
+                        <Setter Property="FontSize" Value="12" />
+                        <Setter Property="Margin" Value="0,0,6,0" />
+                    </Style>
+                    <Style TargetType="TextBox" BasedOn="{StaticResource NumberField}">
+                        <Setter Property="Width" Value="72" />
+                    </Style>
+                </StackPanel.Resources>
+                <TextBlock Text="X" />
+                <TextBox x:Name="XBox" />
+                <TextBlock Text="Y" Margin="8,0,6,0" />
+                <TextBox x:Name="YBox" />
+                <TextBlock Text="폭" Margin="8,0,6,0" />
+                <TextBox x:Name="WidthBox" />
+                <TextBlock Text="높이" Margin="8,0,6,0" />
+                <TextBox x:Name="HeightBox" />
+            </StackPanel>
+        </StackPanel>
     </Grid>
-</ui:FluentWindow>
+</theme:ZestWindow>

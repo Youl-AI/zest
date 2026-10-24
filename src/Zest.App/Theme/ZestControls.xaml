@@ -212,6 +212,10 @@
                         <Setter Property="MinWidth" Value="88" />
                         <Setter Property="BorderBrush" Value="Transparent" />
                     </Trigger>
+                    <!-- Disabled = the normal look at 45 % (ZestTheme points WPF-UI's disabled brushes at the normal ones). -->
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Opacity" Value="0.45" />
+                    </Trigger>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
@@ -439,7 +443,8 @@
             <Grid x:Name="PART_Frame" Margin="24" RenderTransformOrigin="0.5,0.5">
                 <Border x:Name="PART_Shadow" CornerRadius="14" Background="{DynamicResource Zest.Window}" />
                 <Border CornerRadius="14" Background="{DynamicResource Zest.Window}" BorderBrush="{DynamicResource Zest.Line}" BorderThickness="1">
-                    <Grid>
+                    <!-- ZestWindow clips this to the frame's inner corners (13 px), so no child background pokes out of them. -->
+                    <Grid x:Name="PART_Content">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
