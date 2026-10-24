@@ -112,7 +112,9 @@ public static class RenderHarness
     /// <summary>The README's hero line, broken after the comma so it sits in the hero's left half.</summary>
     const string Tagline = "파일을 끌다가 키를 한 번 탭하면,\n그 자리에서 변환 · 도구 · 액션";
 
-    const double HeroWidth = 1280, HeroHeight = 640, PopupsWidth = 1280, PopupsHeight = 800;
+    const double HeroWidth = 1280, HeroHeight = 640, PopupsWidth = 1280;
+    /// <summary>Stage above and below the tallest popup's drawn bounds; its own shadow room comes on top of this.</summary>
+    const double PopupsPad = 32;
     /// <summary>The wheel images: one 320 px wheel over its backdrop, drawn at twice its size.</summary>
     const double ReadmeWheelZoom = 2;
     /// <summary>The hero's wheel: 560 of the 640 px right half, so the backdrop reads as a framed screenshot.</summary>
@@ -278,16 +280,18 @@ public static class RenderHarness
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        foreach (var popup in new[] { cards, Unstaged(ToolWindows.Compress(dark, SizeGoal.Percentage)), Unstaged(ToolWindows.Shelf(dark, list: false)) })
+        foreach (var popup in new[] { cards, Unstaged(ToolWindows.Compress(dark, SizeGoal.Percentage, wholeShadow: true)), Unstaged(ToolWindows.Shelf(dark, list: false)) })
         {
             popup.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(popup);
         }
 
+        // As tall as the tallest popup (the compress window) plus even stage above and below.
+        row.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return new Grid
         {
             Width = PopupsWidth,
-            Height = PopupsHeight,
+            Height = Math.Ceiling(row.DesiredSize.Height) + 2 * PopupsPad,
             Background = ZestTheme.Brush(dark ? "Zest.Window" : "Zest.Sunken"),
             Children = { row },
         };

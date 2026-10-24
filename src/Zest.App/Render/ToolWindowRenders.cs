@@ -21,13 +21,22 @@ internal static class ToolWindows
 {
     const int PhotoW = 4000, PhotoH = 2500; // what the sample "photo" claims to be in original pixels
 
-    /// <summary>The compress options in one mode; the target-size scene also shows an error on the bottom bar.</summary>
-    public static FrameworkElement Compress(bool dark, SizeGoal goal)
+    /// <summary>
+    /// The frame's shadow (blur 32, 12 px down) reaches about 20 px past the 24 px <see cref="ZestWindow.ShadowMargin"/>
+    /// below and 8 px at the sides, where the window's own bounds cut it. This much more room draws it whole.
+    /// </summary>
+    static readonly Thickness ShadowBleed = new(12, 0, 12, 24);
+
+    /// <summary>
+    /// The compress options in one mode; the target-size scene also shows an error on the bottom bar. With
+    /// <paramref name="wholeShadow"/> the frame's shadow is drawn past the window's bounds instead of cut at them.
+    /// </summary>
+    public static FrameworkElement Compress(bool dark, SizeGoal goal, bool wholeShadow = false)
     {
         var window = new CompressOptionsWindow([new CompressSource(@"C:\Users\me\Pictures\제주 바다.jpg", 5_600_000)], _ => { });
         if (goal == SizeGoal.FileSize) window.Preview(goal, "9", "목표 크기는 원본보다 작아야 합니다.");
         else window.Preview(goal);
-        return Shot(window, dark);
+        return Shot(window, dark, wholeShadow ? ShadowBleed : default);
     }
 
     public static FrameworkElement Crop(bool dark)
@@ -209,9 +218,9 @@ internal static class ToolWindows
     /// Draws a <see cref="ZestWindow"/> as it is, shadow margin included, without showing it. An unshown window measures
     /// to nothing, so its template root (what fills the HWND) is measured at the window's width, as
     /// <see cref="ZestWindow"/> does for <c>SizeToContent</c>, drawn with its transparent margin, and laid on the plain
-    /// desktop colour.
+    /// desktop colour. <paramref name="bleed"/> adds room around those bounds, so what the window's edge would cut is drawn.
     /// </summary>
-    static FrameworkElement Shot(ZestWindow window, bool dark)
+    static FrameworkElement Shot(ZestWindow window, bool dark, Thickness bleed = default)
     {
         RenderHarness.AsOnHighDpiScreen(window);
         window.ApplyTemplate();
@@ -220,9 +229,10 @@ internal static class ToolWindows
         var fixedHeight = !window.SizeToContent.HasFlag(SizeToContent.Height) && !double.IsNaN(window.Height);
         root.Measure(new Size(window.Width, fixedHeight ? window.Height : double.PositiveInfinity));
         var size = new Size(window.Width, fixedHeight ? window.Height : Math.Ceiling(root.DesiredSize.Height));
-        root.Arrange(new Rect(size));
+        root.Arrange(new Rect(new Point(bleed.Left, bleed.Top), size));
         root.UpdateLayout(); // raises the size notifications that ActualHeight bindings (round chips) wait for
-        var picture = new RenderTargetBitmap((int)Math.Ceiling(size.Width * RenderHarness.Scale), (int)Math.Ceiling(size.Height * RenderHarness.Scale),
+        var drawn = new Size(size.Width + bleed.Left + bleed.Right, size.Height + bleed.Top + bleed.Bottom);
+        var picture = new RenderTargetBitmap((int)Math.Ceiling(drawn.Width * RenderHarness.Scale), (int)Math.Ceiling(drawn.Height * RenderHarness.Scale),
             96 * RenderHarness.Scale, 96 * RenderHarness.Scale, PixelFormats.Pbgra32);
         picture.Render(root);
         picture.Freeze();
@@ -230,7 +240,7 @@ internal static class ToolWindows
         return new Border
         {
             Background = new SolidColorBrush(dark ? Color.FromRgb(0x2B, 0x2B, 0x2B) : Color.FromRgb(0xDD, 0xE3, 0xE8)),
-            Child = new System.Windows.Controls.Image { Source = picture, Width = size.Width, Height = size.Height },
+            Child = new System.Windows.Controls.Image { Source = picture, Width = drawn.Width, Height = drawn.Height },
         };
     }
 
