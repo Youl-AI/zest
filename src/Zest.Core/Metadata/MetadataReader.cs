@@ -16,7 +16,7 @@ public static class MetadataReader
         {
             FormatCategory.Image => await Task.Run(() => ImageMetadata.Read(path, format, token), token),
             FormatCategory.Pdf => await Task.Run(() => PdfMetadata.Read(path, token), token),
-            // FormatCategory.Audio or FormatCategory.Video: Task 4.
+            FormatCategory.Audio or FormatCategory.Video => await MediaMetadata.ReadAsync(path, token),
             _ => throw new ZestException(NotEditable),
         };
     }

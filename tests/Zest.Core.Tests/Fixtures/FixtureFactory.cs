@@ -74,6 +74,37 @@ internal static class FixtureFactory
     }
 
     /// <summary>
+    /// Like <see cref="Media"/> with <c>-metadata key=value</c> per tag (mp4/mov/m4a also get <c>-movflags +use_metadata_tags</c>
+    /// so QuickTime keys are kept as they are).
+    /// </summary>
+    public static string TaggedMedia(string dir, string name, IReadOnlyDictionary<string, string> tags, int seconds = 2)
+    {
+        var ffmpeg = FfmpegLocator.Locate() ?? throw new InvalidOperationException("ffmpeg is not on PATH.");
+        var path = Path.Combine(dir, name);
+        var ext = Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        var psi = new System.Diagnostics.ProcessStartInfo(ffmpeg)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        string[] args = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25",
+            "-f", "lavfi", "-i", "sine=frequency=440", "-t", seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)];
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        if (AudioExtensions.Contains(ext)) psi.ArgumentList.Add("-vn");
+        foreach (var (k, v) in tags) { psi.ArgumentList.Add("-metadata"); psi.ArgumentList.Add($"{k}={v}"); }
+        if (ext is "mp4" or "mov" or "m4a") { psi.ArgumentList.Add("-movflags"); psi.ArgumentList.Add("+use_metadata_tags"); }
+        psi.ArgumentList.Add(path);
+        using var p = System.Diagnostics.Process.Start(psi)!;
+        var err = p.StandardError.ReadToEndAsync();
+        p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+        if (p.ExitCode != 0) throw new InvalidOperationException($"ffmpeg fixture failed: {err.Result}");
+        return path;
+    }
+
+    /// <summary>
     /// Writes a w x h image whose format follows the extension. SVG sources are written at half size
     /// (user units) because the converter rasterizes at 192 DPI (2x), so every source yields w x h pixels.
     /// </summary>

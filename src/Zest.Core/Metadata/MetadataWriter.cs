@@ -19,7 +19,7 @@ public static class MetadataWriter
             {
                 FormatCategory.Image => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() => ImageMetadata.Write(source, edit, ctx), ctx.Token)),
                 FormatCategory.Pdf => ctx.InSlotAsync(EngineGates.Image, () => Task.Run(() => PdfMetadata.Write(source, edit, ctx), ctx.Token)),
-                // FormatCategory.Audio or FormatCategory.Video (EngineGates.Ffmpeg): Task 4.
+                FormatCategory.Audio or FormatCategory.Video => ctx.InSlotAsync(EngineGates.Ffmpeg, () => MediaMetadata.WriteAsync(source, edit, ctx)),
                 _ => throw new ZestException(NotEditable),
             };
         });
