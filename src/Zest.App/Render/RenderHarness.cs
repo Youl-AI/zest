@@ -113,24 +113,19 @@ public static class RenderHarness
     // ── README images (--render-readme) ─────────────────────────────────────
 
     /// <summary>The header's one line under "Zest", per README language.</summary>
-    const string TaglineKo = "끌던 파일을, 그 자리에서 바로.", TaglineEn = "Handle files mid-drag, right where they are.";
+    internal const string TaglineKo = "끌던 파일을, 그 자리에서 바로.", TaglineEn = "Handle files mid-drag, right where they are.";
 
     /// <summary>Header and wheels images: 1280 x 480 DIP, 2560 x 960 px. Social preview: 640 x 320 DIP, 1280 x 640 px.</summary>
     const double BannerWidth = 1280, BannerHeight = 480, SocialWidth = 640, SocialHeight = 320, PopupsWidth = 1280;
-    /// <summary>Demo frames: 640 x 360 DIP, 1280 x 720 px.</summary>
-    const double DemoWidth = 640, DemoHeight = 360;
     /// <summary>Stage above and below the tallest popup's drawn bounds; its own shadow room comes on top of this.</summary>
     const double PopupsPad = 32;
-    /// <summary>The demo's highlight steps run at 2 frames a second.</summary>
-    const int DemoFps = 2;
 
     static readonly WheelMode[] Modes = [WheelMode.Convert, WheelMode.Tools, WheelMode.Actions];
 
     /// <summary>
-    /// <c>Zest.exe --render-readme &lt;folder&gt;</c>: the README's images, drawn from the real wheel, cards and windows on
-    /// plain stages (no stand-in screenshot behind them): the app mark (icon-1024.png), the Korean and English headers, the
-    /// social preview, the three wheels side by side, the popups, and the demo animation (demo.webp, assembled by ffmpeg
-    /// from PNG frames when ffmpeg is on PATH; demo-poster.png is its first frame).
+    /// <c>Zest.exe --render-readme &lt;folder&gt;</c>: the README's still images, drawn from the real wheel, cards and windows
+    /// on plain stages (no stand-in screenshot behind them): the app mark (icon-1024.png), the Korean and English headers, the
+    /// social preview, the three wheels side by side and the popups. The demo film has its own command, <see cref="RunDemo"/>.
     /// </summary>
     public static int RunReadme(string folder) => Logged(folder, log =>
     {
@@ -148,8 +143,19 @@ public static class RenderHarness
             if (dark) continue;
             Save(Social(), folder, "social-preview.png", log);
             Save(Icon(), folder, "icon-1024.png", log);
-            Demo(folder, log);
         }
+    });
+
+    /// <summary>
+    /// <c>Zest.exe --render-demo &lt;images&gt; &lt;videos&gt;</c>: the README demo film (<see cref="DemoMovie"/>) in Korean and
+    /// English: demo-ko.webp and demo-en.webp in <paramref name="images"/>; the 1080p videos, their posters and render.log in
+    /// <paramref name="videos"/>. Needs ffmpeg on PATH.
+    /// </summary>
+    public static int RunDemo(string images, string videos) => Logged(videos, log =>
+    {
+        ApplicationThemeManager.Apply(ApplicationTheme.Light, WindowBackdropType.None, true);
+        ZestTheme.Apply(false);
+        foreach (var copy in new[] { DemoCopy.Korean(), DemoCopy.English() }) DemoMovie.Render(copy, images, videos, log);
     });
 
     /// <summary>
@@ -240,7 +246,7 @@ public static class RenderHarness
     /// Adds the lockup centred in <paramref name="height"/> (its optical centre a little above the middle, as the tagline
     /// is light) and the glow centred on its mark.
     /// </summary>
-    static void AddLockup(Grid page, string tagline, bool dark, double height, double mark, double title, double line, double glow)
+    internal static void AddLockup(Grid page, string tagline, bool dark, double height, double mark, double title, double line, double glow)
     {
         var lockup = Lockup(tagline, dark, mark, title, line);
         lockup.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -292,7 +298,7 @@ public static class RenderHarness
     /// One very soft glow centred on (<paramref name="x"/>, <paramref name="y"/>): lemon, tangerine and lime washes, each
     /// a radial fade to nothing, overlapping a little off centre so the three blend.
     /// </summary>
-    static Canvas Glow(double x, double y, double radius, bool dark)
+    internal static Canvas Glow(double x, double y, double radius, bool dark)
     {
         var canvas = new Canvas { IsHitTestVisible = false };
         var alpha = dark ? 0x11 : 0x1A;
@@ -359,7 +365,7 @@ public static class RenderHarness
     /// The modifier key of <paramref name="mode"/> alone ("Shift", "Alt", "Ctrl"), so both READMEs can share it: active, in the
     /// wheel's ink on its wash; inactive, in the third text colour on nothing.
     /// </summary>
-    static Border KeyChip(WheelMode mode, bool dark, bool active, double size)
+    internal static Border KeyChip(WheelMode mode, bool dark, bool active, double size)
     {
         var citrus = WheelStyle.Accent(mode);
         var surface = ZestColors.For(dark);
@@ -386,99 +392,6 @@ public static class RenderHarness
         WheelMode.Tools => "Alt",
         _ => "Ctrl",
     };
-
-    /// <summary>
-    /// The demo: each wheel opens with the photo's size in the hub (held a second), then the highlight steps across its petals
-    /// (PDF, JPG, WEBP; 압축, 메타데이터; 복사, 선반) at half a second a step, the hub naming each, and rests on the last; then
-    /// the next wheel opens. The three key names under the wheel show which key is down. Frames go to a temporary folder and ffmpeg (from PATH) encodes them into a looping animated WebP.
-    /// </summary>
-    static void Demo(string folder, StringBuilder log)
-    {
-        var palette = WheelStyle.Palette(false);
-        var scenes = new[]
-        {
-            (WheelMode.Convert, PhotoWheel(WheelMode.Convert, "pdf", "jpg", "webp")),
-            (WheelMode.Tools, PhotoWheel(WheelMode.Tools, ZestTool.Compress, ZestTool.Metadata)),
-            (WheelMode.Actions, PhotoWheel(WheelMode.Actions, DropAction.Copy, DropAction.Shelf)),
-        };
-        // Per scene: the open wheel (the hub showing the size) for two steps, each highlight for one, the last held for three more.
-        var frames = new List<(WheelMode Mode, IReadOnlyList<WheelItem> Items, int? Highlight)>();
-        foreach (var (mode, (items, steps)) in scenes)
-        {
-            frames.Add((mode, items, null));
-            frames.Add((mode, items, null));
-            foreach (var step in steps) frames.Add((mode, items, step));
-            for (var i = 0; i < 3; i++) frames.Add((mode, items, steps[^1]));
-        }
-
-        var work = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "zest-demo-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(work);
-        for (var i = 0; i < frames.Count; i++)
-        {
-            var (mode, items, highlight) = frames[i];
-            var frame = DemoFrame(palette, mode, items, highlight);
-            Save(frame, work, $"frame_{i:D3}.png", log);
-            if (i == 0) File.Copy(System.IO.Path.Combine(work, "frame_000.png"), System.IO.Path.Combine(folder, "demo-poster.png"), true);
-        }
-
-        var ffmpeg = Zest.Core.Convert.FfmpegLocator.Locate();
-        if (ffmpeg is null)
-        {
-            log.AppendLine($"demo: ffmpeg not on PATH; {frames.Count} frames left in {work}");
-            return;
-        }
-        var output = System.IO.Path.GetFullPath(System.IO.Path.Combine(folder, "demo.webp"));
-        var start = new System.Diagnostics.ProcessStartInfo(ffmpeg)
-        {
-            WorkingDirectory = work,
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-        };
-        foreach (var arg in new[]
-        {
-            "-y", "-hide_banner", "-loglevel", "error", "-framerate", DemoFps.ToString(CultureInfo.InvariantCulture), "-i", "frame_%03d.png",
-            "-c:v", "libwebp_anim", "-lossless", "0", "-q:v", "90", "-compression_level", "6", "-loop", "0", output,
-        })
-            start.ArgumentList.Add(arg);
-        using var process = System.Diagnostics.Process.Start(start)!;
-        var errors = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        if (process.ExitCode != 0) throw new InvalidOperationException($"ffmpeg failed ({process.ExitCode}): {errors}");
-        Directory.Delete(work, true);
-        log.AppendLine(CultureInfo.InvariantCulture, $"demo.webp: {frames.Count} frames at {DemoFps} fps, {new FileInfo(output).Length} bytes");
-    }
-
-    /// <summary>One demo frame: the wheel on the flat <c>Zest.Sunken</c> stage, the three key names under it, the wheel's lit.</summary>
-    static FrameworkElement DemoFrame(WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
-    {
-        var wheel = Wheel(null, palette, mode, items, highlight, PhotoSummary);
-        wheel.HorizontalAlignment = HorizontalAlignment.Center;
-        wheel.VerticalAlignment = VerticalAlignment.Top;
-        wheel.Margin = new Thickness(0, -6, 0, 0);
-        var keys = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0, 0, 0, 18),
-        };
-        foreach (var key in Modes)
-        {
-            var chip = KeyChip(key, palette.Dark, active: key == mode, size: 12);
-            chip.Margin = new Thickness(4, 0, 4, 0);
-            keys.Children.Add(chip);
-        }
-        var stage = new Grid
-        {
-            Width = DemoWidth,
-            Height = DemoHeight,
-            Background = new SolidColorBrush(WheelStyle.ToColor(ZestColors.Light.Sunken)),
-            Children = { wheel, keys },
-        };
-        AsOnHighDpiScreen(stage);
-        return stage;
-    }
 
     /// <summary>
     /// The popups: a progress card stack (a running and a finished conversion, a running tool), the compress window and the
@@ -579,7 +492,7 @@ public static class RenderHarness
     /// The wheel over <paramref name="backdrop"/> (review renders), or over nothing, so the stage it is placed on shows
     /// through (README images).
     /// </summary>
-    static FrameworkElement Wheel(BitmapSource? backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight, string summary)
+    internal static FrameworkElement Wheel(BitmapSource? backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight, string summary)
     {
         var view = new WheelView { Animate = false, Palette = palette, Mode = mode };
         AsOnHighDpiScreen(view);
@@ -746,12 +659,12 @@ public static class RenderHarness
         log.AppendLine(CultureInfo.InvariantCulture, $"{name}: {size.Width * Scale}x{size.Height * Scale}");
     }
 
-    internal static BitmapSource Snapshot(FrameworkElement element, double width, double height)
+    internal static BitmapSource Snapshot(FrameworkElement element, double width, double height, double scale = Scale)
     {
         element.Measure(new Size(width, height));
         element.Arrange(new Rect(0, 0, width, height));
         element.UpdateLayout();
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(width * Scale), (int)Math.Ceiling(height * Scale), 96 * Scale, 96 * Scale, PixelFormats.Pbgra32);
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
         bitmap.Render(element);
         bitmap.Freeze();
         return bitmap;

@@ -20,7 +20,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/demo.webp" width="720" alt="휠이 열리면 가운데에 사진 크기 5.6 MB가 보이고, 변환 휠에서 PDF, JPG, WEBP로, 도구 휠에서 압축과 메타데이터로, 액션 휠에서 복사와 선반으로 강조가 옮겨 가며 가운데에 그 꽃잎 이름이 나타나는 모습" />
+  <img src="docs/images/demo-ko.webp" width="720" alt="탐색기에서 사진을 끌다가 Shift를 탭하자 커서 자리에 변환 휠이 열리고 가운데에 5.6 MB가 보인다. JPG에 놓으면 진행 카드가 끝나고 JPG 파일이 생긴다. 그 JPG를 Alt 도구 휠의 압축에 놓아 압축 창에서 압축하고, 보고서.pdf는 Ctrl 액션 휠의 선반에 놓아 선반에 올린다." />
   <br />
   <sub>Shift는 변환, Alt는 도구, Ctrl은 액션 휠</sub>
 </p>
@@ -139,7 +139,7 @@ dist\Zest.exe
 
 테스트: `dotnet test --project tests/Zest.Core.Tests`
 
-README 이미지는 `dist\Zest.exe --render-readme docs/images`로 다시 그립니다.
+README 이미지는 `dist\Zest.exe --render-readme docs/images`로 다시 그립니다. 데모 영상은 `dist\Zest.exe --render-demo docs/images artifacts/demo`로 만듭니다. `docs/images`에 webp가, `artifacts/demo`에 1080p mp4가 생기며, ffmpeg가 필요합니다.
 
 개발 문서: [설계 결정 기록](docs/decisions.md), [수동 확인 체크리스트](docs/manual-checklist.md), [전체 테스트 결과](docs/test-results.md)
 

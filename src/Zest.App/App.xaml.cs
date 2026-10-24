@@ -52,6 +52,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args is ["--render-demo", var demoImages, var demoVideos, ..])
+        {
+            // The README demo film only: no mutex, tray, hooks or windows.
+            Shutdown(RenderHarness.RunDemo(demoImages, demoVideos));
+            return;
+        }
+
         _singleInstance = new Mutex(initiallyOwned: true, SingleInstanceName, out var createdNew);
         if (!createdNew)
         {

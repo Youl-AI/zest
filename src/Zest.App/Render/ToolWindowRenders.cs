@@ -271,7 +271,7 @@ internal static class ToolWindows
     }
 
     /// <summary>A photo-like landscape (sky, sun, two mountain ranges, a lake) at a pixel size; <paramref name="variant"/> shifts the light.</summary>
-    static BitmapSource Photo(int w, int h, int variant)
+    internal static BitmapSource Photo(int w, int h, int variant)
     {
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())

@@ -20,7 +20,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/demo.webp" width="720" alt="Each wheel opens with the photo's size, 5.6 MB, in the middle; then the highlight moves over PDF, JPG and WEBP on the convert wheel, compress and metadata on the tools wheel, and copy and shelf on the actions wheel, the middle naming each petal" />
+  <img src="docs/images/demo-en.webp" width="720" alt="Dragging a photo in Explorer, a Shift tap opens the convert wheel at the cursor with 5.6 MB in the middle; dropping on JPG runs a progress card and a JPG appears. That JPG goes onto compress in the Alt tools wheel and is compressed from the compress window, and report.pdf goes onto the shelf from the Ctrl actions wheel." />
   <br />
   <sub>Shift for convert, Alt for tools, Ctrl for actions</sub>
 </p>
@@ -141,7 +141,7 @@ dist\Zest.exe
 
 Tests: `dotnet test --project tests/Zest.Core.Tests`
 
-The README images are redrawn with `dist\Zest.exe --render-readme docs/images`.
+The README images are redrawn with `dist\Zest.exe --render-readme docs/images`. The demo film comes from `dist\Zest.exe --render-demo docs/images artifacts/demo` (webp in `docs/images`, 1080p mp4 in `artifacts/demo`; needs ffmpeg).
 
 Developer docs: [implementation decisions](docs/decisions.md), [manual checklist](docs/manual-checklist.md), [full test results](docs/test-results.md)
 
