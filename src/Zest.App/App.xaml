@@ -8,6 +8,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Light" />
                 <ui:ControlsDictionary />
+                <!-- After WPF-UI's dictionaries: the Zest frame and controls are based on (and override) its styles. -->
+                <ResourceDictionary Source="Theme/ZestControls.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

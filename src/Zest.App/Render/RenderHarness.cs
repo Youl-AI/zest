@@ -24,7 +24,7 @@ namespace Zest.App.Render;
 /// </summary>
 public static class RenderHarness
 {
-    const double Scale = 2;
+    internal const double Scale = 2;
     const double Side = 320;
 
     public static int Run(string folder)
@@ -63,6 +63,8 @@ public static class RenderHarness
                 Save(Card("failed", dark), folder, $"progress-card-failed{suffix}.png", log);
 
                 var palette = WheelStyle.Palette(dark);
+                Save(ToolWindows.ZestWindowSample(dark), folder, $"zest-window{suffix}.png", log);
+                Save(ToolWindows.ZestControlsSample(dark), folder, $"zest-controls{suffix}.png", log);
                 Save(ToolWindows.Compress(dark), folder, $"compress-options{suffix}.png", log);
                 Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);

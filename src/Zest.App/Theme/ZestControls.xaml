@@ -1,0 +1,482 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:theme="clr-namespace:Zest.App.Theme"
+                    xmlns:wheel="clr-namespace:Zest.App.Wheel">
+    <!--
+        Zest popup frame and the controls the tool windows share (values from the approved popup page).
+        Merged after WPF-UI's dictionaries; every colour is a DynamicResource so a live light/dark switch repaints.
+        Motion: press = scale 0.97 over 160 ms ease-out (cubic-bezier 0.23,1,0.32,1), skipped when Windows animations are off.
+    -->
+
+    <!-- ── Press feedback ─────────────────────────────────────────────────── -->
+    <!--
+        Each pressable style carries its own RenderTransform setter and IsPressed trigger. A shared base style reached
+        through BasedOn did not fire (measured: the element kept the frozen base transform at scale 1).
+    -->
+    <Storyboard x:Key="Zest.PressIn">
+        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)">
+            <SplineDoubleKeyFrame KeyTime="0:0:0.16" Value="0.97" KeySpline="0.23,1,0.32,1" />
+        </DoubleAnimationUsingKeyFrames>
+        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)">
+            <SplineDoubleKeyFrame KeyTime="0:0:0.16" Value="0.97" KeySpline="0.23,1,0.32,1" />
+        </DoubleAnimationUsingKeyFrames>
+    </Storyboard>
+    <Storyboard x:Key="Zest.PressOut">
+        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)">
+            <SplineDoubleKeyFrame KeyTime="0:0:0.16" Value="1" KeySpline="0.23,1,0.32,1" />
+        </DoubleAnimationUsingKeyFrames>
+        <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)">
+            <SplineDoubleKeyFrame KeyTime="0:0:0.16" Value="1" KeySpline="0.23,1,0.32,1" />
+        </DoubleAnimationUsingKeyFrames>
+    </Storyboard>
+
+    <!-- Keyboard focus only (FocusVisualStyle is not drawn for mouse clicks): a 2 px tangerine-ink ring. -->
+    <Style x:Key="Zest.FocusRing">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-3" CornerRadius="10" BorderThickness="2" BorderBrush="{DynamicResource Zest.Tangerine.Ink}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Text ───────────────────────────────────────────────────────────── -->
+    <!-- Bottom-bar hint or error line: 12 px text-2, one line. -->
+    <Style x:Key="Zest.Hint" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- ── Hairline ───────────────────────────────────────────────────────── -->
+    <Style x:Key="Zest.Hairline" TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Line}" />
+    </Style>
+
+    <!-- ── Buttons ────────────────────────────────────────────────────────── -->
+    <!-- The window's round close button (28 px, seg fill, E711 at 10 px). Not focusable: Enter stays with the footer's default button, Esc closes. -->
+    <Style x:Key="Zest.CloseButton" TargetType="Button">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="ToolTip" Value="닫기" />
+        <Setter Property="AutomationProperties.Name" Value="닫기" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Seg}" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Disc" CornerRadius="14" Background="{TemplateBinding Background}">
+                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons" FontSize="10"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Disc" Property="Background" Value="{DynamicResource Zest.LineStrong}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                </MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                </MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        A slot in the bottom bar: docked right with 8 px before it. The last child of a Zest.FooterBar fills the left; a
+        button there still keeps to the right edge (HorizontalAlignment Right), so a bar without a hint stays right-aligned.
+    -->
+    <Style x:Key="Zest.FooterSlot" TargetType="FrameworkElement">
+        <Setter Property="DockPanel.Dock" Value="Right" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+
+    <!-- Text-only button: transparent, seg on hover. Every button lives in a bottom bar, so it is a footer slot. -->
+    <Style x:Key="Zest.GhostButton" TargetType="Button" BasedOn="{StaticResource Zest.FooterSlot}">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Box" CornerRadius="8" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.Seg}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.LineStrong}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                </MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                </MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        The bottom bar: <DockPanel Style="{StaticResource Zest.FooterBar}">. Buttons (WPF-UI or plain) dock right with
+        8 px between them, the first one rightmost, so write the primary first. The last child fills the left: a hint or
+        error TextBlock (Zest.Hint applies by itself) or a CheckBox.
+    -->
+    <Style x:Key="Zest.FooterBar" TargetType="DockPanel">
+        <Setter Property="LastChildFill" Value="True" />
+        <Style.Resources>
+            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                <Setter Property="DockPanel.Dock" Value="Right" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform />
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <!-- Secondary buttons are a seg-filled pill without a stroke, as on the popup page. -->
+                    <Trigger Property="Appearance" Value="Secondary">
+                        <Setter Property="Background" Value="{DynamicResource Zest.Seg}" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                        <Setter Property="MouseOverBackground" Value="{DynamicResource Zest.LineStrong}" />
+                        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+                        <Setter Property="PressedBackground" Value="{DynamicResource Zest.LineStrong}" />
+                        <Setter Property="PressedBorderBrush" Value="Transparent" />
+                        <Setter Property="PressedForeground" Value="{DynamicResource Zest.Text}" />
+                    </Trigger>
+                    <Trigger Property="Appearance" Value="Primary">
+                        <Setter Property="MinWidth" Value="88" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                    </Trigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                            <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <MultiDataTrigger.EnterActions>
+                            <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                        </MultiDataTrigger.EnterActions>
+                        <MultiDataTrigger.ExitActions>
+                            <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                        </MultiDataTrigger.ExitActions>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="DockPanel.Dock" Value="Right" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="14,0" />
+            </Style>
+            <Style TargetType="TextBlock" BasedOn="{StaticResource Zest.Hint}" />
+            <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+        </Style.Resources>
+    </Style>
+
+    <!-- ── Segmented control ──────────────────────────────────────────────── -->
+    <!-- <Border Style="{StaticResource Zest.SegmentPanel}"><UniformGrid Rows="1"> RadioButtons with Zest.Segment </UniformGrid></Border> -->
+    <Style x:Key="Zest.SegmentPanel" TargetType="Border">
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Padding" Value="2,3" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Seg}" />
+    </Style>
+
+    <!-- One option: 28 px, radius 7, text-2; checked = a raised knob with text colour and a small shadow. 1 px on each side makes the 2 px gap. -->
+    <Style x:Key="Zest.Segment" TargetType="RadioButton">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <!-- The knob's shadow lives on its own layer so the label is not blurred with it. -->
+                        <Border x:Name="Knob" CornerRadius="7" Background="{TemplateBinding Background}" BorderThickness="1" BorderBrush="Transparent" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Knob" Property="Background" Value="{DynamicResource Zest.Raised}" />
+                            <Setter TargetName="Knob" Property="BorderBrush" Value="{DynamicResource Zest.Line}" />
+                            <Setter TargetName="Knob" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="3" ShadowDepth="1" Direction="270" Opacity="0.2" Color="Black" />
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                </MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                </MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── Chips ──────────────────────────────────────────────────────────── -->
+    <theme:PillCorner x:Key="Zest.PillCorner" />
+
+    <!-- A status chip: fully round (radius = half its height), 2 x 8 padding; set its Background to a wash and put a Zest.ChipText inside. -->
+    <Style x:Key="Zest.Chip" TargetType="Border">
+        <Setter Property="CornerRadius" Value="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource Zest.PillCorner}}" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="Zest.ChipText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A pick-one chip (crop ratios): 28 px, radius 7, seg fill; checked = tangerine wash with a 1 px tangerine-ink edge and text. -->
+    <Style x:Key="Zest.ChoiceChip" TargetType="RadioButton">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Seg}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Box" CornerRadius="7" Background="{TemplateBinding Background}" BorderThickness="1"
+                            BorderBrush="{TemplateBinding BorderBrush}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.Tangerine.Wash}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Zest.Tangerine.Ink}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Zest.Tangerine.Ink}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                    <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                </MultiDataTrigger.Conditions>
+                <MultiDataTrigger.EnterActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                </MultiDataTrigger.EnterActions>
+                <MultiDataTrigger.ExitActions>
+                    <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                </MultiDataTrigger.ExitActions>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── Field ──────────────────────────────────────────────────────────── -->
+    <!-- Text input: 32 px, radius 8, 1 px line-strong on raised; keyboard focus = 1 px tangerine ink. -->
+    <Style x:Key="Zest.Field" TargetType="TextBox">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Zest.Text}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource Zest.Tangerine.Fill}" />
+        <Setter Property="SelectionOpacity" Value="0.4" />
+        <Setter Property="Background" Value="{DynamicResource Zest.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Zest.LineStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Box" CornerRadius="8" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <!-- TextBox applies its Padding inside the host itself. Style null: the plain ScrollViewer, not WPF-UI's. -->
+                        <ScrollViewer x:Name="PART_ContentHost" Style="{x:Null}" Focusable="False"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Zest.Tangerine.Ink}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Window frame ───────────────────────────────────────────────────── -->
+    <!--
+        24 px transparent margin for the shadow → 14 px frame (Zest.Window, 1 px Zest.Line, drop shadow blur 32 / depth 12
+        set by ZestWindow per theme) → header (centred Bold 14 title, round close on the right), content, footer bar.
+    -->
+    <ControlTemplate x:Key="Zest.WindowTemplate" TargetType="theme:ZestWindow">
+        <Grid>
+            <!-- Resizable windows only: the 8 px just outside the frame at alpha 1, so the layered window takes the resize hits there. -->
+            <Border x:Name="Grip" Margin="16" CornerRadius="22" Background="#01000000" Visibility="Collapsed" />
+            <!-- ZestWindow gives the frame its (animated) ScaleTransform. -->
+            <Grid x:Name="PART_Frame" Margin="24" RenderTransformOrigin="0.5,0.5">
+                <Border x:Name="PART_Shadow" CornerRadius="14" Background="{DynamicResource Zest.Window}" />
+                <Border CornerRadius="14" Background="{DynamicResource Zest.Window}" BorderBrush="{DynamicResource Zest.Line}" BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header: drag to move. Equal 32 px columns keep the title centred on the frame. -->
+                        <Grid x:Name="PART_Header" Margin="11,11,11,8" Background="Transparent">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="32" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="32" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="1" Margin="4,0" Text="{TemplateBinding Heading}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       TextAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                       FontFamily="{x:Static wheel:WheelStyle.ChipFont}" FontSize="14" FontWeight="Bold"
+                                       Foreground="{DynamicResource Zest.Text}" />
+                            <Button x:Name="PART_Close" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Style="{StaticResource Zest.CloseButton}" />
+                        </Grid>
+
+                        <ContentPresenter Grid.Row="1" Margin="{TemplateBinding Padding}" />
+
+                        <Border x:Name="FooterRow" Grid.Row="2" Padding="16,12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Zest.Line}">
+                            <ContentPresenter Content="{TemplateBinding Footer}" />
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="Footer" Value="{x:Null}">
+                <Setter TargetName="FooterRow" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+            <Trigger Property="IsResizable" Value="True">
+                <Setter TargetName="Grip" Property="Visibility" Value="Visible" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+</ResourceDictionary>
