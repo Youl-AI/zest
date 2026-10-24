@@ -29,9 +29,10 @@ public static class LoginItem
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
             if (key?.GetValue(LegacyValueName) is null) return;
-            using (var write = Registry.CurrentUser.CreateSubKey(RunKey))
-                write.DeleteValue(LegacyValueName, throwOnMissingValue: false);
-            Set(true);
+            Set(true); // first: if this fails the old entry stays, so sign-in still starts something
+            if (!IsEnabled) return;
+            using var write = Registry.CurrentUser.CreateSubKey(RunKey);
+            write.DeleteValue(LegacyValueName, throwOnMissingValue: false);
         }
         catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException) { }
     }
