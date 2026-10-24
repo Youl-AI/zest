@@ -56,7 +56,7 @@ public static class ZestColors
         Danger: Argb.Hex("#FF8A7A"), DangerWash: Argb.Hex("#21FF7B6B"));
 
     public static readonly Citrus Lemon = new("Lemon",
-        Argb.Hex("#FFD43B"), Argb.Hex("#241C00"), Argb.Hex("#A67C00"), Argb.Hex("#FFF5CC"));
+        Argb.Hex("#FFD43B"), Argb.Hex("#241C00"), Argb.Hex("#8A6700"), Argb.Hex("#FFF5CC"));
 
     public static readonly Citrus Tangerine = new("Tangerine",
         Argb.Hex("#FF8A3D"), Argb.Hex("#2A1204"), Argb.Hex("#A84300"), Argb.Hex("#FFEBDD"));
