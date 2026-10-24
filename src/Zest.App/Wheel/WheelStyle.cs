@@ -135,6 +135,7 @@ public static class WheelStyle
         ToolOp { Tool: ZestTool.SplitPdf } => "",         // Cut (scissors)
         ToolOp { Tool: ZestTool.CopyText } => "",         // Font (text)
         ToolOp { Tool: ZestTool.RemoveBackground } => "", // EraseTool
+        ToolOp { Tool: ZestTool.Metadata } => "",   // Tag
         ActionOp { Action: DropAction.Shelf } => "",      // Package (tray box)
         ActionOp { Action: DropAction.Copy } => "",       // Copy
         ActionOp { Action: DropAction.Move } => "",       // MoveToFolder

@@ -18,7 +18,8 @@ public static class CapabilityDetector
             AvifWrite: CapabilityProbe.CanWrite("avif"),
             Ocr: Tools.OcrService.IsAvailable,
             BackgroundRemoval: Tools.BackgroundRemover.IsAvailable, // the model is downloaded on first use
-            UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg));
+            UnavailableTargets: ffmpeg is null ? null : FfmpegLocator.UnavailableTargets(ffmpeg),
+            Ffprobe: ffmpeg is not null && FfmpegLocator.LocateProbe(ffmpeg) is not null);
     }
 
     /// <summary>True when <paramref name="fileName"/> exists in one of the folders of a PATH-style list.</summary>

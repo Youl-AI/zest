@@ -4,7 +4,7 @@ public enum FormatCategory { Image, Gif, Audio, Video, Pdf, Document, Slides, Sp
 
 /// <summary>Optional engines/codecs available on this machine; unavailable ones drop their targets.</summary>
 public sealed record Capabilities(bool Office, bool Ffmpeg, bool HeicWrite, bool AvifWrite, bool Ocr, bool BackgroundRemoval,
-    IReadOnlySet<string>? UnavailableTargets = null)
+    IReadOnlySet<string>? UnavailableTargets = null, bool Ffprobe = true)
 {
     public static Capabilities All { get; } = new(true, true, true, true, true, true);
 }

@@ -1,3 +1,5 @@
+using Zest.Core.Metadata;
+
 namespace Zest.Core.Catalog;
 
 public static class WheelCatalog
@@ -41,12 +43,19 @@ public static class WheelCatalog
             tools.Add(ZestTool.ImagesToPdf);
             if (caps.Ocr) tools.Add(ZestTool.CopyText);
             if (caps.BackgroundRemoval) tools.Add(ZestTool.RemoveBackground);
+            if (formats.All(f => MetadataFormats.Supports(f!, caps))) tools.Add(ZestTool.Metadata);
         }
         else if (formats.All(f => f == "pdf"))
         {
             if (paths.Count > 1) tools.Add(ZestTool.MergePdfs);
             tools.Add(ZestTool.SplitPdf);
             if (caps.Ocr) tools.Add(ZestTool.CopyText);
+            tools.Add(ZestTool.Metadata);
+        }
+        else if (formats.All(f => FormatCatalog.CategoryOf(f!) is FormatCategory.Audio or FormatCategory.Video)
+                 && caps.Ffmpeg && caps.Ffprobe)
+        {
+            tools.Add(ZestTool.Metadata);
         }
         return tools.Select(t => new WheelItem(new ToolOp(t), ToolLabel(t))).ToList();
     }
@@ -70,7 +79,9 @@ public static class WheelCatalog
         ZestTool.MergePdfs => "합치기",
         ZestTool.SplitPdf => "나누기",
         ZestTool.CopyText => "글자 복사",
-        _ => "배경 제거",
+        ZestTool.RemoveBackground => "배경 제거",
+        ZestTool.Metadata => "메타데이터",
+        _ => throw new ArgumentOutOfRangeException(nameof(t)),
     };
 
     static string ActionLabel(DropAction a) => a switch

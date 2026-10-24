@@ -96,18 +96,18 @@ public static class RenderHarness
 
     /// <summary>
     /// Petal counts with real catalog items, each drawn in the citrus of the wheel it comes from. 9 is a stress set (all tools
-    /// plus four actions) since no single wheel has that many, so it is drawn as both the tools and the actions wheel.
+    /// plus three actions) since no single wheel has that many, so it is drawn as both the tools and the actions wheel.
     /// </summary>
     static IEnumerable<(int Count, WheelMode Mode, IReadOnlyList<WheelItem> Items, int Highlight)> Sets()
     {
         var noOcr = Capabilities.All with { Ocr = false, BackgroundRemoval = false };
         var ocr = Capabilities.All with { BackgroundRemoval = false };
-        yield return (1, WheelMode.Tools, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0);
-        yield return (4, WheelMode.Tools, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 2); // "PDF 만들기": the longest hub name
+        yield return (2, WheelMode.Tools, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0); // split + metadata
+        yield return (5, WheelMode.Tools, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 2); // "PDF 만들기": the longest hub name
         yield return (5, WheelMode.Actions, WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All), 2);
         yield return (7, WheelMode.Convert, WheelCatalog.Items(["photo.png"], WheelMode.Convert, Capabilities.All), 1);
         var nine = WheelCatalog.Items(["photo.png"], WheelMode.Tools, Capabilities.All)
-            .Concat(WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All).Take(4)).ToList();
+            .Concat(WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All).Take(3)).ToList();
         yield return (9, WheelMode.Tools, nine, 3);
         yield return (9, WheelMode.Actions, nine, 3);
     }

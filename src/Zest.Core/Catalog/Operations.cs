@@ -2,7 +2,7 @@ namespace Zest.Core.Catalog;
 
 public enum WheelMode { Convert, Tools, Actions }
 
-public enum ZestTool { Compress, Crop, ImagesToPdf, MergePdfs, SplitPdf, CopyText, RemoveBackground }
+public enum ZestTool { Compress, Crop, ImagesToPdf, MergePdfs, SplitPdf, CopyText, RemoveBackground, Metadata }
 
 public enum DropAction { Shelf, Copy, Move, CopyPath, Terminal }
 
