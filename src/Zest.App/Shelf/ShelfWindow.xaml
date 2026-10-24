@@ -186,6 +186,6 @@
 
         <!-- Lime grip tab, 36 x 5, centred just above the card's top edge. -->
         <Border x:Name="Tab" Width="36" Height="5" CornerRadius="2.5" VerticalAlignment="Top" HorizontalAlignment="Center"
-                IsHitTestVisible="False" Background="{DynamicResource Zest.Lime.Ink}" />
+                IsHitTestVisible="False" Background="{DynamicResource Zest.Lime.Fill}" />
     </Grid>
 </Window>
