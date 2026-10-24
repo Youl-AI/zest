@@ -1,8 +1,9 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -11,6 +12,7 @@ using Zest.App.Theme;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
+using Zest.Core.Design;
 using Zest.Core.Jobs;
 using Zest.Core.Tools;
 using Wpf.Ui.Appearance;
@@ -109,149 +111,358 @@ public static class RenderHarness
 
     // ── README images (--render-readme) ─────────────────────────────────────
 
-    /// <summary>The README's hero line, broken after the comma so it sits in the hero's left half.</summary>
-    const string Tagline = "파일을 끌다가 키를 한 번 탭하면,\n그 자리에서 변환 · 도구 · 액션";
+    /// <summary>The header's one line under "Zest", per README language.</summary>
+    const string TaglineKo = "끌던 파일을, 그 자리에서 바로.", TaglineEn = "Handle files mid-drag, right where they are.";
 
-    const double HeroWidth = 1280, HeroHeight = 640, PopupsWidth = 1280;
+    /// <summary>Header and wheels images: 1280 x 480 DIP, 2560 x 960 px. Social preview: 640 x 320 DIP, 1280 x 640 px.</summary>
+    const double BannerWidth = 1280, BannerHeight = 480, SocialWidth = 640, SocialHeight = 320, PopupsWidth = 1280;
+    /// <summary>Demo frames: 640 x 360 DIP, 1280 x 720 px.</summary>
+    const double DemoWidth = 640, DemoHeight = 360;
     /// <summary>Stage above and below the tallest popup's drawn bounds; its own shadow room comes on top of this.</summary>
     const double PopupsPad = 32;
-    /// <summary>The wheel images: one 320 px wheel over its backdrop, drawn at twice its size.</summary>
-    const double ReadmeWheelZoom = 2;
-    /// <summary>The hero's wheel: 560 of the 640 px right half, so the backdrop reads as a framed screenshot.</summary>
-    const double HeroWheelZoom = 1.75;
+    /// <summary>The demo's highlight steps run at 2 frames a second.</summary>
+    const int DemoFps = 2;
+
+    static readonly WheelMode[] Modes = [WheelMode.Convert, WheelMode.Tools, WheelMode.Actions];
 
     /// <summary>
-    /// <c>Zest.exe --render-readme &lt;folder&gt;</c>: the eleven images of the README, each theme's set drawn after that
-    /// theme is applied, from the real wheel, cards and windows. The wheels sit over the Explorer backdrop in the theme's
-    /// Explorer colours, so a dark image has no light box in it.
+    /// <c>Zest.exe --render-readme &lt;folder&gt;</c>: the README's images, drawn from the real wheel, cards and windows on
+    /// plain stages (no stand-in screenshot behind them): the app mark (icon-1024.png), the Korean and English headers, the
+    /// social preview, the three wheels side by side, the popups, and the demo animation (demo.webp, assembled by ffmpeg
+    /// from PNG frames when ffmpeg is on PATH; demo-poster.png is its first frame).
     /// </summary>
     public static int RunReadme(string folder) => Logged(folder, log =>
     {
-        LogHeroFonts(log);
+        LogHeaderFonts(log);
         foreach (var dark in new[] { false, true })
         {
             ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
             ZestTheme.Apply(dark);
             var theme = dark ? "dark" : "light";
-            var palette = WheelStyle.Palette(dark);
 
-            Save(Hero(palette, chips: true), folder, $"hero-{theme}.png", log);
-            if (!dark) Save(Hero(palette, chips: false), folder, "social-preview.png", log);
-            foreach (var mode in new[] { WheelMode.Convert, WheelMode.Tools, WheelMode.Actions })
-            {
-                var (items, highlight) = PhotoWheel(mode);
-                Save(Wheel(Backdrop(dark, ReadmeWheelZoom), palette, mode, items, highlight, ReadmeWheelZoom), folder, $"wheel-{ModeName(mode)}-{theme}.png", log);
-            }
+            Save(Header(TaglineKo, dark), folder, $"header-ko-{theme}.png", log);
+            Save(Header(TaglineEn, dark), folder, $"header-en-{theme}.png", log);
+            Save(Wheels(dark), folder, $"wheels-{theme}.png", log);
             Save(Popups(dark), folder, $"popups-{theme}.png", log);
+            if (dark) continue;
+            Save(Social(), folder, "social-preview.png", log);
+            Save(Icon(), folder, "icon-1024.png", log);
+            Demo(folder, log);
         }
     });
 
     /// <summary>
-    /// The wheel for photo.png in <paramref name="mode"/>, every capability on, with the README's item highlighted:
-    /// JPG (convert), 메타데이터 (tools) or 선반 (actions).
+    /// The wheel for photo.png in <paramref name="mode"/>, every capability on, and the index of each petal named in
+    /// <paramref name="match"/> order (format targets for convert, tools, actions).
     /// </summary>
-    static (IReadOnlyList<WheelItem> Items, int Highlight) PhotoWheel(WheelMode mode)
+    static (IReadOnlyList<WheelItem> Items, int[] Steps) PhotoWheel(WheelMode mode, params object[] match)
     {
         var items = WheelCatalog.Items(["photo.png"], mode, Capabilities.All);
-        var highlight = items.ToList().FindIndex(item => item.Operation switch
+        var steps = match.Select(want =>
         {
-            ConvertOp c => string.Equals(c.Target, "jpg", StringComparison.OrdinalIgnoreCase),
-            ToolOp t => t.Tool == ZestTool.Metadata,
-            ActionOp a => a.Action == DropAction.Shelf,
-            _ => false,
-        });
-        if (highlight < 0) throw new InvalidOperationException($"the {ModeName(mode)} wheel for photo.png has no README item");
-        return (items, highlight);
+            var at = items.ToList().FindIndex(item => (item.Operation, want) switch
+            {
+                (ConvertOp c, string target) => string.Equals(c.Target, target, StringComparison.OrdinalIgnoreCase),
+                (ToolOp t, ZestTool tool) => t.Tool == tool,
+                (ActionOp a, DropAction action) => a.Action == action,
+                _ => false,
+            });
+            if (at < 0) throw new InvalidOperationException($"the {ModeName(mode)} wheel for photo.png has no {want} petal");
+            return at;
+        }).ToArray();
+        return (items, steps);
+    }
+
+    /// <summary>The petal each README wheel shows highlighted: JPG, 메타데이터, 선반.</summary>
+    static (IReadOnlyList<WheelItem> Items, int Highlight) ReadmeWheel(WheelMode mode)
+    {
+        var (items, steps) = mode switch
+        {
+            WheelMode.Convert => PhotoWheel(mode, "jpg"),
+            WheelMode.Tools => PhotoWheel(mode, ZestTool.Metadata),
+            _ => PhotoWheel(mode, DropAction.Shelf),
+        };
+        return (items, steps[0]);
     }
 
     /// <summary>
-    /// The README hero: "Zest", the tagline and (unless <paramref name="chips"/> is false, as on the social preview) the three
-    /// key chips on the left; the convert wheel with JPG highlighted over the backdrop on the right, on the window colour.
+    /// A README header: a rounded card (1 px line, transparent outside its corners) with the app mark over one soft citrus
+    /// glow, "Zest" and the tagline, all centred.
     /// </summary>
-    static FrameworkElement Hero(WheelPalette palette, bool chips)
+    static FrameworkElement Header(string tagline, bool dark)
     {
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(88, 0, 0, 12) };
-        text.Children.Add(new TextBlock
+        var surface = ZestColors.For(dark);
+        var card = new Grid
         {
-            Text = "Zest",
-            FontFamily = WheelStyle.FormatFont,
-            FontWeight = FontWeights.Bold,
-            FontSize = 96,
-            Foreground = ZestTheme.Brush("Zest.Text"),
-            Margin = new Thickness(-4, 0, 0, 0), // the Z's side bearing, so the word lines up with the text under it
+            Width = BannerWidth,
+            Height = BannerHeight,
+            Clip = new RectangleGeometry(new Rect(0, 0, BannerWidth, BannerHeight), 20, 20),
+            Background = new SolidColorBrush(dark ? Color.FromRgb(0x16, 0x15, 0x11) : WheelStyle.ToColor(surface.Window)),
+        };
+        AsOnHighDpiScreen(card);
+        AddLockup(card, tagline, dark, BannerHeight, mark: 144, title: 66, line: 22, glow: 250);
+        card.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(20),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(WheelStyle.ToColor(surface.LineStrong)),
         });
-        text.Children.Add(new TextBlock
-        {
-            Text = Tagline,
-            FontFamily = WheelStyle.KoreanFont,
-            FontWeight = WheelStyle.LabelWeight,
-            FontSize = 22,
-            LineHeight = 34,
-            Foreground = ZestTheme.Brush("Zest.Text2"),
-            Margin = new Thickness(0, 4, 0, 0),
-        });
-        if (chips)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 32, 0, 0) };
-            foreach (var mode in new[] { WheelMode.Convert, WheelMode.Tools, WheelMode.Actions })
-                row.Children.Add(KeyChip(mode, palette.Dark));
-            text.Children.Add(row);
-        }
-
-        var (items, highlight) = PhotoWheel(WheelMode.Convert);
-        var side = Side * HeroWheelZoom;
-        // Clipped on a wrapper: a clip on the zoomed wheel itself is in its unzoomed units.
-        var shot = new Border
-        {
-            Child = Wheel(Backdrop(palette.Dark, HeroWheelZoom), palette, WheelMode.Convert, items, highlight, HeroWheelZoom),
-            Clip = new RectangleGeometry(new Rect(0, 0, side, side), 16, 16),
-        };
-        var shadow = new Border { CornerRadius = new CornerRadius(16), Background = ZestTheme.Brush("Zest.Window") };
-        CardShadow.Attach(shadow);
-        var edge = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = ZestTheme.Brush("Zest.Line") };
-        var screenshot = new Grid
-        {
-            Width = side,
-            Height = side,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, (HeroHeight - side) / 2, 0),
-            Children = { shadow, shot, edge },
-        };
-
-        var hero = new Grid
-        {
-            Width = HeroWidth,
-            Height = HeroHeight,
-            Background = ZestTheme.Brush("Zest.Window"),
-            ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition() },
-        };
-        AsOnHighDpiScreen(hero);
-        hero.Children.Add(text);
-        Grid.SetColumn(screenshot, 1);
-        hero.Children.Add(screenshot);
-        return hero;
+        return card;
     }
 
-    /// <summary>One modifier key as the wheel's hub chip shows it: the mode's ink on its wash, fully round.</summary>
-    static Border KeyChip(WheelMode mode, bool dark)
+    /// <summary>The social preview (1280 x 640): the English header's lockup a little larger, on an opaque page.</summary>
+    static FrameworkElement Social()
     {
-        var citrus = WheelStyle.Accent(mode);
-        return new Border
+        var page = new Grid { Width = SocialWidth, Height = SocialHeight, Background = new SolidColorBrush(WheelStyle.ToColor(ZestColors.Light.Window)) };
+        AsOnHighDpiScreen(page);
+        AddLockup(page, TaglineEn, dark: false, SocialHeight, mark: 112, title: 52, line: 18, glow: 190);
+        return page;
+    }
+
+    /// <summary>icon-1024.png: the light mark at 824 of 1024 px, centred so its shadow fits.</summary>
+    static FrameworkElement Icon()
+    {
+        var mark = AppMark.Create(412, dark: false, shadowBlur: 0.1);
+        mark.HorizontalAlignment = HorizontalAlignment.Center;
+        mark.VerticalAlignment = VerticalAlignment.Center;
+        mark.Margin = new Thickness(0, 0, 0, 10); // the shadow falls downward; lift the tile so the whole stays centred
+        return new Grid { Width = 512, Height = 512, Children = { mark } };
+    }
+
+    /// <summary>
+    /// Adds the lockup centred in <paramref name="height"/> (its optical centre a little above the middle, as the tagline
+    /// is light) and the glow centred on its mark.
+    /// </summary>
+    static void AddLockup(Grid page, string tagline, bool dark, double height, double mark, double title, double line, double glow)
+    {
+        var lockup = Lockup(tagline, dark, mark, title, line);
+        lockup.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var top = Math.Round((height - lockup.DesiredSize.Height) / 2 - height * 0.015);
+        lockup.Margin = new Thickness(0, top, 0, 0);
+        page.Children.Add(Glow(page.Width / 2, top + mark / 2, glow, dark));
+        page.Children.Add(lockup);
+    }
+
+    /// <summary>The mark, "Zest" and the tagline stacked and centred.</summary>
+    static StackPanel Lockup(string tagline, bool dark, double mark, double title, double line)
+    {
+        var surface = ZestColors.For(dark);
+        var korean = tagline.Any(c => c is >= '\uAC00' and <= '\uD7A3');
+        var appMark = AppMark.Create(mark, dark);
+        appMark.HorizontalAlignment = HorizontalAlignment.Center;
+        return new StackPanel
         {
-            Background = new SolidColorBrush(WheelStyle.ToColor(citrus.Wash(dark))),
-            CornerRadius = new CornerRadius(20),
-            Padding = new Thickness(16, 7, 16, 8),
-            Margin = new Thickness(0, 0, 10, 0),
-            Child = new TextBlock
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Children =
             {
-                Text = WheelStyle.ModeChip(mode),
-                FontFamily = WheelStyle.ChipFont,
-                FontWeight = WheelStyle.FormatWeight,
-                FontSize = 18,
-                Foreground = new SolidColorBrush(WheelStyle.ToColor(citrus.Ink(dark))),
+                appMark,
+                new TextBlock
+                {
+                    Text = "Zest",
+                    FontFamily = WheelStyle.FormatFont,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = title,
+                    Foreground = new SolidColorBrush(WheelStyle.ToColor(surface.Text)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, title * 0.22, 0, 0),
+                },
+                new TextBlock
+                {
+                    Text = tagline,
+                    FontFamily = korean ? WheelStyle.KoreanFont : new FontFamily("Segoe UI Variable Text"),
+                    FontWeight = korean ? WheelStyle.LabelWeight : FontWeights.Normal,
+                    FontSize = line,
+                    Foreground = new SolidColorBrush(WheelStyle.ToColor(surface.Text2)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, title * 0.06, 0, 0),
+                },
             },
         };
+    }
+
+    /// <summary>
+    /// One very soft glow centred on (<paramref name="x"/>, <paramref name="y"/>): lemon, tangerine and lime washes, each
+    /// a radial fade to nothing, overlapping a little off centre so the three blend.
+    /// </summary>
+    static Canvas Glow(double x, double y, double radius, bool dark)
+    {
+        var canvas = new Canvas { IsHitTestVisible = false };
+        var alpha = dark ? 0x11 : 0x1A;
+        (Citrus Citrus, double Dx, double Dy)[] washes =
+        [
+            (ZestColors.Lemon, 0, -0.08),
+            (ZestColors.Tangerine, 0.08, 0.05),
+            (ZestColors.Lime, -0.08, 0.05),
+        ];
+        foreach (var (citrus, dx, dy) in washes)
+        {
+            var c = WheelStyle.ToColor(citrus.Fill);
+            var r = radius;
+            // (1 - t^2)^3: full at the centre, reaching zero with no slope at the rim, so there is no visible edge.
+            var fade = new GradientStopCollection();
+            for (var k = 0; k <= 16; k++)
+            {
+                var t = k / 16.0;
+                fade.Add(new GradientStop(Color.FromArgb((byte)Math.Round(alpha * Math.Pow(1 - t * t, 3)), c.R, c.G, c.B), t));
+            }
+            var wash = new Ellipse
+            {
+                Width = 2 * r,
+                Height = 2 * r,
+                Fill = new RadialGradientBrush(fade),
+            };
+            Canvas.SetLeft(wash, x + dx * radius - r);
+            Canvas.SetTop(wash, y + dy * radius - r);
+            canvas.Children.Add(wash);
+        }
+        return canvas;
+    }
+
+    /// <summary>
+    /// The three wheels side by side on a plain stage (<c>Zest.Sunken</c> on light, the window colour on dark), each with its
+    /// README petal highlighted and its key name under it in a chip of the wheel's citrus.
+    /// </summary>
+    static FrameworkElement Wheels(bool dark)
+    {
+        var palette = WheelStyle.Palette(dark);
+        var row = new UniformGrid { Rows = 1, Columns = Modes.Length, Margin = new Thickness(40, 0, 40, 0) };
+        foreach (var mode in Modes)
+        {
+            var (items, highlight) = ReadmeWheel(mode);
+            var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            column.Children.Add(Wheel(null, palette, mode, items, highlight));
+            var chip = KeyChip(mode, dark, active: true, size: 16);
+            chip.Margin = new Thickness(0, -14, 0, 0); // the wheel's canvas keeps 32 DIP of shadow room under the petals
+            column.Children.Add(chip);
+            row.Children.Add(column);
+        }
+        var stage = new Grid
+        {
+            Width = BannerWidth,
+            Height = BannerHeight,
+            Background = ZestTheme.Brush(dark ? "Zest.Window" : "Zest.Sunken"),
+            Children = { row },
+        };
+        AsOnHighDpiScreen(stage);
+        return stage;
+    }
+
+    /// <summary>
+    /// The modifier key of <paramref name="mode"/> alone ("Shift", "Alt", "Ctrl"), so both READMEs can share it: active, in the
+    /// wheel's ink on its wash like the hub chip; inactive, in the third text colour on nothing.
+    /// </summary>
+    static Border KeyChip(WheelMode mode, bool dark, bool active, double size)
+    {
+        var citrus = WheelStyle.Accent(mode);
+        var surface = ZestColors.For(dark);
+        return new Border
+        {
+            Background = active ? new SolidColorBrush(WheelStyle.ToColor(citrus.Wash(dark))) : Brushes.Transparent,
+            CornerRadius = new CornerRadius(size * 2),
+            Padding = new Thickness(size * 0.9, size * 0.3, size * 0.9, size * 0.38),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = WheelStyle.ModeChip(mode).Split(' ')[0],
+                FontFamily = WheelStyle.FormatFont,
+                FontWeight = WheelStyle.FormatWeight,
+                FontSize = size,
+                Foreground = new SolidColorBrush(WheelStyle.ToColor(active ? citrus.Ink(dark) : surface.Text3)),
+            },
+        };
+    }
+
+    /// <summary>
+    /// The demo: each wheel opens, the highlight steps across its petals (PDF, JPG, WEBP; 압축, 메타데이터; 복사, 선반) at
+    /// half a second a step and rests on the last, then the next wheel opens; the three key names under the wheel show which
+    /// key is down. Frames go to a temporary folder and ffmpeg (from PATH) encodes them into a looping animated WebP.
+    /// </summary>
+    static void Demo(string folder, StringBuilder log)
+    {
+        var palette = WheelStyle.Palette(false);
+        var scenes = new[]
+        {
+            (WheelMode.Convert, PhotoWheel(WheelMode.Convert, "pdf", "jpg", "webp")),
+            (WheelMode.Tools, PhotoWheel(WheelMode.Tools, ZestTool.Compress, ZestTool.Metadata)),
+            (WheelMode.Actions, PhotoWheel(WheelMode.Actions, DropAction.Copy, DropAction.Shelf)),
+        };
+        // Per scene: the open wheel for one step, each highlight for one step, the last one held for three more.
+        var frames = new List<(WheelMode Mode, IReadOnlyList<WheelItem> Items, int? Highlight)>();
+        foreach (var (mode, (items, steps)) in scenes)
+        {
+            frames.Add((mode, items, null));
+            foreach (var step in steps) frames.Add((mode, items, step));
+            for (var i = 0; i < 3; i++) frames.Add((mode, items, steps[^1]));
+        }
+
+        var work = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "zest-demo-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(work);
+        for (var i = 0; i < frames.Count; i++)
+        {
+            var (mode, items, highlight) = frames[i];
+            var frame = DemoFrame(palette, mode, items, highlight);
+            Save(frame, work, $"frame_{i:D3}.png", log);
+            if (i == 0) File.Copy(System.IO.Path.Combine(work, "frame_000.png"), System.IO.Path.Combine(folder, "demo-poster.png"), true);
+        }
+
+        var ffmpeg = Zest.Core.Convert.FfmpegLocator.Locate();
+        if (ffmpeg is null)
+        {
+            log.AppendLine($"demo: ffmpeg not on PATH; {frames.Count} frames left in {work}");
+            return;
+        }
+        var output = System.IO.Path.GetFullPath(System.IO.Path.Combine(folder, "demo.webp"));
+        var start = new System.Diagnostics.ProcessStartInfo(ffmpeg)
+        {
+            WorkingDirectory = work,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in new[]
+        {
+            "-y", "-hide_banner", "-loglevel", "error", "-framerate", DemoFps.ToString(CultureInfo.InvariantCulture), "-i", "frame_%03d.png",
+            "-c:v", "libwebp_anim", "-lossless", "0", "-q:v", "90", "-compression_level", "6", "-loop", "0", output,
+        })
+            start.ArgumentList.Add(arg);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var errors = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0) throw new InvalidOperationException($"ffmpeg failed ({process.ExitCode}): {errors}");
+        Directory.Delete(work, true);
+        log.AppendLine(CultureInfo.InvariantCulture, $"demo.webp: {frames.Count} frames at {DemoFps} fps, {new FileInfo(output).Length} bytes");
+    }
+
+    /// <summary>One demo frame: the wheel on the flat <c>Zest.Sunken</c> stage, the three key names under it, the wheel's lit.</summary>
+    static FrameworkElement DemoFrame(WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
+    {
+        var wheel = Wheel(null, palette, mode, items, highlight);
+        wheel.HorizontalAlignment = HorizontalAlignment.Center;
+        wheel.VerticalAlignment = VerticalAlignment.Top;
+        wheel.Margin = new Thickness(0, -6, 0, 0);
+        var keys = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 18),
+        };
+        foreach (var key in Modes)
+        {
+            var chip = KeyChip(key, palette.Dark, active: key == mode, size: 12);
+            chip.Margin = new Thickness(4, 0, 4, 0);
+            keys.Children.Add(chip);
+        }
+        var stage = new Grid
+        {
+            Width = DemoWidth,
+            Height = DemoHeight,
+            Background = new SolidColorBrush(WheelStyle.ToColor(ZestColors.Light.Sunken)),
+            Children = { wheel, keys },
+        };
+        AsOnHighDpiScreen(stage);
+        return stage;
     }
 
     /// <summary>
@@ -308,11 +519,12 @@ public static class RenderHarness
         return render;
     }
 
-    /// <summary>Logs the typefaces the hero's own text resolves to: the title's Latin face and the tagline's Pretendard.</summary>
-    static void LogHeroFonts(StringBuilder log)
+    /// <summary>Logs the typefaces the header's own text resolves to: the title's Latin face and both taglines'.</summary>
+    static void LogHeaderFonts(StringBuilder log)
     {
-        LogFont(log, "hero-title", WheelStyle.FormatFont, FontWeights.Bold, 'Z');
-        LogFont(log, "hero-tagline", WheelStyle.KoreanFont, WheelStyle.LabelWeight, '탭');
+        LogFont(log, "header-title", WheelStyle.FormatFont, FontWeights.Bold, 'Z');
+        LogFont(log, "header-tagline-ko", WheelStyle.KoreanFont, WheelStyle.LabelWeight, '끌');
+        LogFont(log, "header-tagline-en", new FontFamily("Segoe UI Variable Text"), FontWeights.Normal, 'H');
     }
 
     /// <summary>
@@ -341,10 +553,10 @@ public static class RenderHarness
     };
 
     /// <summary>
-    /// The wheel over <paramref name="backdrop"/>; a <paramref name="zoom"/> above 1 enlarges both (the wheel as vectors,
-    /// so the backdrop must have been drawn at the same zoom to stay sharp).
+    /// The wheel over <paramref name="backdrop"/> (review renders), or over nothing, so the stage it is placed on shows
+    /// through (README images).
     /// </summary>
-    static FrameworkElement Wheel(BitmapSource backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight, double zoom = 1)
+    static FrameworkElement Wheel(BitmapSource? backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
     {
         var view = new WheelView { Animate = false, Palette = palette, Mode = mode };
         AsOnHighDpiScreen(view);
@@ -353,20 +565,18 @@ public static class RenderHarness
         view.Highlight(highlight);
 
         var root = new Grid { Width = Side, Height = Side };
-        if (zoom != 1) root.LayoutTransform = new ScaleTransform(zoom, zoom);
-        root.Children.Add(new Image { Source = backdrop, Width = Side, Height = Side, Stretch = Stretch.Fill });
+        if (backdrop is not null) root.Children.Add(new Image { Source = backdrop, Width = Side, Height = Side, Stretch = Stretch.Fill });
         root.Children.Add(view);
         return root;
     }
 
     /// <summary>
-    /// Stand-in for the screen behind the wheel, rendered at 2x like a real capture on a 200 % display: a file list (white,
-    /// or Explorer's dark list when <paramref name="dark"/>) half covered by a dark-green window. <paramref name="zoom"/>
-    /// draws it that many times larger, for a wheel enlarged by the same factor.
+    /// Stand-in for the screen behind the wheel, rendered at 2x like a real capture on a 200 % display: a white file list
+    /// half covered by a dark-green window. Review renders only; the README images use plain stages.
     /// </summary>
-    static BitmapSource Backdrop(bool dark = false, double zoom = 1)
+    static BitmapSource Backdrop()
     {
-        var canvas = new Canvas { Width = Side, Height = Side, Background = dark ? new SolidColorBrush(Color.FromRgb(0x19, 0x19, 0x19)) : Brushes.White };
+        var canvas = new Canvas { Width = Side, Height = Side, Background = Brushes.White };
         for (var i = 0; i < 23; i++)
         {
             var line = new TextBlock
@@ -374,7 +584,7 @@ public static class RenderHarness
                 Text = $"Report final v{29 + i}.docx",
                 FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 14,
-                Foreground = dark ? Brushes.White : Brushes.Black,
+                Foreground = Brushes.Black,
             };
             Canvas.SetLeft(line, 96);
             Canvas.SetTop(line, -8 + i * 15);
@@ -394,10 +604,7 @@ public static class RenderHarness
                 0),
         });
         canvas.Children.Add(panel);
-        if (zoom == 1) return Snapshot(canvas, Side, Side);
-        canvas.LayoutTransform = new ScaleTransform(zoom, zoom);
-        AsOnHighDpiScreen(canvas); // Display text is hinted to 96 DPI pixels, which the zoom would then stretch
-        return Snapshot(canvas, Side * zoom, Side * zoom);
+        return Snapshot(canvas, Side, Side);
     }
 
     static BitmapSource Plain(Color color) =>
