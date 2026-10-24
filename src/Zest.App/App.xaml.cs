@@ -9,6 +9,7 @@ using Zest.App.Tools;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
+using Zest.Core.Migration;
 using Zest.Core.Office;
 using Microsoft.Win32;
 using Wpf.Ui.Appearance;
@@ -18,6 +19,7 @@ namespace Zest.App;
 public partial class App : Application
 {
     const string SingleInstanceName = @"Local\Zest.SingleInstance";
+    internal const string LegacyInstanceName = @"Local\LimeWin.SingleInstance";
     const string HooksFailed = "키 감지를 켜지 못했습니다.";
     const string UnexpectedError = "예기치 않은 오류가 발생했지만 Zest는 계속 실행됩니다.";
     static readonly TimeSpan HookHealthInterval = TimeSpan.FromSeconds(5);
@@ -39,6 +41,14 @@ public partial class App : Application
         {
             // Review renders only: no mutex, tray, hooks or windows.
             Shutdown(RenderHarness.Run(folder));
+            return;
+        }
+
+        if (Mutex.TryOpenExisting(LegacyInstanceName, out var legacy))
+        {
+            legacy.Dispose();
+            MessageBox.Show("이전 버전인 Lime이 실행 중입니다. 트레이에서 Lime을 종료한 뒤 Zest를 다시 실행하세요.", "Zest", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
             return;
         }
 
@@ -70,6 +80,8 @@ public partial class App : Application
 
     void Start()
     {
+        LegacyMigration.MoveDataFolder(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        LoginItem.MigrateLegacy();
         ApplicationThemeManager.ApplySystemTheme();
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
