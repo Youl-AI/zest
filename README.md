@@ -19,7 +19,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/demo.webp" width="720" alt="변환 휠에서 PDF, JPG, WEBP로, 도구 휠에서 압축과 메타데이터로, 액션 휠에서 복사와 선반으로 강조가 옮겨 가는 모습" />
+  <img src="docs/images/demo.webp" width="720" alt="휠이 열리면 가운데에 사진 크기 5.6 MB가 보이고, 변환 휠에서 PDF, JPG, WEBP로, 도구 휠에서 압축과 메타데이터로, 액션 휠에서 복사와 선반으로 강조가 옮겨 가며 가운데에 그 꽃잎 이름이 나타나는 모습" />
   <br />
   <sub>Shift는 변환, Alt는 도구, Ctrl은 액션 휠</sub>
 </p>
@@ -31,7 +31,7 @@
    - **Shift**: 변환 휠
    - **Alt**: 도구 휠
    - **Ctrl**: 액션 휠
-3. 휠이 뜨면 원하는 꽃잎 위에 놓습니다.
+3. 휠이 뜨면 원하는 꽃잎 위에 놓습니다. 휠 가운데에는 끌고 있는 파일의 크기가 보이고, 꽃잎 위에 올리면 그 꽃잎 이름으로 바뀝니다.
 4. 휠 **바깥**이나 **가운데 구멍**에 놓거나 Esc를 누르면 아무 일도 일어나지 않습니다.
 5. 변환·도구·메타데이터는 원본을 바꾸지 않고, 결과를 원본 옆에 새 파일로 만듭니다. 원본 파일을 옮기는 것은 **이동** 액션뿐입니다.
 
@@ -40,7 +40,7 @@
 ## 기능
 
 <p align="center">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wheels-dark.png" /><img alt="세 휠: JPG가 강조된 변환 휠(Shift), 메타데이터가 강조된 도구 휠(Alt), 선반이 강조된 액션 휠(Ctrl)" src="docs/images/wheels-light.png" /></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wheels-dark.png" /><img alt="세 휠: 가운데에 파일 크기 5.6 MB가 보이는 변환 휠(Shift), 메타데이터가 강조된 도구 휠(Alt), 선반이 강조된 액션 휠(Ctrl)" src="docs/images/wheels-light.png" /></picture>
 </p>
 
 **변환 (Shift)**

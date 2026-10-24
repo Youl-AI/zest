@@ -19,7 +19,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/demo.webp" width="720" alt="The highlight moving over PDF, JPG and WEBP on the convert wheel, compress and metadata on the tools wheel, and copy and shelf on the actions wheel" />
+  <img src="docs/images/demo.webp" width="720" alt="Each wheel opens with the photo's size, 5.6 MB, in the middle; then the highlight moves over PDF, JPG and WEBP on the convert wheel, compress and metadata on the tools wheel, and copy and shelf on the actions wheel, the middle naming each petal" />
   <br />
   <sub>Shift for convert, Alt for tools, Ctrl for actions</sub>
 </p>
@@ -33,7 +33,7 @@ The app's interface is in Korean. Korean labels are quoted below with their mean
    - **Shift**: convert wheel
    - **Alt**: tools wheel
    - **Ctrl**: actions wheel
-3. When the wheel appears, drop the file on the petal you want.
+3. When the wheel appears, drop the file on the petal you want. The middle of the wheel shows the size of the dragged files, and the name of the petal you are over.
 4. Dropping **outside** the wheel or on the **hole in the middle**, or pressing Esc, does nothing.
 5. Convert, the tools and metadata never change the original; the result is a new file next to it. Only the **Move** action moves the file itself.
 
@@ -42,7 +42,7 @@ Dragging without tapping a key works as usual.
 ## Features
 
 <p align="center">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wheels-dark.png" /><img alt="The three wheels: convert (Shift) with JPG highlighted, tools (Alt) with metadata highlighted, actions (Ctrl) with shelf highlighted" src="docs/images/wheels-light.png" /></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/wheels-dark.png" /><img alt="The three wheels: convert (Shift) showing the file size, 5.6 MB, in the middle, tools (Alt) with metadata highlighted, actions (Ctrl) with shelf highlighted" src="docs/images/wheels-light.png" /></picture>
 </p>
 
 **Convert (Shift)**
