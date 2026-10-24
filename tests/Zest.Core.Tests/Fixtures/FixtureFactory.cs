@@ -162,6 +162,21 @@ internal static class FixtureFactory
         return path;
     }
 
+    /// <summary>One JPEG marker segment: FF, <paramref name="marker"/>, big-endian length, <paramref name="body"/>.</summary>
+    public static byte[] JpegSegment(byte marker, byte[] body) =>
+        [0xFF, marker, (byte)((body.Length + 2) >> 8), (byte)(body.Length + 2), .. body];
+
+    public static byte[] JpegSegment(byte marker, string asciiBody) => JpegSegment(marker, System.Text.Encoding.ASCII.GetBytes(asciiBody));
+
+    /// <summary>Inserts <paramref name="segments"/> into a jpg, in place, right after SOI and the leading APP0 segments.</summary>
+    public static void InsertJpegSegments(string jpgPath, params byte[][] segments)
+    {
+        var jpg = File.ReadAllBytes(jpgPath);
+        var pos = 2;
+        while (jpg[pos] == 0xFF && jpg[pos + 1] == 0xE0) pos += 2 + (jpg[pos + 2] << 8 | jpg[pos + 3]);
+        File.WriteAllBytes(jpgPath, [.. jpg[..pos], .. segments.SelectMany(s => s), .. jpg[pos..]]);
+    }
+
     /// <summary>Writes a two-frame animated webp.</summary>
     public static string AnimatedWebp(string dir, string name)
     {

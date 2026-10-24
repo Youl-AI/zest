@@ -50,7 +50,7 @@ internal static class ImageMetadata
                 new("file:format", "파일", "형식", format.ToUpperInvariant(), false, false),
                 new("file:size", "파일", "크기", $"{image.Width} × {image.Height} · {ImageCompressor.FormatSize(bytes.LongLength)}", false, false),
             };
-            if (image.GetExifProfile() is { } exif)
+            if (ExifOf(image, out _) is { } exif)
             {
                 foreach (var value in exif.Values)
                 {
@@ -135,9 +135,12 @@ internal static class ImageMetadata
         {
             using var image = new MagickImage();
             image.Ping(bytes);
-            var exif = BuildExif(image.GetExifProfile(), edit, out var changed);
-            // Untouched EXIF goes back exactly as it was stored (unknown tags and maker notes included).
-            payload = changed ? exif?.ToByteArray() : image.GetProfile("exif")?.ToByteArray();
+            var parsed = ExifOf(image, out var raw);
+            var exif = BuildExif(parsed, edit, out var changed);
+            // Untouched EXIF goes back as it was stored (unknown tags and maker notes included) ...
+            payload = changed ? exif?.ToByteArray() : raw;
+            // ... unless it could not be parsed and a location removal was asked for: it may hold one.
+            if (!changed && edit.RemoveLocation && parsed is not null && !parsed.Values.Any()) payload = null;
         }
         catch (Exception e) when (e is MagickException or ArgumentException or IndexOutOfRangeException or InvalidOperationException)
         {
@@ -146,7 +149,8 @@ internal static class ImageMetadata
         if (payload is not null) payload = WithExifHeader(payload);
         ctx.Report(0.4);
 
-        var rewritten = JpegSegments.Rewrite(bytes, payload, dropXmp, dropIptc);
+        var cleanup = edit.RemoveAll ? JpegCleanup.Everything : edit.RemoveLocation ? JpegCleanup.Location : JpegCleanup.None;
+        var rewritten = JpegSegments.Rewrite(bytes, payload, dropXmp, dropIptc, cleanup);
         ctx.Token.ThrowIfCancellationRequested();
         var output = OutputNaming.ToolOutput(source, tag, "jpg", ctx);
         File.WriteAllBytes(output, rewritten);
@@ -241,6 +245,21 @@ internal static class ImageMetadata
         return profile.Values.Any() ? profile : null;
     }
 
-    static byte[] WithExifHeader(byte[] data) =>
-        data.AsSpan().StartsWith("Exif\0\0"u8) ? data : [.. "Exif\0\0"u8, .. data];
+    /// <summary>
+    /// The image's EXIF, parsed after normalizing its header: ImageMagick accepts any "exif" header ("Exif\0\xFF"...), while
+    /// Magick.NET only parses "Exif\0\0". <paramref name="raw"/> is the normalized stored bytes (null when there is no EXIF).
+    /// </summary>
+    static ExifProfile? ExifOf(MagickImage image, out byte[]? raw)
+    {
+        raw = image.GetProfile("exif")?.ToByteArray() is { Length: > 0 } stored ? WithExifHeader(stored) : null;
+        return raw is null ? null : new ExifProfile(raw);
+    }
+
+    /// <summary>The APP1 body with exactly <c>Exif\0\0</c> in front: a variant 6-byte "exif" header is replaced, a missing one added.</summary>
+    static byte[] WithExifHeader(byte[] data)
+    {
+        if (data.AsSpan().StartsWith("Exif\0\0"u8)) return data;
+        if (data.Length >= 6 && System.Text.Ascii.EqualsIgnoreCase(data.AsSpan(0, 4), "exif"u8)) return [.. "Exif\0\0"u8, .. data.AsSpan(6)];
+        return [.. "Exif\0\0"u8, .. data];
+    }
 }

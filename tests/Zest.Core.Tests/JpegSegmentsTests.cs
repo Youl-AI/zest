@@ -45,6 +45,22 @@ public class JpegSegmentsTests : IDisposable
         Assert.NotNull(m.GetColorProfile());
     }
 
+    [Theory]
+    [InlineData("EXIF\0\0")]
+    [InlineData("Exif\0\xFF")]
+    [InlineData("exif")]
+    public void Rewrite_DropsEveryApp1StartingWithExif_IgnoringCase(string header)
+    {
+        var path = FixtureFactory.Image(Dir, "a.jpg");
+        FixtureFactory.InsertJpegSegments(path, FixtureFactory.JpegSegment(0xE1, [.. header.Select(c => (byte)c), .. "old GPS"u8]));
+        var src = File.ReadAllBytes(path);
+
+        var output = JpegSegments.Rewrite(src, null, dropXmp: false, dropIptc: false);
+
+        Assert.False(Contains(output, "old GPS"));
+        Assert.Equal(src[ScanStart(src)..], output[ScanStart(output)..]);
+    }
+
     [Fact]
     public void Rewrite_Malformed_Throws()
     {

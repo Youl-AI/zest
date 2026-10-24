@@ -224,6 +224,116 @@ public class ImageMetadataTests : IDisposable
         Assert.Equal("taken", File.ReadAllText(Path.Combine(Dir, "photo (edited).jpg")));
     }
 
+    static readonly byte[] Adobe = [.. "Adobe"u8, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x01]; // APP14, transform 1 = YCbCr
+
+    [Fact]
+    public async Task Jpeg_RemoveAll_DropsCommentsAndVendorSegments_KeepsDecodingOnes()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags, withGps: true, orientation: 6, withIcc: true);
+        FixtureFactory.InsertJpegSegments(src,
+            FixtureFactory.JpegSegment(0xFE, "secret comment"),
+            FixtureFactory.JpegSegment(0xEC, "Ducky vendor data"),
+            FixtureFactory.JpegSegment(0xEB, "JP c2pa manifest with GPS"),
+            FixtureFactory.JpegSegment(0xEE, Adobe));
+
+        var output = await MetadataWriter.ApplyAsync(src, MetadataEdit.Everything, Ctx);
+
+        var bytes = File.ReadAllBytes(output);
+        Assert.False(Has(bytes, "secret comment"));
+        Assert.False(Has(bytes, "Ducky vendor data"));
+        Assert.False(Has(bytes, "c2pa manifest"));
+        var markers = Segments(bytes).Select(s => s.Marker).ToList();
+        Assert.Contains((byte)0xE0, markers); // JFIF
+        Assert.Contains(Segments(bytes), s => s.Marker == 0xE2 && s.Body.AsSpan().StartsWith("ICC_PROFILE\0"u8));
+        Assert.Contains(Segments(bytes), s => s.Marker == 0xEE && s.Body.SequenceEqual(Adobe));
+        Assert.Equal(PixelHash(src), PixelHash(output));
+    }
+
+    [Fact]
+    public async Task Jpeg_RemoveLocation_DropsMpfAndTrailer()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags, withGps: true);
+        FixtureFactory.InsertJpegSegments(src, FixtureFactory.JpegSegment(0xE2, [.. "MPF\0"u8, .. "MM\0*\0\0\0\b"u8]));
+        var primary = File.ReadAllBytes(src);
+        File.WriteAllBytes(src, [.. primary, 0xFF, 0xD8, .. " gain map GPSLatitude 33.5 "u8, 0xFF, 0xD9]);
+
+        var output = await MetadataWriter.ApplyAsync(src, MetadataEdit.LocationOnly, Ctx);
+
+        var bytes = File.ReadAllBytes(output);
+        Assert.DoesNotContain(Segments(bytes), s => s.Marker == 0xE2 && s.Body.AsSpan().StartsWith("MPF\0"u8));
+        Assert.False(Has(bytes, "GPSLatitude"));
+        Assert.False(Has(bytes, "gain map"));
+        Assert.Equal([0xFF, 0xD9], bytes[^2..]);
+        Assert.Equal(PixelHash(src), PixelHash(output));
+    }
+
+    [Fact]
+    public async Task Jpeg_VariantExifHeader_RemoveLocation_LeavesOneExifWithoutGps()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags, withGps: true);
+        var bytes = File.ReadAllBytes(src);
+        var exif = Segments(bytes).Single(s => s.Marker == 0xE1 && s.Body.AsSpan().StartsWith("Exif\0\0"u8));
+        bytes[exif.Offset + 4 + 5] = 0xFF; // header "Exif\0\xFF": ImageMagick still takes it as the EXIF profile
+        File.WriteAllBytes(src, bytes);
+        var gpsBefore = GpsByteRuns(bytes);
+        Assert.NotEmpty(gpsBefore);
+        Assert.Contains(await Read(src), t => t.Id == "exif:GPSLatitude"); // the location banner must see it
+
+        var output = await MetadataWriter.ApplyAsync(src, MetadataEdit.LocationOnly, Ctx);
+
+        var outBytes = File.ReadAllBytes(output);
+        var exifs = Segments(outBytes).Where(s => s.Marker == 0xE1 && System.Text.Ascii.EqualsIgnoreCase(s.Body.AsSpan(0, 4), "exif"u8)).ToList();
+        var only = Assert.Single(exifs);
+        Assert.DoesNotContain(new ExifProfile(only.Body).Values, v => v.Tag.ToString()!.StartsWith("GPS", StringComparison.Ordinal));
+        Assert.All(gpsBefore, run => Assert.True(outBytes.AsSpan().IndexOf(run) < 0));
+        Assert.Equal("Pixel 9", Assert.Single(await Read(output), t => t.Id == "exif:Model").Value);
+    }
+
+    [Fact]
+    public async Task Jpeg_PlainEdit_KeepsCommentAndVendorSegments()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags);
+        byte[] com = FixtureFactory.JpegSegment(0xFE, "secret comment"), app12 = FixtureFactory.JpegSegment(0xEC, "Ducky vendor data");
+        FixtureFactory.InsertJpegSegments(src, com, app12);
+
+        var output = await MetadataWriter.ApplyAsync(src, Edit(changed: new() { ["exif:Artist"] = "홍길동" }), Ctx);
+
+        var bytes = File.ReadAllBytes(output);
+        Assert.True(bytes.AsSpan().IndexOf(com) >= 0);
+        Assert.True(bytes.AsSpan().IndexOf(app12) >= 0);
+        Assert.Equal("홍길동", Assert.Single(await Read(output), t => t.Id == "exif:Artist").Value);
+    }
+
+    /// <summary>The marker segments before the first SOS, with their offsets.</summary>
+    static List<(byte Marker, int Offset, byte[] Body)> Segments(byte[] jpeg)
+    {
+        var list = new List<(byte, int, byte[])>();
+        var pos = 2;
+        while (jpeg[pos + 1] != 0xDA)
+        {
+            var length = jpeg[pos + 2] << 8 | jpeg[pos + 3];
+            list.Add((jpeg[pos + 1], pos, jpeg[(pos + 4)..(pos + 2 + length)]));
+            pos += 2 + length;
+        }
+        return list;
+    }
+
+    /// <summary>The fixture's GPS latitude seconds as stored (5988/100 or 1497/25), in either byte order, as found in the file.</summary>
+    static List<byte[]> GpsByteRuns(byte[] jpeg)
+    {
+        static byte[] Pair(uint a, uint b, bool little)
+        {
+            var x = BitConverter.GetBytes(a);
+            var y = BitConverter.GetBytes(b);
+            if (!little) { Array.Reverse(x); Array.Reverse(y); }
+            return [.. x, .. y];
+        }
+        return new[] { Pair(5988, 100, true), Pair(5988, 100, false), Pair(1497, 25, true), Pair(1497, 25, false) }
+            .Where(run => jpeg.AsSpan().IndexOf(run) >= 0).ToList();
+    }
+
+    static bool Has(byte[] data, string ascii) => data.AsSpan().IndexOf(System.Text.Encoding.ASCII.GetBytes(ascii)) >= 0;
+
     static string PixelHash(string path)
     {
         using var image = new MagickImage(path);
