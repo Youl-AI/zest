@@ -434,8 +434,8 @@
 
     <!-- ── Window frame ───────────────────────────────────────────────────── -->
     <!--
-        24 px transparent margin for the shadow → 14 px frame (Zest.Window, 1 px Zest.Line, drop shadow blur 32 / depth 12
-        set by ZestWindow per theme) → header (centred Bold 14 title, round close on the right), content, footer bar.
+        24 px transparent margin for the shadow → 14 px frame (Zest.Window, 1 px Zest.Line, drop shadow blur 20 / depth 4
+        set by ZestWindow per theme, which fits the margin: 24 below, 20 at the sides, 16 above) → header (centred Bold 14 title, round close on the right), content, footer bar.
     -->
     <ControlTemplate x:Key="Zest.WindowTemplate" TargetType="theme:ZestWindow">
         <Grid>

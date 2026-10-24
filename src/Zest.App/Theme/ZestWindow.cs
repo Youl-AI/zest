@@ -26,7 +26,7 @@ public class ZestWindow : Window
     /// <summary>Transparent band around the frame that holds the shadow (and, when resizable, the 8 px grip).</summary>
     public const double ShadowMargin = 24;
 
-    const double LightShadowOpacity = 0.14, DarkShadowOpacity = 0.45;
+    const double LightShadowOpacity = 0.18, DarkShadowOpacity = 0.5;
     static readonly TimeSpan Enter = WheelStyle.CardEnter, Exit = WheelStyle.CardExit;
     const double EnterScale = 0.96;
     /// <summary>The frame's 14 px corner minus its 1 px edge: the radius the content is clipped to.</summary>
@@ -206,8 +206,8 @@ public class ZestWindow : Window
         if (_shadow is null) return;
         _shadow.Effect = new DropShadowEffect
         {
-            BlurRadius = 32,
-            ShadowDepth = 12,
+            BlurRadius = 20, // with depth 4: 24 below, 20 at the sides, 16 above, inside the 24 DIP margin (decisions D13)
+            ShadowDepth = 4,
             Direction = 270,
             Color = Colors.Black,
             Opacity = IsDarkSurface() ? DarkShadowOpacity : LightShadowOpacity,
