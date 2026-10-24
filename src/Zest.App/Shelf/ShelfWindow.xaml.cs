@@ -73,10 +73,10 @@ public sealed class ShelfItem(string path, ImageSource? icon, ImageSource? large
 }
 
 /// <summary>
-/// A small floating card that holds files (original <c>Shelf.swift</c>): a grid of icon tiles, or a list of rows (the
+/// A small floating card that holds files: a grid of icon tiles, or a list of rows (the
 /// header's view button; the choice holds for the rest of the session). Drag the header to move it, × or Esc closes it
 /// (the files stay where they are). Items drag out as a file drop (copy or move, the target decides), files dragged in
-/// are added once each, Delete takes the selected items off the shelf. Topmost, opens without taking focus. Lime throughout.
+/// are added once each, Delete takes the selected items off the shelf. Topmost, opens without taking focus. Lime accent colour throughout.
 /// </summary>
 public partial class ShelfWindow : Window
 {

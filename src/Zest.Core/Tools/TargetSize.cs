@@ -11,7 +11,7 @@ public static class TargetSize
     const double MaxBytes = 1e15;
 
     /// <summary>
-    /// "500" KB → 500,000 bytes; "1,5" or "1.5" MB → 1,500,000 (a comma is a decimal point, like the original; no
+    /// "500" KB → 500,000 bytes; "1,5" or "1.5" MB → 1,500,000 (a comma is a decimal point; no
     /// thousands separators). Anything that is not a positive plain number throws <see cref="ZestException"/>.
     /// </summary>
     public static long Parse(string text, SizeUnit unit)

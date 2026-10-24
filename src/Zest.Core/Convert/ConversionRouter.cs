@@ -21,7 +21,7 @@ public sealed class ConversionRouter(IEnumerable<IConverter> converters)
 
     static void EnsureWritable(string dir)
     {
-        var probe = Path.Combine(dir, $".lime-write-test-{Guid.NewGuid():N}");
+        var probe = Path.Combine(dir, $".zest-write-test-{Guid.NewGuid():N}");
         try
         {
             using (File.Create(probe)) { }

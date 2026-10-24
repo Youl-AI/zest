@@ -90,9 +90,9 @@ public static class WheelStyle
     /// <summary>Round readout in the hole.</summary>
     public const double HubRadius = 40;
     public const double OuterCorner = 10, InnerCorner = 7;
-    /// <summary>Label centres sit on this radius (original: (inner + outer) / 2 + 2).</summary>
+    /// <summary>Label centres sit on this radius: (inner + outer) / 2 + 2.</summary>
     public const double LabelRadius = 93;
-    /// <summary>How far the highlighted petal rises outward (original <c>liftDistance</c>).</summary>
+    /// <summary>How far the highlighted petal rises outward.</summary>
     public const double Lift = 6;
     public const double PetalEdgeThickness = 1;
     /// <summary>Gap between a petal's icon and its label.</summary>

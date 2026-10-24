@@ -1,7 +1,7 @@
 # 전체 테스트 결과
 
 - 날짜: 2026-10-23
-- 명령: `dotnet test --project tests/LimeWin.Core.Tests` (Office, Ffmpeg, Matrix 포함 전체, 배경 제거는 실제 모델로 CPU 추론)
+- 명령: `dotnet test --project tests/Zest.Core.Tests` (Office, Ffmpeg, Matrix 포함 전체, 배경 제거는 실제 모델로 CPU 추론)
 - 환경: Windows 11 Education 10.0.26300, .NET 10, Microsoft Office 설치됨(자동화 가능), ffmpeg가 PATH에 있음
 - 끝난 뒤 남은 Word/Excel/PowerPoint/ffmpeg 프로세스: 없음
 

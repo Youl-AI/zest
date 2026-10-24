@@ -22,8 +22,8 @@ namespace Zest.App.Render;
 
 /// <summary>
 /// <c>Zest.exe --render &lt;folder&gt;</c>: draws the real <see cref="WheelView"/>, progress cards and tray glyphs into PNGs at 2x
-/// for visual review, without tray, hooks or windows. The wheel floats over a fixed backdrop like the original's screenshot
-/// (dark-green window on the left, a white file list on the right), and again over plain white and black, where only the
+/// for visual review, without tray, hooks or windows. The wheel floats over a fixed backdrop that stands in for a busy
+/// screen (dark-green window on the left, a white file list on the right), and again over plain white and black, where only the
 /// petal edges and shadow keep petals apart from the page.
 /// </summary>
 public static class RenderHarness
@@ -591,7 +591,7 @@ public static class RenderHarness
             canvas.Children.Add(line);
         }
 
-        // A dark-green window covering the left of the list, as in the original's screenshot.
+        // A dark-green window covering the left of the list.
         var panel = new Grid { Width = 124, Height = Side };
         panel.Children.Add(new Rectangle
         {

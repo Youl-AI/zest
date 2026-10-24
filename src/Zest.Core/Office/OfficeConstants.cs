@@ -20,7 +20,7 @@ public static class WordConst
     public const int InlineShapeLinkedPicture = 4; // wdInlineShapeLinkedPicture
 
     /// <summary>A deliberately wrong open password: a protected document then fails with an error instead of a prompt.</summary>
-    public const string WrongPassword = "\u0001lime";
+    public const string WrongPassword = "\u0001zest";
 
     /// <summary>Word error number for "The password is incorrect" (HRESULT 0x800A1520).</summary>
     public const int PasswordIncorrectError = 0x1520;
@@ -44,7 +44,7 @@ public static class PowerPointConst
     /// Appended to the file name: "path::password::" opens with that password, so with a deliberately wrong one a
     /// protected presentation fails with an error instead of a prompt (measured: plain files open normally).
     /// </summary>
-    public const string WrongPasswordSuffix = "::\u0001lime::";
+    public const string WrongPasswordSuffix = "::\u0001zest::";
 
     /// <summary>What <c>Presentations.Open</c> fails with for a wrong password (E_FAIL, measured for pptx and ppt).</summary>
     public const int PasswordIncorrectHResult = unchecked((int)0x80004005);
@@ -67,7 +67,7 @@ public static class ExcelConst
     public const int TypePdf = 0;      // xlTypePDF
 
     /// <summary>A deliberately wrong open password: a protected workbook then fails with an error instead of a prompt.</summary>
-    public const string WrongPassword = "\u0001lime";
+    public const string WrongPassword = "\u0001zest";
 }
 
 /// <summary>Shared Office (Mso*) constants.</summary>

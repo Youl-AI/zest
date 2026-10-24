@@ -47,7 +47,7 @@ public static class PetalPath
         var left = bearing - half;   // gutter on the counter-clockwise side
         var right = bearing + half;  // gutter on the clockwise side
 
-        // Same clamping as the original: corners never eat more than 30 % of an edge.
+        // Corners never eat more than 30 % of an edge.
         var outerSpan = (right - Math.Asin(gap / 2 / outer)) - (left + Math.Asin(gap / 2 / outer));
         var innerSpan = (right - Math.Asin(gap / 2 / inner)) - (left + Math.Asin(gap / 2 / inner));
         var oc = Math.Max(0, Math.Min(outerCorner, outerSpan * outer * 0.3));

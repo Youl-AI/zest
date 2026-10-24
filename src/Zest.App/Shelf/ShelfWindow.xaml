@@ -180,11 +180,11 @@
             </Grid>
         </Border>
 
-        <!-- Lime outline while files are dragged over the shelf (an overlay, so the layout never shifts). -->
+        <!-- Lime-ink outline while files are dragged over the shelf (an overlay, so the layout never shifts). -->
         <Border x:Name="DropRing" Margin="0,6,0,0" CornerRadius="14" BorderThickness="1.5" IsHitTestVisible="False"
                 BorderBrush="{DynamicResource Zest.Lime.Ink}" Visibility="Collapsed" />
 
-        <!-- Lime grip tab, 36 x 5, centred just above the card's top edge. -->
+        <!-- Lime-fill grip tab, 36 x 5, centred just above the card's top edge. -->
         <Border x:Name="Tab" Width="36" Height="5" CornerRadius="2.5" VerticalAlignment="Top" HorizontalAlignment="Center"
                 IsHitTestVisible="False" Background="{DynamicResource Zest.Lime.Fill}" />
     </Grid>

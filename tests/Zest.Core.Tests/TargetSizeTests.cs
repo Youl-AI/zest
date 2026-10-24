@@ -7,7 +7,7 @@ public class TargetSizeTests
     [Theory]
     [InlineData("500", SizeUnit.KB, 500_000)]
     [InlineData(" 1.5 ", SizeUnit.MB, 1_500_000)]
-    [InlineData("1,5", SizeUnit.MB, 1_500_000)] // comma decimal, like the original
+    [InlineData("1,5", SizeUnit.MB, 1_500_000)] // comma decimal
     [InlineData("0,25", SizeUnit.KB, 250)]
     [InlineData("2", SizeUnit.MB, 2_000_000)]
     public void Parse_ReadsDecimalUnits(string text, SizeUnit unit, long bytes) =>

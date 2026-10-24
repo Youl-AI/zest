@@ -1,9 +1,8 @@
 # Notices
 
-## Original project: Lime
+## MIT-licensed code
 
-Zest is a Windows port of the macOS app Lime (https://github.com/LumenJSN/Lime),
-used under the following MIT license.
+Portions of this software are adapted from code distributed under the following MIT license.
 
 ```
 MIT License

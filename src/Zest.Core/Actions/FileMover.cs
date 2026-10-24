@@ -8,7 +8,7 @@ namespace Zest.Core.Actions;
 public sealed record MoveResult(IReadOnlyList<string> Moved, IReadOnlyList<string> Failures);
 
 /// <summary>
-/// The 이동 action (original <c>FileActions.move</c>): moves files and folders into a folder. An item already in that
+/// The 이동 action: moves files and folders into a folder. An item already in that
 /// folder is skipped, a folder never goes into itself or its own subfolder, and a name clash gets a number
 /// (<c>a 2.txt</c>, <c>폴더 2</c>). Items are independent: one failure never stops the rest and nothing throws except cancellation.
 /// </summary>

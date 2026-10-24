@@ -33,7 +33,7 @@ public class OcrServiceTests : IDisposable
     public async Task Image_MixedKoreanAndEnglish_KeepsWordsAndLines()
     {
         RequireOcr();
-        var image = FixtureFactory.TextImage(Dir, "mix.png", 40, "Lime 파일 변환 tool", "Quarterly report 2026");
+        var image = FixtureFactory.TextImage(Dir, "mix.png", 40, "Zest 파일 변환 tool", "Quarterly report 2026");
 
         var text = await OcrService.RecognizeAsync(image, Ctx);
 
