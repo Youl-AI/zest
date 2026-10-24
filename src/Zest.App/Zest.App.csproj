@@ -5,6 +5,9 @@
     <RootNamespace>Zest.App</RootNamespace>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Release version: release.ps1 reads it for the zip name. Keep app.manifest's assemblyIdentity (1.0.0.0) in step. -->
+    <Version>1.0.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WPF-UI" />
