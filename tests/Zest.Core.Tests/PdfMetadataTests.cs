@@ -73,6 +73,91 @@ public class PdfMetadataTests : IDisposable
         }
     }
 
+    /// <summary>A one-page PDF whose Info dictionary body is <paramref name="info"/>; <paramref name="extra"/> are more objects (numbered from 6).</summary>
+    string RawPdf(string info, params string[] extra)
+    {
+        var objects = new List<string>
+        {
+            "<</Type/Catalog/Pages 2 0 R>>", "<</Type/Pages/Count 1/Kids[3 0 R]>>",
+            "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>", info, "<</Length 0>>\nstream\n\nendstream",
+        };
+        objects.AddRange(extra);
+        var text = new System.Text.StringBuilder("%PDF-1.4\n");
+        var offsets = new List<int>();
+        for (var i = 0; i < objects.Count; i++)
+        {
+            offsets.Add(text.Length);
+            text.Append($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
+        }
+        var xref = text.Length;
+        text.Append($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
+        foreach (var o in offsets) text.Append($"{o:D10} 00000 n \n");
+        text.Append($"trailer\n<</Size {objects.Count + 1}/Root 1 0 R/Info 4 0 R>>\nstartxref\n{xref}\n%%EOF\n");
+        var path = Path.Combine(Dir, $"raw{Guid.NewGuid():N}.pdf");
+        File.WriteAllBytes(path, System.Text.Encoding.Latin1.GetBytes(text.ToString()));
+        return path;
+    }
+
+    static MetadataEdit SetAuthor(string value) =>
+        new(new Dictionary<string, string> { ["pdf:Author"] = value }, new HashSet<string>(), false, false);
+
+    [Fact]
+    public async Task Read_ShowsDatesInLocalTime()
+    {
+        var src = RawPdf("<</CreationDate(D:20250101120000+09'00')>>");
+
+        var created = Assert.Single(await Read(src), t => t.Id == "pdf:CreationDate");
+
+        var expected = new DateTimeOffset(2025, 1, 1, 12, 0, 0, TimeSpan.FromHours(9)).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+        Assert.Equal(expected, created.Value);
+    }
+
+    [Fact]
+    public async Task Edit_KeepsOriginalDates()
+    {
+        var src = RawPdf("<</CreationDate(D:20250101120000+09'00')/ModDate(D:20250301080000+09'00')/Author(a)>>");
+        var before = await Read(src);
+
+        var after = await Read(await MetadataWriter.ApplyAsync(src, SetAuthor("b"), Ctx));
+
+        foreach (var key in new[] { "pdf:CreationDate", "pdf:ModDate" })
+            Assert.Equal(Assert.Single(before, t => t.Id == key).Value, Assert.Single(after, t => t.Id == key).Value);
+    }
+
+    [Fact]
+    public async Task RemoveAll_DropsCustomInfoKeys()
+    {
+        var src = RawPdf("<</Title(t)/Company(AcmeCorp)/Trapped/False>>");
+
+        var output = await MetadataWriter.ApplyAsync(src, MetadataEdit.Everything, Ctx);
+
+        using var pdf = PdfDocument.Open(output);
+        Assert.False(pdf.Information.DocumentInformationDictionary!.TryGet(UglyToad.PdfPig.Tokens.NameToken.Create("Company"), out _));
+        Assert.False(pdf.Information.DocumentInformationDictionary!.TryGet(UglyToad.PdfPig.Tokens.NameToken.Create("Title"), out _));
+    }
+
+    [Fact]
+    public async Task Edit_KeepsIndirectValues()
+    {
+        var src = RawPdf("<</Title 6 0 R>>", "(Jeju)");
+
+        var tags = await Read(await MetadataWriter.ApplyAsync(src, SetAuthor("b"), Ctx));
+
+        Assert.Equal("Jeju", Assert.Single(tags, t => t.Id == "pdf:Title").Value);
+    }
+
+    [Fact]
+    public async Task NoChangeSave_DoesNotReferencePdfSharpXmp()
+    {
+        var src = Fixture();
+
+        var output = await MetadataWriter.ApplyAsync(src, SetAuthor("홍길동"), Ctx);
+
+        using var pdf = PdfDocument.Open(output);
+        if (pdf.TryGetXmpMetadata(out var xmp)) Assert.DoesNotContain("PDFsharp", xmp.GetXDocument()!.ToString());
+        Assert.Equal("홍길동", Assert.Single(await Read(output), t => t.Id == "pdf:Author").Value);
+    }
+
     [Fact]
     public async Task Encrypted_ThrowsKoreanError_LeavesNothing()
     {

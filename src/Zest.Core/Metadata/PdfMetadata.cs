@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 using Zest.Core.Jobs;
 using Zest.Core.Output;
@@ -43,7 +44,7 @@ internal static class PdfMetadata
         {
             if (info.Elements.GetDateTime("/" + key, DateTime.MinValue) is var date && date == DateTime.MinValue) continue;
             var (group, label) = MetadataLabels.For("pdf", key);
-            rows.Add(new($"pdf:{key}", group, label, date.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), Editable: false, Removable: true));
+            rows.Add(new($"pdf:{key}", group, label, date.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture), Editable: false, Removable: true));
         }
         return rows;
     }
@@ -53,21 +54,21 @@ internal static class PdfMetadata
     public static string Write(string source, MetadataEdit edit, OperationContext ctx)
     {
         ctx.Token.ThrowIfCancellationRequested();
-        using var doc = Open(File.ReadAllBytes(source), PdfDocumentOpenMode.Modify);
+        var bytes = File.ReadAllBytes(source);
+        var entries = InfoEntries(bytes);
+        Apply(entries, edit);
+        using var doc = Open(bytes, PdfDocumentOpenMode.Modify);
         ctx.Report(0.3);
 
-        var entries = InfoEntries(doc);
-        var touched = Apply(entries, edit);
         // PDFsharp writes doc.Info and an XMP stream built from it into the body even though the appended revision replaces
         // them, so they must not keep the old values (they would stay in the file, unreferenced).
-        foreach (var key in TextKeys.Concat(DateKeys))
-        {
-            if (entries.TryGetValue(key, out var value) && value is string text) doc.Info.Elements.SetString("/" + key, text);
-            else doc.Info.Elements.Remove("/" + key);
-        }
-        // The XMP stream repeats the Info; leaving it would show the old values in viewers that prefer it.
-        var dropXmp = edit.RemoveAll || touched;
-        if (dropXmp) doc.Internals.Catalog.Elements.Remove("/Metadata");
+        foreach (var key in doc.Info.Elements.Keys.ToList())
+            if (!entries.ContainsKey(key.TrimStart('/'))) doc.Info.Elements.Remove(key);
+        foreach (var (key, value) in entries)
+            if (value is string text) doc.Info.Elements.SetString("/" + key, text);
+        // The catalog never references an XMP stream: the source's repeats the old Info and PDFsharp's own names PDFsharp.
+        doc.Internals.Catalog.Elements.Remove("/Metadata");
+        const bool dropXmp = true;
 
         byte[] saved;
         using (var stream = new MemoryStream())
@@ -94,20 +95,29 @@ internal static class PdfMetadata
     }
 
     /// <summary>The Info as it is now: text and names by key (without the slash); other value types are not carried.</summary>
-    static Dictionary<string, object> InfoEntries(PdfDocument doc)
+    static Dictionary<string, object> InfoEntries(byte[] bytes)
     {
+        // Read from an Import-mode copy: Modify mode replaces /ModDate with "now" while opening.
+        using var doc = Open(bytes, PdfDocumentOpenMode.Import);
         var entries = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var key in doc.Info.Elements.Keys)
         {
             var name = key.TrimStart('/');
-            switch (doc.Info.Elements[key])
+            var item = doc.Info.Elements[key];
+            if (item is PdfReference reference) item = reference.Value; // indirect values
+            switch (item)
             {
                 case PdfString s: entries[name] = s.Value; break;
+                case PdfStringObject so: entries[name] = so.Value; break;
                 case PdfName n: entries[name] = new NameValue(n.Value); break;
+                case PdfDate d: entries[name] = d.Value.ToString("'D:'yyyyMMddHHmmss", CultureInfo.InvariantCulture) + OffsetOf(d.Value); break;
             }
         }
         return entries;
     }
+
+    static string OffsetOf(DateTime date) => date.Kind == DateTimeKind.Utc ? "Z" : date.Kind == DateTimeKind.Local
+        ? $"{(TimeZoneInfo.Local.GetUtcOffset(date) < TimeSpan.Zero ? '-' : '+')}{Math.Abs(TimeZoneInfo.Local.GetUtcOffset(date).Hours):D2}'{Math.Abs(TimeZoneInfo.Local.GetUtcOffset(date).Minutes):D2}'" : "";
 
     /// <summary>Applies <paramref name="edit"/> to <paramref name="entries"/>; true when a text or date entry changed.</summary>
     static bool Apply(Dictionary<string, object> entries, MetadataEdit edit)
@@ -115,7 +125,7 @@ internal static class PdfMetadata
         var touched = false;
         if (edit.RemoveAll)
         {
-            foreach (var key in TextKeys.Concat(DateKeys)) touched |= entries.Remove(key);
+            foreach (var key in entries.Keys.Where(k => k != "Trapped").ToList()) touched |= entries.Remove(key);
             return touched;
         }
         foreach (var (id, value) in edit.Changed)
