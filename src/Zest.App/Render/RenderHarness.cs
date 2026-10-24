@@ -29,63 +29,72 @@ public static class RenderHarness
     internal const double Scale = 2;
     const double Side = 320;
 
-    public static int Run(string folder)
+    public static int Run(string folder) => Logged(folder, log =>
+    {
+        var backdrop = Backdrop();
+        var white = Plain(Colors.White);
+        var black = Plain(Colors.Black);
+        foreach (var palette in new[] { WheelStyle.LightPalette, WheelStyle.DarkPalette })
+        {
+            var theme = palette.Dark ? "dark" : "light";
+            foreach (var (count, mode, items, highlight) in Sets())
+            {
+                if (items.Count != count) throw new InvalidOperationException($"expected {count} items, catalog gave {items.Count}");
+                var name = $"wheel-{theme}-{ModeName(mode)}-{count}petals";
+                Save(Wheel(backdrop, palette, mode, items, null), folder, $"{name}-plain.png", log);
+                Save(Wheel(backdrop, palette, mode, items, highlight), folder, $"{name}-hl.png", log);
+                // Worst cases for floating petals: a blank white page and a black screen behind the wheel.
+                Save(Wheel(white, palette, mode, items, highlight), folder, $"{name}-on-white.png", log);
+                Save(Wheel(black, palette, mode, items, highlight), folder, $"{name}-on-black.png", log);
+            }
+            Save(Wheel(backdrop, palette, WheelMode.Convert, [], null), folder, $"wheel-{theme}-empty.png", log);
+        }
+
+        foreach (var dark in new[] { false, true })
+        {
+            ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
+            ZestTheme.Apply(dark);
+            var suffix = dark ? "-dark" : "";
+            foreach (var state in new[] { "running", "waiting", "done", "failed", "cancelled" })
+                Save(Cards(state, dark), folder, $"progress-card-{state}{suffix}.png", log);
+            Save(SummaryCard(dark), folder, $"progress-card-summary{suffix}.png", log);
+
+            Save(ToolWindows.ZestWindowSample(dark), folder, $"zest-window{suffix}.png", log);
+            Save(ToolWindows.ZestControlsSample(dark), folder, $"zest-controls{suffix}.png", log);
+            Save(ToolWindows.Compress(dark, SizeGoal.Percentage), folder, $"compress-options{suffix}.png", log);
+            Save(ToolWindows.Compress(dark, SizeGoal.Preset), folder, $"compress-options-preset{suffix}.png", log);
+            Save(ToolWindows.Compress(dark, SizeGoal.FileSize), folder, $"compress-options-target{suffix}.png", log);
+            Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
+            Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
+            Save(ToolWindows.Shelf(dark, list: false), folder, $"shelf{suffix}.png", log);
+            Save(ToolWindows.Shelf(dark, list: true), folder, $"shelf-list{suffix}.png", log);
+            Save(ToolWindows.TextResult(dark, copied: true), folder, $"text-result{suffix}.png", log);
+            Save(ToolWindows.TextResult(dark, copied: false), folder, $"text-result-busy{suffix}.png", log);
+            Save(ToolWindows.TextResult(dark, copied: false, empty: true), folder, $"text-result-empty{suffix}.png", log);
+            Save(ToolWindows.ModelDownload(dark, "ask"), folder, $"model-download{suffix}.png", log);
+            Save(ToolWindows.ModelDownload(dark, "progress"), folder, $"model-download-progress{suffix}.png", log);
+            Save(ToolWindows.ModelDownload(dark, "failed"), folder, $"model-download-failed{suffix}.png", log);
+            Save(ToolWindows.Metadata(dark), folder, $"metadata{suffix}.png", log);
+            Save(ToolWindows.Metadata(dark, locationOff: true), folder, $"metadata-location-off{suffix}.png", log);
+            Save(ToolWindows.Metadata(dark, wipe: true), folder, $"metadata-wipe{suffix}.png", log);
+            Save(ToolWindows.MetadataBatch(dark), folder, $"metadata-batch{suffix}.png", log);
+        }
+
+        Save(TraySheet(), folder, "tray-icons.png", log);
+    });
+
+    /// <summary>
+    /// Creates <paramref name="folder"/>, logs which fonts resolve, runs <paramref name="render"/> and writes
+    /// <c>render.log</c> beside the images; 0 on success, 1 (the exception in the log and on stderr) on failure.
+    /// </summary>
+    static int Logged(string folder, Action<StringBuilder> render)
     {
         var log = new StringBuilder();
         try
         {
             Directory.CreateDirectory(folder);
             LogFonts(log);
-            var backdrop = Backdrop();
-            var white = Plain(Colors.White);
-            var black = Plain(Colors.Black);
-            foreach (var palette in new[] { WheelStyle.LightPalette, WheelStyle.DarkPalette })
-            {
-                var theme = palette.Dark ? "dark" : "light";
-                foreach (var (count, mode, items, highlight) in Sets())
-                {
-                    if (items.Count != count) throw new InvalidOperationException($"expected {count} items, catalog gave {items.Count}");
-                    var name = $"wheel-{theme}-{ModeName(mode)}-{count}petals";
-                    Save(Wheel(backdrop, palette, mode, items, null), folder, $"{name}-plain.png", log);
-                    Save(Wheel(backdrop, palette, mode, items, highlight), folder, $"{name}-hl.png", log);
-                    // Worst cases for floating petals: a blank white page and a black screen behind the wheel.
-                    Save(Wheel(white, palette, mode, items, highlight), folder, $"{name}-on-white.png", log);
-                    Save(Wheel(black, palette, mode, items, highlight), folder, $"{name}-on-black.png", log);
-                }
-                Save(Wheel(backdrop, palette, WheelMode.Convert, [], null), folder, $"wheel-{theme}-empty.png", log);
-            }
-
-            foreach (var dark in new[] { false, true })
-            {
-                ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
-                ZestTheme.Apply(dark);
-                var suffix = dark ? "-dark" : "";
-                foreach (var state in new[] { "running", "waiting", "done", "failed", "cancelled" })
-                    Save(Cards(state, dark), folder, $"progress-card-{state}{suffix}.png", log);
-                Save(SummaryCard(dark), folder, $"progress-card-summary{suffix}.png", log);
-
-                Save(ToolWindows.ZestWindowSample(dark), folder, $"zest-window{suffix}.png", log);
-                Save(ToolWindows.ZestControlsSample(dark), folder, $"zest-controls{suffix}.png", log);
-                Save(ToolWindows.Compress(dark, SizeGoal.Percentage), folder, $"compress-options{suffix}.png", log);
-                Save(ToolWindows.Compress(dark, SizeGoal.Preset), folder, $"compress-options-preset{suffix}.png", log);
-                Save(ToolWindows.Compress(dark, SizeGoal.FileSize), folder, $"compress-options-target{suffix}.png", log);
-                Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
-                Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
-                Save(ToolWindows.Shelf(dark, list: false), folder, $"shelf{suffix}.png", log);
-                Save(ToolWindows.Shelf(dark, list: true), folder, $"shelf-list{suffix}.png", log);
-                Save(ToolWindows.TextResult(dark, copied: true), folder, $"text-result{suffix}.png", log);
-                Save(ToolWindows.TextResult(dark, copied: false), folder, $"text-result-busy{suffix}.png", log);
-                Save(ToolWindows.TextResult(dark, copied: false, empty: true), folder, $"text-result-empty{suffix}.png", log);
-                Save(ToolWindows.ModelDownload(dark, "ask"), folder, $"model-download{suffix}.png", log);
-                Save(ToolWindows.ModelDownload(dark, "progress"), folder, $"model-download-progress{suffix}.png", log);
-                Save(ToolWindows.ModelDownload(dark, "failed"), folder, $"model-download-failed{suffix}.png", log);
-                Save(ToolWindows.Metadata(dark), folder, $"metadata{suffix}.png", log);
-                Save(ToolWindows.Metadata(dark, locationOff: true), folder, $"metadata-location-off{suffix}.png", log);
-                Save(ToolWindows.Metadata(dark, wipe: true), folder, $"metadata-wipe{suffix}.png", log);
-                Save(ToolWindows.MetadataBatch(dark), folder, $"metadata-batch{suffix}.png", log);
-            }
-
-            Save(TraySheet(), folder, "tray-icons.png", log);
+            render(log);
             File.WriteAllText(System.IO.Path.Combine(folder, "render.log"), log.ToString());
             return 0;
         }
@@ -96,6 +105,210 @@ public static class RenderHarness
             Console.Error.WriteLine(ex);
             return 1;
         }
+    }
+
+    // ── README images (--render-readme) ─────────────────────────────────────
+
+    /// <summary>The README's hero line, broken after the comma so it sits in the hero's left half.</summary>
+    const string Tagline = "파일을 끌다가 키를 한 번 탭하면,\n그 자리에서 변환 · 도구 · 액션";
+
+    const double HeroWidth = 1280, HeroHeight = 640, PopupsWidth = 1280, PopupsHeight = 800;
+    /// <summary>The wheel images: one 320 px wheel over its backdrop, drawn at twice its size.</summary>
+    const double ReadmeWheelZoom = 2;
+    /// <summary>The hero's wheel: 560 of the 640 px right half, so the backdrop reads as a framed screenshot.</summary>
+    const double HeroWheelZoom = 1.75;
+
+    /// <summary>
+    /// <c>Zest.exe --render-readme &lt;folder&gt;</c>: the eleven images of the README, each theme's set drawn after that
+    /// theme is applied, from the real wheel, cards and windows. The wheels sit over the Explorer backdrop in the theme's
+    /// Explorer colours, so a dark image has no light box in it.
+    /// </summary>
+    public static int RunReadme(string folder) => Logged(folder, log =>
+    {
+        LogHeroFonts(log);
+        foreach (var dark in new[] { false, true })
+        {
+            ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
+            ZestTheme.Apply(dark);
+            var theme = dark ? "dark" : "light";
+            var palette = WheelStyle.Palette(dark);
+
+            Save(Hero(palette, chips: true), folder, $"hero-{theme}.png", log);
+            if (!dark) Save(Hero(palette, chips: false), folder, "social-preview.png", log);
+            foreach (var mode in new[] { WheelMode.Convert, WheelMode.Tools, WheelMode.Actions })
+            {
+                var (items, highlight) = PhotoWheel(mode);
+                Save(Wheel(Backdrop(dark, ReadmeWheelZoom), palette, mode, items, highlight, ReadmeWheelZoom), folder, $"wheel-{ModeName(mode)}-{theme}.png", log);
+            }
+            Save(Popups(dark), folder, $"popups-{theme}.png", log);
+        }
+    });
+
+    /// <summary>
+    /// The wheel for photo.png in <paramref name="mode"/>, every capability on, with the README's item highlighted:
+    /// JPG (convert), 메타데이터 (tools) or 선반 (actions).
+    /// </summary>
+    static (IReadOnlyList<WheelItem> Items, int Highlight) PhotoWheel(WheelMode mode)
+    {
+        var items = WheelCatalog.Items(["photo.png"], mode, Capabilities.All);
+        var highlight = items.ToList().FindIndex(item => item.Operation switch
+        {
+            ConvertOp c => string.Equals(c.Target, "jpg", StringComparison.OrdinalIgnoreCase),
+            ToolOp t => t.Tool == ZestTool.Metadata,
+            ActionOp a => a.Action == DropAction.Shelf,
+            _ => false,
+        });
+        if (highlight < 0) throw new InvalidOperationException($"the {ModeName(mode)} wheel for photo.png has no README item");
+        return (items, highlight);
+    }
+
+    /// <summary>
+    /// The README hero: "Zest", the tagline and (unless <paramref name="chips"/> is false, as on the social preview) the three
+    /// key chips on the left; the convert wheel with JPG highlighted over the backdrop on the right, on the window colour.
+    /// </summary>
+    static FrameworkElement Hero(WheelPalette palette, bool chips)
+    {
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(88, 0, 0, 12) };
+        text.Children.Add(new TextBlock
+        {
+            Text = "Zest",
+            FontFamily = WheelStyle.FormatFont,
+            FontWeight = FontWeights.Bold,
+            FontSize = 96,
+            Foreground = ZestTheme.Brush("Zest.Text"),
+            Margin = new Thickness(-4, 0, 0, 0), // the Z's side bearing, so the word lines up with the text under it
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = Tagline,
+            FontFamily = WheelStyle.KoreanFont,
+            FontWeight = WheelStyle.LabelWeight,
+            FontSize = 22,
+            LineHeight = 34,
+            Foreground = ZestTheme.Brush("Zest.Text2"),
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+        if (chips)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 32, 0, 0) };
+            foreach (var mode in new[] { WheelMode.Convert, WheelMode.Tools, WheelMode.Actions })
+                row.Children.Add(KeyChip(mode, palette.Dark));
+            text.Children.Add(row);
+        }
+
+        var (items, highlight) = PhotoWheel(WheelMode.Convert);
+        var side = Side * HeroWheelZoom;
+        // Clipped on a wrapper: a clip on the zoomed wheel itself is in its unzoomed units.
+        var shot = new Border
+        {
+            Child = Wheel(Backdrop(palette.Dark, HeroWheelZoom), palette, WheelMode.Convert, items, highlight, HeroWheelZoom),
+            Clip = new RectangleGeometry(new Rect(0, 0, side, side), 16, 16),
+        };
+        var shadow = new Border { CornerRadius = new CornerRadius(16), Background = ZestTheme.Brush("Zest.Window") };
+        CardShadow.Attach(shadow);
+        var edge = new Border { CornerRadius = new CornerRadius(16), BorderThickness = new Thickness(1), BorderBrush = ZestTheme.Brush("Zest.Line") };
+        var screenshot = new Grid
+        {
+            Width = side,
+            Height = side,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, (HeroHeight - side) / 2, 0),
+            Children = { shadow, shot, edge },
+        };
+
+        var hero = new Grid
+        {
+            Width = HeroWidth,
+            Height = HeroHeight,
+            Background = ZestTheme.Brush("Zest.Window"),
+            ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition() },
+        };
+        AsOnHighDpiScreen(hero);
+        hero.Children.Add(text);
+        Grid.SetColumn(screenshot, 1);
+        hero.Children.Add(screenshot);
+        return hero;
+    }
+
+    /// <summary>One modifier key as the wheel's hub chip shows it: the mode's ink on its wash, fully round.</summary>
+    static Border KeyChip(WheelMode mode, bool dark)
+    {
+        var citrus = WheelStyle.Accent(mode);
+        return new Border
+        {
+            Background = new SolidColorBrush(WheelStyle.ToColor(citrus.Wash(dark))),
+            CornerRadius = new CornerRadius(20),
+            Padding = new Thickness(16, 7, 16, 8),
+            Margin = new Thickness(0, 0, 10, 0),
+            Child = new TextBlock
+            {
+                Text = WheelStyle.ModeChip(mode),
+                FontFamily = WheelStyle.ChipFont,
+                FontWeight = WheelStyle.FormatWeight,
+                FontSize = 18,
+                Foreground = new SolidColorBrush(WheelStyle.ToColor(citrus.Ink(dark))),
+            },
+        };
+    }
+
+    /// <summary>
+    /// The popups: a progress card stack (a running and a finished conversion, a running tool), the compress window and the
+    /// shelf side by side on the stage colour (<c>Zest.Sunken</c> on light, the window colour on dark). The helpers draw each
+    /// on the review renders' desktop colour; here that background is cleared so the stage shows behind every shadow.
+    /// </summary>
+    static FrameworkElement Popups(bool dark)
+    {
+        // The cards keep 14 px of shadow room a side, the windows about twice that: 20 more on the right evens out the gaps.
+        var cards = new StackPanel { Margin = new Thickness(0, 14, 20, 4) };
+        var converting = new ProgressCard("PNG 변환", "사진.jpg", JobKind.Convert, () => { });
+        converting.SetProgress(0.42);
+        var converted = new ProgressCard("JPG 변환", "스크린샷.png", JobKind.Convert, () => { });
+        converted.ShowDone([@"C:\Users\me\Pictures\스크린샷.jpg"]);
+        var compressing = new ProgressCard("압축", "제주 바다.jpg", JobKind.Tool, () => { });
+        compressing.SetProgress(0.7);
+        cards.Children.Add(converting);
+        cards.Children.Add(converted);
+        cards.Children.Add(compressing);
+        AsOnHighDpiScreen(cards);
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        foreach (var popup in new[] { cards, Unstaged(ToolWindows.Compress(dark, SizeGoal.Percentage)), Unstaged(ToolWindows.Shelf(dark, list: false)) })
+        {
+            popup.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(popup);
+        }
+
+        return new Grid
+        {
+            Width = PopupsWidth,
+            Height = PopupsHeight,
+            Background = ZestTheme.Brush(dark ? "Zest.Window" : "Zest.Sunken"),
+            Children = { row },
+        };
+    }
+
+    /// <summary>Clears the plain desktop colour a review render is laid on, leaving the popup and its shadow.</summary>
+    static FrameworkElement Unstaged(FrameworkElement render)
+    {
+        switch (render)
+        {
+            case Border border: border.Background = null; break;
+            case Panel panel: panel.Background = null; break;
+        }
+        return render;
+    }
+
+    /// <summary>Logs the typefaces the hero's own text resolves to: the title's Latin face and the tagline's Pretendard.</summary>
+    static void LogHeroFonts(StringBuilder log)
+    {
+        LogFont(log, "hero-title", WheelStyle.FormatFont, FontWeights.Bold, 'Z');
+        LogFont(log, "hero-tagline", WheelStyle.KoreanFont, WheelStyle.LabelWeight, '탭');
     }
 
     /// <summary>
@@ -123,7 +336,11 @@ public static class RenderHarness
         _ => "actions",
     };
 
-    static FrameworkElement Wheel(BitmapSource backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
+    /// <summary>
+    /// The wheel over <paramref name="backdrop"/>; a <paramref name="zoom"/> above 1 enlarges both (the wheel as vectors,
+    /// so the backdrop must have been drawn at the same zoom to stay sharp).
+    /// </summary>
+    static FrameworkElement Wheel(BitmapSource backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight, double zoom = 1)
     {
         var view = new WheelView { Animate = false, Palette = palette, Mode = mode };
         AsOnHighDpiScreen(view);
@@ -132,15 +349,20 @@ public static class RenderHarness
         view.Highlight(highlight);
 
         var root = new Grid { Width = Side, Height = Side };
+        if (zoom != 1) root.LayoutTransform = new ScaleTransform(zoom, zoom);
         root.Children.Add(new Image { Source = backdrop, Width = Side, Height = Side, Stretch = Stretch.Fill });
         root.Children.Add(view);
         return root;
     }
 
-    /// <summary>Stand-in for the screen behind the wheel, rendered at 2x like a real capture on a 200 % display.</summary>
-    static BitmapSource Backdrop()
+    /// <summary>
+    /// Stand-in for the screen behind the wheel, rendered at 2x like a real capture on a 200 % display: a file list (white,
+    /// or Explorer's dark list when <paramref name="dark"/>) half covered by a dark-green window. <paramref name="zoom"/>
+    /// draws it that many times larger, for a wheel enlarged by the same factor.
+    /// </summary>
+    static BitmapSource Backdrop(bool dark = false, double zoom = 1)
     {
-        var canvas = new Canvas { Width = Side, Height = Side, Background = Brushes.White };
+        var canvas = new Canvas { Width = Side, Height = Side, Background = dark ? new SolidColorBrush(Color.FromRgb(0x19, 0x19, 0x19)) : Brushes.White };
         for (var i = 0; i < 23; i++)
         {
             var line = new TextBlock
@@ -148,7 +370,7 @@ public static class RenderHarness
                 Text = $"Report final v{29 + i}.docx",
                 FontFamily = new FontFamily("Segoe UI"),
                 FontSize = 14,
-                Foreground = Brushes.Black,
+                Foreground = dark ? Brushes.White : Brushes.Black,
             };
             Canvas.SetLeft(line, 96);
             Canvas.SetTop(line, -8 + i * 15);
@@ -168,7 +390,10 @@ public static class RenderHarness
                 0),
         });
         canvas.Children.Add(panel);
-        return Snapshot(canvas, Side, Side);
+        if (zoom == 1) return Snapshot(canvas, Side, Side);
+        canvas.LayoutTransform = new ScaleTransform(zoom, zoom);
+        AsOnHighDpiScreen(canvas); // Display text is hinted to 96 DPI pixels, which the zoom would then stretch
+        return Snapshot(canvas, Side * zoom, Side * zoom);
     }
 
     static BitmapSource Plain(Color color) =>
@@ -300,16 +525,17 @@ public static class RenderHarness
     /// <summary>Which font files the wheel's typefaces actually resolve to (a missing font falls back silently in WPF).</summary>
     static void LogFonts(StringBuilder log)
     {
-        void Check(string name, FontFamily family, FontWeight weight, char probe)
-        {
-            var typeface = new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal);
-            if (typeface.TryGetGlyphTypeface(out var glyphs))
-                log.AppendLine(CultureInfo.InvariantCulture, $"{name}: {glyphs.FontUri} weight={glyphs.Weight} has '{probe}'={glyphs.CharacterToGlyphMap.ContainsKey(probe)}");
-            else
-                log.AppendLine($"{name}: NOT RESOLVED");
-        }
-        Check("format", WheelStyle.FormatFont, WheelStyle.LabelWeight, 'W');
-        Check("korean", WheelStyle.KoreanFont, WheelStyle.LabelWeight, '압');
-        Check("icons", WheelStyle.IconFont, FontWeights.Normal, '\uE7A8');
+        LogFont(log, "format", WheelStyle.FormatFont, WheelStyle.LabelWeight, 'W');
+        LogFont(log, "korean", WheelStyle.KoreanFont, WheelStyle.LabelWeight, '압');
+        LogFont(log, "icons", WheelStyle.IconFont, FontWeights.Normal, '\uE7A8');
+    }
+
+    static void LogFont(StringBuilder log, string name, FontFamily family, FontWeight weight, char probe)
+    {
+        var typeface = new Typeface(family, FontStyles.Normal, weight, FontStretches.Normal);
+        if (typeface.TryGetGlyphTypeface(out var glyphs))
+            log.AppendLine(CultureInfo.InvariantCulture, $"{name}: {glyphs.FontUri} weight={glyphs.Weight} has '{probe}'={glyphs.CharacterToGlyphMap.ContainsKey(probe)}");
+        else
+            log.AppendLine($"{name}: NOT RESOLVED");
     }
 }

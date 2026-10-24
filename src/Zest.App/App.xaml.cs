@@ -47,6 +47,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args is ["--render-readme", var readmeFolder, ..])
+        {
+            // README images only: no mutex, tray, hooks, windows or migration.
+            Shutdown(RenderHarness.RunReadme(readmeFolder));
+            return;
+        }
+
         if (Mutex.TryOpenExisting(LegacyInstanceName, out var legacy))
         {
             legacy.Dispose();
