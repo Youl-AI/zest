@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="PDFtoImage" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="ReverseMarkdown" />
+    <PackageReference Include="Microsoft.Windows.AI.MachineLearning" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Zest.Core.Tests" />
+  </ItemGroup>
+</Project>

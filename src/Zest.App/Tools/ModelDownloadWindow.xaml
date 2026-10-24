@@ -1,0 +1,63 @@
+<ui:FluentWindow x:Class="Zest.App.Tools.ModelDownloadWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:wheel="clr-namespace:Zest.App.Wheel"
+                 Title="배경 제거" Width="420" SizeToContent="Height" ResizeMode="NoResize"
+                 MinWidth="0" MinHeight="0"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowStartupLocation="Manual">
+    <ui:FluentWindow.Resources>
+        <ResourceDictionary Source="ToolStyles.xaml" />
+    </ui:FluentWindow.Resources>
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" Title="배경 제거" ShowMinimize="False" ShowMaximize="False"
+                     Padding="24,0,0,0" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+        <Grid Grid.Row="1" Margin="24,8,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- 0 headline -->
+                <RowDefinition Height="Auto" /> <!-- 1 explanation -->
+                <RowDefinition Height="Auto" /> <!-- 2 divider -->
+                <RowDefinition Height="Auto" /> <!-- 3 progress -->
+                <RowDefinition Height="Auto" /> <!-- 4 error + buttons -->
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="배경 제거 모델이 필요합니다" FontSize="15" FontWeight="SemiBold" Style="{StaticResource Label}" />
+            <!-- Explicit line breaks: WPF wraps Korean mid-word. -->
+            <TextBlock Grid.Row="1" Margin="0,8,0,0" LineHeight="20" Style="{StaticResource SecondaryLabel}">
+                처음 한 번만 약 973MB를 내려받습니다.<LineBreak />사진은 이 컴퓨터 안에서만 처리합니다.
+            </TextBlock>
+
+            <Border Grid.Row="2" Margin="0,16,0,16" Style="{StaticResource Divider}" />
+
+            <StackPanel x:Name="ProgressPanel" Grid.Row="3" Margin="0,0,0,16" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="PhaseText" Style="{StaticResource Label}" />
+                    <TextBlock x:Name="AmountText" Grid.Column="1" Style="{StaticResource Number}" />
+                </Grid>
+                <ProgressBar x:Name="LoadBar" Margin="0,8,0,0" Height="4" Minimum="0" Maximum="1" IsIndeterminate="True" />
+            </StackPanel>
+
+            <Grid Grid.Row="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ErrorText" Margin="0,0,16,0" Style="{StaticResource ErrorText}" />
+                <ui:Button x:Name="CancelButton" Grid.Column="1" Margin="0,0,8,0" MinWidth="72" Padding="16,6" IsCancel="True"
+                           Content="취소" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
+                <ui:Button x:Name="DownloadButton" Grid.Column="2" MinWidth="96" Padding="16,6" Appearance="Primary" IsDefault="True"
+                           Content="내려받기" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

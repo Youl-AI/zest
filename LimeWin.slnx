@@ -1,9 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/LimeWin.App/LimeWin.App.csproj" />
-    <Project Path="src/LimeWin.Core/LimeWin.Core.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/LimeWin.Core.Tests/LimeWin.Core.Tests.csproj" />
-  </Folder>
-</Solution>

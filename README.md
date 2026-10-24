@@ -37,12 +37,12 @@
 
 ```powershell
 ./build.ps1
-dist\LimeWin.App.exe
+dist\Zest.exe
 ```
 
-`build.ps1`은 `dist`를 비우고 `dotnet publish src/LimeWin.App -c Release -r win-x64 --self-contained false -o dist`로 배포한 뒤, 디버그 기호(`.pdb`)와 쓰지 않는 `DirectML.dll`을 지웁니다(약 110 MB). 앱을 실행하면 트레이 아이콘이 생깁니다.
+`build.ps1`은 `dist`를 비우고 `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`로 배포한 뒤, 디버그 기호(`.pdb`)와 쓰지 않는 `DirectML.dll`을 지웁니다(약 110 MB). 앱을 실행하면 트레이 아이콘이 생깁니다.
 
-테스트: `dotnet test --project tests/LimeWin.Core.Tests`
+테스트: `dotnet test --project tests/Zest.Core.Tests`
 
 ## 트레이 메뉴
 

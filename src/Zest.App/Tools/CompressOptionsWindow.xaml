@@ -1,0 +1,102 @@
+<ui:FluentWindow x:Class="Zest.App.Tools.CompressOptionsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:wheel="clr-namespace:Zest.App.Wheel"
+                 Title="압축" Width="400" SizeToContent="Height" ResizeMode="NoResize"
+                 MinWidth="0" MinHeight="0"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowStartupLocation="Manual">
+    <ui:FluentWindow.Resources>
+        <ResourceDictionary Source="ToolStyles.xaml" />
+    </ui:FluentWindow.Resources>
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="Bar" Title="압축" ShowMinimize="False" ShowMaximize="False"
+                     Padding="24,0,0,0" ButtonsForeground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+        <Grid Grid.Row="1" Margin="24,8,24,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="200" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- 0 file name -->
+                <RowDefinition Height="Auto" /> <!-- 1 original size -->
+                <RowDefinition Height="Auto" /> <!-- 2 divider -->
+                <RowDefinition Height="48" />   <!-- 3 preset -->
+                <RowDefinition Height="48" />   <!-- 4 target size -->
+                <RowDefinition Height="48" />   <!-- 5 percentage -->
+                <RowDefinition Height="Auto" /> <!-- 6 estimate -->
+                <RowDefinition Height="Auto" /> <!-- 7 divider -->
+                <RowDefinition Height="48" />   <!-- 8 max size -->
+                <RowDefinition Height="Auto" /> <!-- 9 divider -->
+                <RowDefinition Height="Auto" /> <!-- 10 error + button -->
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="FileNameText" Grid.ColumnSpan="2" Style="{StaticResource Detail}" />
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" FontSize="15" Style="{StaticResource Label}">
+                <Run x:Name="SizeCaption" Text="원본 크기" /><Run Text="  " /><Run x:Name="SizeValue" FontFamily="{x:Static wheel:WheelStyle.TextFont}" FontWeight="SemiBold" />
+            </TextBlock>
+
+            <Border Grid.Row="2" Grid.ColumnSpan="2" Margin="0,16,0,8" Style="{StaticResource Divider}" />
+
+            <RadioButton x:Name="PresetRadio" Grid.Row="3" GroupName="Goal" VerticalAlignment="Center">
+                <TextBlock Text="프리셋" Style="{StaticResource Label}" />
+            </RadioButton>
+            <ComboBox x:Name="LevelBox" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center">
+                <ComboBoxItem Content="약하게" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
+                <ComboBoxItem Content="세게" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
+            </ComboBox>
+
+            <RadioButton x:Name="TargetRadio" Grid.Row="4" GroupName="Goal" VerticalAlignment="Center">
+                <TextBlock Text="목표 크기" Style="{StaticResource Label}" />
+            </RadioButton>
+            <Grid Grid.Row="4" Grid.Column="1" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="80" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TargetBox" Style="{StaticResource NumberBox}" />
+                <ComboBox x:Name="UnitBox" Grid.Column="2" FontFamily="Segoe UI Variable Text">
+                    <ComboBoxItem Content="KB" />
+                    <ComboBoxItem Content="MB" />
+                </ComboBox>
+            </Grid>
+
+            <RadioButton x:Name="PercentRadio" Grid.Row="5" GroupName="Goal" VerticalAlignment="Center">
+                <TextBlock Text="비율" Style="{StaticResource Label}" />
+            </RadioButton>
+            <Grid Grid.Row="5" Grid.Column="1" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="48" />
+                </Grid.ColumnDefinitions>
+                <Slider x:Name="PercentSlider" Minimum="1" Maximum="99" SmallChange="1" LargeChange="10"
+                        IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" />
+                <TextBlock x:Name="PercentText" Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource Number}" />
+            </Grid>
+            <TextBlock x:Name="EstimateText" Grid.Row="6" Grid.Column="1" Margin="0,0,0,8" Style="{StaticResource SecondaryLabel}" />
+
+            <Border Grid.Row="7" Grid.ColumnSpan="2" Margin="0,8,0,8" Style="{StaticResource Divider}" />
+
+            <TextBlock Grid.Row="8" Text="최대 크기" Style="{StaticResource Label}" />
+            <ComboBox x:Name="CapBox" Grid.Row="8" Grid.Column="1" VerticalAlignment="Center" />
+
+            <Border Grid.Row="9" Grid.ColumnSpan="2" Margin="0,8,0,16" Style="{StaticResource Divider}" />
+
+            <Grid Grid.Row="10" Grid.ColumnSpan="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ErrorText" Margin="0,0,16,0" Style="{StaticResource ErrorText}" />
+                <ui:Button x:Name="CompressButton" Grid.Column="1" Appearance="Primary" IsDefault="True"
+                           MinWidth="96" Padding="16,6" Content="압축" FontFamily="{x:Static wheel:WheelStyle.KoreanFont}" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

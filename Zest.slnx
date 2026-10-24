@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Zest.App/Zest.App.csproj" />
+    <Project Path="src/Zest.Core/Zest.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Zest.Core.Tests/Zest.Core.Tests.csproj" />
+  </Folder>
+</Solution>
