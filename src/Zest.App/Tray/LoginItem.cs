@@ -2,11 +2,11 @@ using Microsoft.Win32;
 
 namespace Zest.App.Tray;
 
-/// <summary>"Run at Windows sign-in" via HKCU\Software\Microsoft\Windows\CurrentVersion\Run\LimeWin.</summary>
+/// <summary>"Run at Windows sign-in" via HKCU\Software\Microsoft\Windows\CurrentVersion\Run\Zest.</summary>
 public static class LoginItem
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    const string ValueName = "LimeWin";
+    const string ValueName = "Zest";
 
     static string Command => $"\"{Environment.ProcessPath}\"";
 

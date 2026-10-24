@@ -12,7 +12,7 @@ public class ToolRunnerTests : IDisposable
     [InlineData(typeof(IOException))]
     [InlineData(typeof(UnauthorizedAccessException))]
     [InlineData(typeof(DirectoryNotFoundException))]
-    public async Task IoFailure_BecomesLimeException_AfterCleanup(Type exceptionType)
+    public async Task IoFailure_BecomesZestException_AfterCleanup(Type exceptionType)
     {
         var ctx = new OperationContext(CancellationToken.None);
         var path = TestFiles.Touch(Dir, "결과.txt");

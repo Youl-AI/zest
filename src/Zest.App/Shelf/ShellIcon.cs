@@ -25,7 +25,7 @@ internal static class ShellIcon
                 catch (Exception) { /* one unreadable item must not stop the others */ }
             }
         })
-        { IsBackground = true, Name = "Lime shell icons" };
+        { IsBackground = true, Name = "Zest shell icons" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return thread;

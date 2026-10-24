@@ -1,6 +1,6 @@
 namespace Zest.Core.Office;
 
-/// <summary>Word <c>WdSaveFormat</c> values Lime saves with.</summary>
+/// <summary>Word <c>WdSaveFormat</c> values Zest saves with.</summary>
 public static class WordFormat
 {
     public const int Doc97 = 0;        // wdFormatDocument97 (test fixtures only)
@@ -26,7 +26,7 @@ public static class WordConst
     public const int PasswordIncorrectError = 0x1520;
 }
 
-/// <summary>PowerPoint <c>PpSaveAsFileType</c> values Lime saves with.</summary>
+/// <summary>PowerPoint <c>PpSaveAsFileType</c> values Zest saves with.</summary>
 public static class PowerPointFormat
 {
     public const int Ppt = 1;    // ppSaveAsPresentation (test fixtures only)
@@ -50,7 +50,7 @@ public static class PowerPointConst
     public const int PasswordIncorrectHResult = unchecked((int)0x80004005);
 }
 
-/// <summary>Excel <c>XlFileFormat</c> values Lime saves with.</summary>
+/// <summary>Excel <c>XlFileFormat</c> values Zest saves with.</summary>
 public static class ExcelFormat
 {
     public const int UnicodeText = 42; // xlUnicodeText (UTF-16, tab separated; rewritten as UTF-8)

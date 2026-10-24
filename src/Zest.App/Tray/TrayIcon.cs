@@ -37,7 +37,7 @@ public sealed class TrayIcon : IDisposable
         _lightTaskbar = TrayIconArt.LightTaskbar();
         _icon = new TaskbarIcon
         {
-            ToolTipText = "Lime",
+            ToolTipText = "Zest",
             Icon = TrayIconArt.Icon(_lightTaskbar),
             ContextMenu = menu,
         };
@@ -60,7 +60,7 @@ public sealed class TrayIcon : IDisposable
     public void SetWheelChecked(bool on) => _wheel.IsChecked = on;
 
     /// <summary>A short notification balloon from the tray icon.</summary>
-    public void Notify(string message) => _icon.ShowNotification("Lime", message);
+    public void Notify(string message) => _icon.ShowNotification("Zest", message);
 
     void ShowLicenses()
     {

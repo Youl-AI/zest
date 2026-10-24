@@ -17,9 +17,9 @@ namespace Zest.App;
 
 public partial class App : Application
 {
-    const string SingleInstanceName = @"Local\LimeWin.SingleInstance";
+    const string SingleInstanceName = @"Local\Zest.SingleInstance";
     const string HooksFailed = "키 감지를 켜지 못했습니다.";
-    const string UnexpectedError = "예기치 않은 오류가 발생했지만 Lime은 계속 실행됩니다.";
+    const string UnexpectedError = "예기치 않은 오류가 발생했지만 Zest는 계속 실행됩니다.";
     static readonly TimeSpan HookHealthInterval = TimeSpan.FromSeconds(5);
 
     Mutex? _singleInstance;
@@ -58,7 +58,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             // Without this the process would linger invisibly, holding the mutex so every relaunch exits silently.
-            MessageBox.Show($"Lime을 시작하지 못했습니다: {ex.Message}", "Lime", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Zest를 시작하지 못했습니다: {ex.Message}", "Zest", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(); // OnExit cleans up what was built and releases the mutex
             return;
         }
@@ -74,7 +74,7 @@ public partial class App : Application
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         Services.Start();
-        // Work folders a crashed or killed run left in %TEMP%\LimeWin; best effort, off the UI thread.
+        // Work folders a crashed or killed run left in %TEMP%\Zest; best effort, off the UI thread.
         _ = Task.Run(() =>
         {
             try { OfficeWorkFolder.SweepStale(); }
@@ -118,7 +118,7 @@ public partial class App : Application
             }
             finally
             {
-                // Released on every exit path, even if cleanup above throws, and before the waits below, so a new Lime
+                // Released on every exit path, even if cleanup above throws, and before the waits below, so a new Zest
                 // can start while this one is still finishing its jobs and releasing Office.
                 if (_singleInstance is not null)
                 {

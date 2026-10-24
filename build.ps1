@@ -1,4 +1,4 @@
-﻿# Lime for Windows 배포 빌드: dist\Zest.exe 를 만든다.
+﻿# Zest 배포 빌드: dist\Zest.exe 를 만든다.
 # 사용법: ./build.ps1   (필요: .NET 10 SDK)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
@@ -10,7 +10,7 @@ dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish 실패 (종료 코드 $LASTEXITCODE)" }
 
 # 쓰지 않는 파일 정리.
-# DirectML.dll: Lime은 DirectML을 요청하지 않는다(docs/decisions.md Task 16). Microsoft는 Windows ML
+# DirectML.dll: Zest는 DirectML을 요청하지 않는다(docs/decisions.md Task 16). Microsoft는 Windows ML
 # self-contained 배포에서 이 파일 제거를 "공식 지원"하지 않는다고 밝히므로, 배포 후 단계에서만 지운다.
 Get-ChildItem $dist -Recurse -Include 'DirectML.dll', '*.pdb' | Remove-Item -Force
 

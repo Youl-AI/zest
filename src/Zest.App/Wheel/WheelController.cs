@@ -40,7 +40,7 @@ public sealed class WheelController
         _caps = caps;
         _wheelWindow = new Window
         {
-            Title = "Lime Wheel",
+            Title = "Zest Wheel",
             WindowStyle = WindowStyle.None,
             ResizeMode = ResizeMode.NoResize,
             AllowsTransparency = true,

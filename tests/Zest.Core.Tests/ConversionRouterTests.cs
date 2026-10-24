@@ -25,7 +25,7 @@ public class ConversionRouterTests : IDisposable
     }
 
     [Fact]
-    public async Task NoConverter_ThrowsLimeException()
+    public async Task NoConverter_ThrowsZestException()
     {
         var src = FixtureFactory.Image(Dir, "a.png");
         var ex = await Assert.ThrowsAsync<ZestException>(() => new ConversionRouter([]).ConvertAsync(src, "jpg", Ctx));
@@ -33,7 +33,7 @@ public class ConversionRouterTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadOnlyFolder_ThrowsLimeException_AndLeavesNoFile()
+    public async Task ReadOnlyFolder_ThrowsZestException_AndLeavesNoFile()
     {
         var src = FixtureFactory.Image(Dir, "a.png");
         var fake = new FakeConverter((s, c) => Task.FromResult<IReadOnlyList<string>>([]));
@@ -93,7 +93,7 @@ public class ConversionRouterTests : IDisposable
     [InlineData(typeof(IOException))]
     [InlineData(typeof(UnauthorizedAccessException))]
     [InlineData(typeof(DirectoryNotFoundException))]
-    public async Task IoFailure_BecomesKoreanLimeException_AfterCleanup(Type exceptionType)
+    public async Task IoFailure_BecomesKoreanZestException_AfterCleanup(Type exceptionType)
     {
         var src = FixtureFactory.Image(Dir, "a.png");
         var converter = new FakeConverter((s, c) =>

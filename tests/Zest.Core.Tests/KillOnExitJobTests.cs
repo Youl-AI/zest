@@ -32,7 +32,7 @@ public class KillOnExitJobTests
         using var proc = StartStandIn().Proc;
         var job = KillOnExitJob.TryCreate(proc);
         Assert.NotNull(job);
-        job.Dispose(); // what Windows does when Lime dies
+        job.Dispose(); // what Windows does when Zest dies
         Assert.True(proc.WaitForExit(TimeSpan.FromSeconds(5)));
     }
 

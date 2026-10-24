@@ -20,7 +20,7 @@ public class ModelStoreTests : IDisposable
     public void ModelPath_IsTheBiRefNetMattingFileUnderLocalAppData()
     {
         var expected = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LimeWin", "models", "BiRefNet-matting-epoch_100.onnx");
+            "Zest", "models", "BiRefNet-matting-epoch_100.onnx");
         Assert.Equal(expected, ModelStore.ModelPath);
         Assert.Equal(972_667_742, ModelStore.ExpectedBytes);
         Assert.Equal("6065d27c615ea27308f5b88598dd8db116eb07436c7a323ca40d13b2866c309e", ModelStore.Sha256);

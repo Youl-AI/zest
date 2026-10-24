@@ -76,7 +76,7 @@ public class ImageConverterTests : IDisposable
     }
 
     [Fact]
-    public async Task CorruptJpg_ThrowsLimeException_AndLeavesNoFile()
+    public async Task CorruptJpg_ThrowsZestException_AndLeavesNoFile()
     {
         var src = Path.Combine(Dir, "깨짐.jpg");
         File.WriteAllBytes(src, [1, 2, 3]);
@@ -88,7 +88,7 @@ public class ImageConverterTests : IDisposable
     [Theory]
     [InlineData("png")]
     [InlineData("jpg")]
-    public async Task ZeroByteImage_ThrowsLimeException_AndLeavesNoFile(string ext)
+    public async Task ZeroByteImage_ThrowsZestException_AndLeavesNoFile(string ext)
     {
         var src = Path.Combine(Dir, $"빈.{ext}");
         File.WriteAllBytes(src, []);

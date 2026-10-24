@@ -34,7 +34,7 @@ public sealed class ProgressCardHost
         _root.Children.Add(_summary);
         _window = new Window
         {
-            Title = "Lime Progress",
+            Title = "Zest Progress",
             WindowStyle = WindowStyle.None,
             ResizeMode = ResizeMode.NoResize,
             AllowsTransparency = true,

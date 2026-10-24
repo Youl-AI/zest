@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Zest.Core.Office;
 
 /// <summary>
-/// A Win32 job object holding one Office process we launched, with kill-on-close: if Lime (or a test run) dies without
+/// A Win32 job object holding one Office process we launched, with kill-on-close: if Zest (or a test run) dies without
 /// cleaning up, even by being killed, Windows closes the handle and the hidden Office goes with it.
 /// <see cref="Release"/> clears kill-on-close first, for an instance we leave running on purpose (documents still open).
 /// </summary>

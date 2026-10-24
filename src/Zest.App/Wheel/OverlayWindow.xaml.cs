@@ -66,7 +66,7 @@ public partial class OverlayWindow : Window
 
     void OnDragEnter(object sender, DragEventArgs e)
     {
-        // Copy is the only effect Lime ever answers; a source that does not offer it (move-only) is refused.
+        // Copy is the only effect Zest ever answers; a source that does not offer it (move-only) is refused.
         if (e.AllowedEffects.HasFlag(DragDropEffects.Copy)
             && e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0
             && DropSourcePolicy.IsRealUserFiles(files, Path.GetTempPath()))

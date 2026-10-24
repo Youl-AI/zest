@@ -59,7 +59,7 @@ public sealed class FfmpegConverter(string ffmpegPath) : IConverter
         using var process = new Process { StartInfo = psi };
         try { process.Start(); }
         catch (System.ComponentModel.Win32Exception) { throw new ZestException("변환 실패: ffmpeg를 실행할 수 없습니다."); }
-        using var tiedToUs = Office.KillOnExitJob.TryCreate(process); // if Lime dies, ffmpeg goes with it
+        using var tiedToUs = Office.KillOnExitJob.TryCreate(process); // if Zest dies, ffmpeg goes with it
 
         // Cancel kills the whole tree; we then wait for exit so the output file is unlocked before the router deletes it.
         using var killOnCancel = ctx.Token.Register(() =>

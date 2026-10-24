@@ -6,7 +6,7 @@ namespace Zest.Core.Tools;
 
 /// <summary>
 /// The background-removal model (BiRefNet matting checkpoint, ONNX). It is not shipped with the app: the first use downloads
-/// it to <c>%LOCALAPPDATA%\LimeWin\models</c>, and it counts as present only when its size and SHA-256 match.
+/// it to <c>%LOCALAPPDATA%\Zest\models</c>, and it counts as present only when its size and SHA-256 match.
 /// </summary>
 public static class ModelStore
 {
@@ -22,14 +22,14 @@ public static class ModelStore
     internal static readonly string[] ObsoleteFileNames = ["BiRefNet-general-epoch_244.onnx"];
 
     static readonly ModelFile Model = new(
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LimeWin", "models", FileName),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Zest", "models", FileName),
         ExpectedBytes, Sha256, Source, obsolete: ObsoleteFileNames);
 
     static readonly Lazy<HttpClient> Http = new(() =>
     {
         // No overall timeout (the file is ~1 GB); ModelFile cancels a download that stalls instead.
         var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("LimeWin", "1.0"));
+        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Zest", "1.0"));
         return http;
     });
 

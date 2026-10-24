@@ -4,7 +4,7 @@ using System.Text;
 namespace Zest.Core.Office;
 
 /// <summary>
-/// The private <c>%TEMP%\LimeWin\&lt;guid&gt;</c> folder one Office conversion reads and writes in (<c>in\</c>, <c>out\</c>),
+/// The private <c>%TEMP%\Zest\&lt;guid&gt;</c> folder one Office conversion reads and writes in (<c>in\</c>, <c>out\</c>),
 /// deleted on Dispose. Office only ever opens a private copy of the source: opening the user's path would hand back their
 /// own document if it is already open in that instance, and SaveAs + Close would then take it from them.
 /// </summary>
@@ -22,8 +22,8 @@ public sealed class OfficeWorkFolder : IDisposable
     public string In { get; }
     public string Out { get; }
 
-    /// <summary><c>%TEMP%\LimeWin</c>: every work folder lives directly inside it.</summary>
-    public static string RootFolder => Path.Combine(Path.GetTempPath(), "LimeWin");
+    /// <summary><c>%TEMP%\Zest</c>: every work folder lives directly inside it.</summary>
+    public static string RootFolder => Path.Combine(Path.GetTempPath(), "Zest");
 
     public static OfficeWorkFolder Create() =>
         new(Directory.CreateDirectory(Path.Combine(RootFolder, Guid.NewGuid().ToString("N"))).FullName);

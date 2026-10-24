@@ -202,7 +202,7 @@ public class FfmpegConverterTests : IDisposable
     }
 
     [Fact]
-    public async Task CorruptSource_ThrowsLimeException_WithMessage_AndLeavesNothing()
+    public async Task CorruptSource_ThrowsZestException_WithMessage_AndLeavesNothing()
     {
         var src = Path.Combine(Dir, "깨진.mp4");
         File.WriteAllText(src, "not a video");

@@ -165,7 +165,7 @@ public class ImageCompressorTests : IDisposable
     }
 
     [Fact]
-    public async Task ZeroByteImage_ThrowsLimeException()
+    public async Task ZeroByteImage_ThrowsZestException()
     {
         var src = Path.Combine(Dir, "빈.jpg");
         File.WriteAllBytes(src, []);

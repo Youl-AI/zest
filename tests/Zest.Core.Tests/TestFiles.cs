@@ -4,7 +4,7 @@ internal static class TestFiles
 {
     public static string TempDir()
     {
-        var d = Path.Combine(Path.GetTempPath(), "limewin-tests", Guid.NewGuid().ToString("N"));
+        var d = Path.Combine(Path.GetTempPath(), "zest-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(d);
         return d;
     }

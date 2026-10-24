@@ -101,7 +101,7 @@ public sealed class LowLevelHooks : IDisposable
         }
         Exception? error = null;
         using var ready = new ManualResetEventSlim();
-        var thread = new Thread(() => HookThread(ready, e => error = e)) { IsBackground = true, Name = "LimeWin input hooks" };
+        var thread = new Thread(() => HookThread(ready, e => error = e)) { IsBackground = true, Name = "Zest input hooks" };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         ready.Wait();

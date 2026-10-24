@@ -2,7 +2,7 @@
 
 ## Original project: Lime
 
-Lime for Windows is a port of the macOS app Lime (https://github.com/LumenJSN/Lime),
+Zest is a Windows port of the macOS app Lime (https://github.com/LumenJSN/Lime),
 used under the following MIT license.
 
 ```
@@ -45,7 +45,7 @@ Libraries are listed here as later tasks add them (name, version, license).
 - ReverseMarkdown 6.3.0 — MIT (HTML to Markdown)
 - AngleSharp 1.5.2 — MIT (transitive via ReverseMarkdown; parses HTML)
 - Pretendard 1.3.9 (Pretendard-SemiBold.otf, embedded) — SIL Open Font License 1.1, full text below (Korean petal labels)
-- Microsoft.Windows.AI.MachineLearning 2.4.89 (Windows ML, self-contained) — Microsoft Software License Terms for the "Microsoft Windows ML Runtime" (the package's license.txt; its binaries are distributable code). Runs background removal. Lime switches off ONNX Runtime's own telemetry (`DisableTelemetryEvents`) when it first creates the runtime; any diagnostic data the Windows ML components themselves send is governed by the Windows diagnostic-data settings (Settings › Privacy & security › Diagnostics & feedback).
+- Microsoft.Windows.AI.MachineLearning 2.4.89 (Windows ML, self-contained) — Microsoft Software License Terms for the "Microsoft Windows ML Runtime" (the package's license.txt; its binaries are distributable code). Runs background removal. Zest switches off ONNX Runtime's own telemetry (`DisableTelemetryEvents`) when it first creates the runtime; any diagnostic data the Windows ML components themselves send is governed by the Windows diagnostic-data settings (Settings › Privacy & security › Diagnostics & feedback).
 - ONNX Runtime 1.27.1 (onnxruntime.dll and the managed Microsoft.ML.OnnxRuntime API, shipped inside the Windows ML package) — MIT, Copyright (c) Microsoft Corporation
 - BiRefNet matting checkpoint (BiRefNet-matting-epoch_100.onnx by ZhengPeng7, from the BiRefNet v1 release; not shipped, downloaded on first use of 배경 제거) — MIT, Copyright (c) 2024 ZhengPeng
 - Foreground colour estimation (`ForegroundEstimator`): a C# re-implementation of the blur-fusion estimator as used in BiRefNet's `refine_foreground` (image_proc.py, MIT, Copyright (c) 2024 ZhengPeng), which credits Photoroom's fast-foreground-estimation (that repository declares no license). The algorithm was re-implemented from its description; no code was copied.

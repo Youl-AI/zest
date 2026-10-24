@@ -55,7 +55,7 @@ sealed class OfficeWorker
         _settings = settings;
         _isExcel = progId.StartsWith("Excel.", StringComparison.OrdinalIgnoreCase);
         _isPowerPoint = progId.StartsWith("PowerPoint.", StringComparison.OrdinalIgnoreCase);
-        _thread = new Thread(Loop) { IsBackground = true, Name = $"LimeWin Office ({processName})" };
+        _thread = new Thread(Loop) { IsBackground = true, Name = $"Zest Office ({processName})" };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
     }

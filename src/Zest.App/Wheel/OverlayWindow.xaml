@@ -1,6 +1,6 @@
 <Window x:Class="Zest.App.Wheel.OverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Lime Drop" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
+        Title="Zest Drop" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="#01000000" Topmost="True" ShowActivated="False" ShowInTaskbar="False" AllowDrop="True"
         WindowStartupLocation="Manual" Left="0" Top="0" Width="1" Height="1" MinWidth="0" MinHeight="0" />

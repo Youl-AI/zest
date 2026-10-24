@@ -12,7 +12,7 @@ public class FormatCatalogTests
     [Fact]
     public void FormatOf_ExistingDirectory_IsNull()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "limewin-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(Path.GetTempPath(), "zest-" + Guid.NewGuid().ToString("N"));
         var folder = Path.Combine(dir, "사진.png");
         Directory.CreateDirectory(folder);
         try { Assert.Null(FormatCatalog.FormatOf(folder)); }

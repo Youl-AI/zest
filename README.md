@@ -1,4 +1,4 @@
-# Lime for Windows
+# Zest
 
 탐색기에서 파일을 끌다가 키를 한 번 탭하면 파일 둘레에 원형 메뉴(휠)가 뜨고, 꽃잎에 놓는 것만으로 변환·도구·액션을 실행하는 트레이 앱입니다. macOS 앱 [Lime](https://github.com/LumenJSN/Lime)(LumenJSN, MIT)을 Windows로 옮겼습니다.
 
@@ -19,7 +19,7 @@
 - **변환 (Shift)**: 이미지(jpg, png, webp, tiff, avif, bmp, svg, heic), 이미지 → PDF, PDF → jpg/png/txt, 오디오·비디오·GIF(ffmpeg), 문서·슬라이드·스프레드시트(Microsoft Office). PDF → docx는 지원하지 않고, HEIC는 읽기 전용입니다.
 - **도구 (Alt)**: 압축(프리셋·목표 크기·비율·최대 크기), 자르기(비율 고정, 숫자 입력), PDF 만들기(이미지를 순서대로 한 PDF로), PDF 합치기·나누기, 글자 복사, 배경 제거.
   - 글자 복사는 Windows의 OCR을 씁니다. 한국어·영어 OCR 언어가 설치되어 있어야 합니다(설정 > 시간 및 언어 > 언어).
-  - 배경 제거는 처음 쓸 때 약 973 MB 모델(BiRefNet matting)을 내려받아 `%LOCALAPPDATA%\LimeWin\models`에 두고, 이미지 처리는 이 PC 안에서만 합니다. CPU에서 이미지 한 장에 7초 안팎 걸립니다.
+  - 배경 제거는 처음 쓸 때 약 973 MB 모델(BiRefNet matting)을 내려받아 `%LOCALAPPDATA%\Zest\models`에 두고, 이미지 처리는 이 PC 안에서만 합니다. CPU에서 이미지 한 장에 7초 안팎 걸립니다.
 - **액션 (Ctrl)**: 선반(파일을 잠시 올려 두는 작은 카드), 복사, 이동, 경로 복사, 터미널.
 
 변환할 수 없는 조합의 꽃잎은 나타나지 않습니다. Office나 ffmpeg가 없으면 해당 변환이 휠에서 빠집니다.
@@ -53,7 +53,7 @@ dist\Zest.exe
 
 ## 알려진 제한
 
-- 압축 프로그램(반디집 등) 창에서 끌어낸 파일은 Lime이 받지 않습니다. 반디집은 끌어 놓을 때 Shift가 눌려 있으면 압축 파일에서 지우므로, 압축 프로그램에서 끌 때는 Shift를 누르지 마세요.
+- 압축 프로그램(반디집 등) 창에서 끌어낸 파일은 Zest가 받지 않습니다. 반디집은 끌어 놓을 때 Shift가 눌려 있으면 압축 파일에서 지우므로, 압축 프로그램에서 끌 때는 Shift를 누르지 마세요.
 
 ## 개인정보
 
