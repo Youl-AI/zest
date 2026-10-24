@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Youl-AI/zest/releases/latest"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/release-v1.0.0.svg?logo=lu:Download&amp;variant=default&amp;size=sm&amp;color=65a30d&amp;mode=dark" /><img alt="Release v1.0.0" src="https://shieldcn.dev/badge/release-v1.0.0.svg?logo=lu:Download&amp;variant=default&amp;size=sm&amp;color=65a30d&amp;mode=light" /></picture></a>
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Windows-10_%7C_11.svg?logo=lu:AppWindow&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt="Windows 10 | 11" src="https://shieldcn.dev/badge/Windows-10_%7C_11.svg?logo=lu:AppWindow&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/.NET-10.svg?logo=dotnet&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt=".NET 10" src="https://shieldcn.dev/badge/.NET-10.svg?logo=dotnet&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture>
   <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/License-MIT.svg?logo=lu:Scale&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt="License MIT" src="https://shieldcn.dev/badge/License-MIT.svg?logo=lu:Scale&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture></a>
@@ -101,21 +102,40 @@
 
 ## 설치와 빌드
 
+### 설치
+
+1. [Releases 페이지](https://github.com/Youl-AI/zest/releases/latest)에서 `Zest-1.0.0-win-x64.zip`을 내려받습니다.
+2. 원하는 곳(예: 문서 폴더 안의 새 폴더)에 압축을 풉니다. 따로 설치하는 과정은 없습니다.
+3. 압축을 푼 `Zest-1.0.0-win-x64` 폴더에서 `Zest.exe`를 실행하면 트레이 아이콘이 생깁니다.
+
+패키지에 .NET 런타임이 들어 있어 .NET을 따로 설치하지 않아도 됩니다.
+
+내려받은 파일이 맞는지는 PowerShell에서 아래 명령으로 해시를 구해, Releases 페이지의 `SHA256SUMS.txt`에 적힌 값과 비교해 확인합니다. 대소문자는 달라도 됩니다.
+
+```powershell
+Get-FileHash .\Zest-1.0.0-win-x64.zip -Algorithm SHA256
+```
+
+Zest는 아직 코드 서명이 되어 있지 않아서, 처음 실행할 때 Windows가 "Windows의 PC 보호" 창을 띄울 수 있습니다. 이때 **추가 정보**를 누른 뒤 **실행**을 누릅니다. 이 저장소의 Releases 페이지에서 받은 파일에만 이렇게 하고, 그 전에 SHA256을 먼저 비교하세요.
+
 요구 사항:
 
 - Windows 10 1903 이상 / Windows 11, x64
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 - 오디오·비디오·GIF 변환: `ffmpeg`가 PATH에 있어야 합니다. 오디오·비디오 메타데이터는 ffmpeg와 같은 폴더의 `ffprobe`도 씁니다.
 - 문서·슬라이드·스프레드시트 변환: Microsoft Office(Word, PowerPoint, Excel). 정품 인증이 안 된 설치에서도 자동화는 동작하지만, Office가 이를 막기 시작하면 변환이 멈출 수 있습니다.
 
-소스에서 직접 빌드해 실행합니다. 빌드에는 .NET 10 SDK가 필요합니다.
+### 소스에서 빌드
+
+빌드에는 .NET 10 SDK가 필요합니다.
 
 ```powershell
 ./build.ps1
 dist\Zest.exe
 ```
 
-`build.ps1`은 `dist`를 비우고 `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`로 배포한 뒤, 디버그 기호(`.pdb`)와 쓰지 않는 `DirectML.dll`, PDFsharp 보조 어셈블리를 지웁니다. 결과는 약 110 MB입니다. 앱을 실행하면 트레이 아이콘이 생깁니다.
+`build.ps1`은 `dist`를 비우고 `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`로 배포한 뒤, 디버그 기호(`.pdb`)와 쓰지 않는 `DirectML.dll`, PDFsharp 보조 어셈블리를 지웁니다. 결과는 약 110 MB이고, 실행하려면 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)이 있어야 합니다(.NET 10 SDK에 들어 있습니다). 앱을 실행하면 트레이 아이콘이 생깁니다.
+
+`./release.ps1`은 Releases 페이지에 올리는 zip을 만듭니다. .NET 런타임을 함께 넣어(self-contained) `artifacts\release\Zest-<버전>-win-x64`에 배포하고, 위와 같은 파일을 지운 뒤, 이 폴더를 `Zest-<버전>-win-x64.zip`으로 묶고 `SHA256SUMS.txt`를 씁니다. 버전은 `src/Zest.App/Zest.App.csproj`의 `<Version>`에서 읽습니다.
 
 테스트: `dotnet test --project tests/Zest.Core.Tests`
 

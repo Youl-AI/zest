@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Youl-AI/zest/releases/latest"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/release-v1.0.0.svg?logo=lu:Download&amp;variant=default&amp;size=sm&amp;color=65a30d&amp;mode=dark" /><img alt="Release v1.0.0" src="https://shieldcn.dev/badge/release-v1.0.0.svg?logo=lu:Download&amp;variant=default&amp;size=sm&amp;color=65a30d&amp;mode=light" /></picture></a>
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Windows-10_%7C_11.svg?logo=lu:AppWindow&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt="Windows 10 | 11" src="https://shieldcn.dev/badge/Windows-10_%7C_11.svg?logo=lu:AppWindow&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/.NET-10.svg?logo=dotnet&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt=".NET 10" src="https://shieldcn.dev/badge/.NET-10.svg?logo=dotnet&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture>
   <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/License-MIT.svg?logo=lu:Scale&amp;variant=secondary&amp;size=sm&amp;mode=dark" /><img alt="License MIT" src="https://shieldcn.dev/badge/License-MIT.svg?logo=lu:Scale&amp;variant=secondary&amp;size=sm&amp;mode=light" /></picture></a>
@@ -103,21 +104,40 @@ From left to right: job progress cards, the compress window and a shelf. A card 
 
 ## Install and build
 
+### Install
+
+1. Download `Zest-1.0.0-win-x64.zip` from the [Releases page](https://github.com/Youl-AI/zest/releases/latest).
+2. Unzip it anywhere you like (for example a new folder in Documents). There is no installer.
+3. Run `Zest.exe` in the unzipped `Zest-1.0.0-win-x64` folder. A tray icon appears.
+
+The package includes the .NET runtime, so you do not need to install .NET.
+
+To check the download, get its hash in PowerShell with the command below and compare it with the value in `SHA256SUMS.txt` on the Releases page. Upper or lower case does not matter.
+
+```powershell
+Get-FileHash .\Zest-1.0.0-win-x64.zip -Algorithm SHA256
+```
+
+Zest is not code-signed yet, so on the first run Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. Only do this for files downloaded from this repository's Releases page, and compare the SHA256 first.
+
 Requirements:
 
 - Windows 10 1903 or later / Windows 11, x64
-- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Audio, video and GIF conversion: `ffmpeg` must be on PATH. Audio and video metadata also uses `ffprobe` from the same folder as ffmpeg.
 - Document, slide and spreadsheet conversion: Microsoft Office (Word, PowerPoint, Excel). Automation works on an unactivated install too, but conversions may stop if Office starts blocking it.
 
-You build and run it from source. Building needs the .NET 10 SDK.
+### Build from source
+
+Building needs the .NET 10 SDK.
 
 ```powershell
 ./build.ps1
 dist\Zest.exe
 ```
 
-`build.ps1` empties `dist`, publishes with `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`, then deletes the debug symbols (`.pdb`), the unused `DirectML.dll` and the unused PDFsharp helper assemblies (about 110 MB). Running the app adds a tray icon.
+`build.ps1` empties `dist`, publishes with `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`, then deletes the debug symbols (`.pdb`), the unused `DirectML.dll` and the unused PDFsharp helper assemblies (about 110 MB). Running it needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (the .NET 10 SDK includes it). Running the app adds a tray icon.
+
+`./release.ps1` makes the zip for the Releases page. It publishes self-contained (with the .NET runtime) into `artifacts\release\Zest-<version>-win-x64`, applies the same cleanup, zips the folder to `Zest-<version>-win-x64.zip` and writes `SHA256SUMS.txt`. The version comes from `<Version>` in `src/Zest.App/Zest.App.csproj`.
 
 Tests: `dotnet test --project tests/Zest.Core.Tests`
 
