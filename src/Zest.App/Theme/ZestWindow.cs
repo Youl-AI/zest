@@ -124,13 +124,17 @@ public class ZestWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         if (_exited) return; // the exit motion has run: Closing was already raised once, close for real
+        if (_exiting)
+        {
+            e.Cancel = true; // a second Close (Esc twice) while fading: let the running exit finish it
+            return;
+        }
         base.OnClosing(e);
-        if (e.Cancel || _exiting) return;
-        if (!Animate || !IsVisible || _frame is null) return;
+        if (e.Cancel || !Animate || !IsVisible || _frame is null) return;
 
         e.Cancel = true;
         _exiting = true;
-        IsHitTestVisible = false; // no second click on a button that is fading out
+        IsHitTestVisible = false; // no second click on a button that is fading out (keys: OnPreviewKeyDown)
         var curve = WheelStyle.EaseOut;
         Motion.To(_frame, OpacityProperty, 0, Exit, curve, () =>
         {
@@ -142,6 +146,13 @@ public class ZestWindow : Window
             Motion.To(_scale, ScaleTransform.ScaleXProperty, EnterScale, Exit, curve);
             Motion.To(_scale, ScaleTransform.ScaleYProperty, EnterScale, Exit, curve);
         }
+    }
+
+    /// <summary>While the exit motion runs, no key reaches the window: a second Enter must not run the action again.</summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (_exiting) e.Handled = true;
+        else base.OnPreviewKeyDown(e);
     }
 
     protected override IEnumerator LogicalChildren
