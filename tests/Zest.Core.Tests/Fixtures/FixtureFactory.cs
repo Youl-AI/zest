@@ -503,7 +503,8 @@ internal static class FixtureFactory
     /// Writes an A4 PDF with <paramref name="pages"/> pages (PDFsharp, test-only). With text, page N shows
     /// "Page N 페이지"; without, only a rectangle (no text layer). A user password makes it encrypted.
     /// </summary>
-    public static string Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null)
+    public static string Pdf(string dir, string name, int pages, bool withText = true, string? userPassword = null,
+        IReadOnlyDictionary<string, string>? info = null)
     {
         // The core PDFsharp build has no Windows font access; resolve the one font we need ourselves.
         GlobalFontSettings.FontResolver ??= new MalgunFontResolver();
@@ -516,6 +517,18 @@ internal static class FixtureFactory
             using var gfx = XGraphics.FromPdfPage(page);
             if (withText) gfx.DrawString($"Page {i} 페이지", font, XBrushes.Black, new XPoint(72, 100));
             else gfx.DrawRectangle(XBrushes.SteelBlue, 72, 100, 200, 100);
+        }
+        foreach (var (key, value) in info ?? new Dictionary<string, string>())
+        {
+            switch (key)
+            {
+                case "Title": doc.Info.Title = value; break;
+                case "Author": doc.Info.Author = value; break;
+                case "Subject": doc.Info.Subject = value; break;
+                case "Keywords": doc.Info.Keywords = value; break;
+                case "Creator": doc.Info.Creator = value; break;
+                default: throw new ArgumentException($"No Info setter for '{key}'.");
+            }
         }
         if (userPassword is not null)
         {

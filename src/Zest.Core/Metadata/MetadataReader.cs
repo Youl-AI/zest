@@ -15,7 +15,8 @@ public static class MetadataReader
         return FormatCatalog.CategoryOf(format) switch
         {
             FormatCategory.Image => await Task.Run(() => ImageMetadata.Read(path, format, token), token),
-            // FormatCategory.Pdf: Task 3. FormatCategory.Audio or FormatCategory.Video: Task 4.
+            FormatCategory.Pdf => await Task.Run(() => PdfMetadata.Read(path, token), token),
+            // FormatCategory.Audio or FormatCategory.Video: Task 4.
             _ => throw new ZestException(NotEditable),
         };
     }
