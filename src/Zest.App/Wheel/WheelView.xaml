@@ -3,16 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="320" Height="320" IsHitTestVisible="False"
              TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Grayscale">
-    <!-- Layers, bottom to top: floating petals (no disc behind them), the hub, the empty-state pill. Values come from WheelStyle. -->
+    <!-- Layers, bottom to top: floating petals (no disc behind them), the hub and its text, the empty-state pill. Values come from WheelStyle. -->
     <Grid>
         <Canvas x:Name="Petals" />
         <Ellipse x:Name="Hub" HorizontalAlignment="Center" VerticalAlignment="Center" />
-        <StackPanel x:Name="HubContent" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock x:Name="CenterText" HorizontalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-            <Border x:Name="Chip" HorizontalAlignment="Center">
-                <TextBlock x:Name="ChipText" />
-            </Border>
-        </StackPanel>
+        <TextBlock x:Name="CenterText" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
         <Border x:Name="EmptyPill" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
             <TextBlock x:Name="EmptyText" VerticalAlignment="Center" />
         </Border>

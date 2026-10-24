@@ -66,7 +66,7 @@ public sealed class OrderItem : INotifyPropertyChanged
     {
         try
         {
-            return ImageCompressor.FormatSize(new FileInfo(path).Length);
+            return Zest.Core.Output.SizeText.Format(new FileInfo(path).Length);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

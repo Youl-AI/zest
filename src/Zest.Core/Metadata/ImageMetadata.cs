@@ -48,7 +48,7 @@ internal static class ImageMetadata
             var rows = new List<MetadataTag>
             {
                 new("file:format", "파일", "형식", format.ToUpperInvariant(), false, false),
-                new("file:size", "파일", "크기", $"{image.Width} × {image.Height} · {ImageCompressor.FormatSize(bytes.LongLength)}", false, false),
+                new("file:size", "파일", "크기", $"{image.Width} × {image.Height} · {SizeText.Format(bytes.LongLength)}", false, false),
             };
             if (ExifOf(image, out _) is { } exif)
             {
@@ -73,7 +73,7 @@ internal static class ImageMetadata
     }
 
     static MetadataTag PresenceRow(string id, string label, IImageProfile profile) =>
-        new(id, "기타", label, ImageCompressor.FormatSize(profile.ToByteArray()?.LongLength ?? 0), Editable: false, Removable: true);
+        new(id, "기타", label, SizeText.Format(profile.ToByteArray()?.LongLength ?? 0), Editable: false, Removable: true);
 
     /// <summary>Readable text for one EXIF value: GPS coordinates as decimal degrees, short fractions as "1/120", other rationals as decimals.</summary>
     internal static string Describe(IExifValue value, IExifProfile profile)

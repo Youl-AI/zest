@@ -46,7 +46,7 @@ public partial class CompressOptionsWindow : ZestWindow
         var first = Path.GetFileName(files[0].Path);
         FileNameText.Text = files.Count == 1 ? first : $"{first} 외 {files.Count - 1}개";
         SizeCaption.Text = files.Count == 1 ? "원본 크기" : "합계";
-        SizeValue.Text = _total is { } t ? ImageCompressor.FormatSize(t) : "알 수 없음";
+        SizeValue.Text = _total is { } t ? SizeText.Format(t) : "알 수 없음";
         HintText.Text = files.Count == 1 ? $"옆에 ‘{OutputNameOf(files[0].Path)}’로 저장" : "";
 
         foreach (var (_, label) in Caps) CapBox.Items.Add(new ComboBoxItem { Content = label, FontFamily = Wheel.WheelStyle.TextFont });
@@ -111,7 +111,7 @@ public partial class CompressOptionsWindow : ZestWindow
         PercentText.Text = string.Create(CultureInfo.InvariantCulture, $"{PercentSlider.Value:0}%");
         EstimateText.Visibility = _total is null ? Visibility.Collapsed : Visibility.Visible;
         if (_total is { } total)
-            EstimateValue.Text = ImageCompressor.FormatSize(new CompressOptions(SizeGoal.Percentage, ShrinkPercent: PercentSlider.Value).TargetFor(total) ?? 0);
+            EstimateValue.Text = SizeText.Format(new CompressOptions(SizeGoal.Percentage, ShrinkPercent: PercentSlider.Value).TargetFor(total) ?? 0);
     }
 
     void Start()

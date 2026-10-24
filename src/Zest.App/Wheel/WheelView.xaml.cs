@@ -12,7 +12,8 @@ namespace Zest.App.Wheel;
 /// <summary>
 /// The wheel: rounded petals floating over the screen (no disc behind them), each with a 1 px edge in the mode's citrus and
 /// one shared drop shadow, labels (and icons for tools and actions), a citrus highlight that lifts outward, and a round hub
-/// naming the highlighted item above a mode chip. Every value comes from <see cref="WheelStyle"/>.
+/// naming the highlighted item, or with nothing highlighted, the dragged files' size (<see cref="Summary"/>). Every value
+/// comes from <see cref="WheelStyle"/>.
 /// </summary>
 public partial class WheelView : UserControl
 {
@@ -22,16 +23,12 @@ public partial class WheelView : UserControl
     IReadOnlyList<WheelItem> _items = [];
     int? _highlight;
     int _fadeGeneration;
+    string _summary = "";
 
     public WheelView()
     {
         InitializeComponent();
         Hub.Width = Hub.Height = S.HubRadius * 2;
-        Chip.Padding = S.ChipPadding;
-        Chip.Margin = new Thickness(0, S.ChipGap, 0, 0);
-        ChipText.FontFamily = S.ChipFont;
-        ChipText.FontSize = S.ChipSize;
-        ChipText.FontWeight = S.FormatWeight;
         EmptyPill.Height = S.EmptyHeight;
         EmptyPill.Padding = new Thickness(S.EmptyPadding, 0, S.EmptyPadding, 0);
         EmptyPill.CornerRadius = new CornerRadius(S.EmptyCorner);
@@ -45,13 +42,27 @@ public partial class WheelView : UserControl
     /// <summary>Theme colors used by the next <see cref="SetItems"/> or <see cref="ShowEmpty"/>.</summary>
     public WheelPalette Palette { get; set; } = S.LightPalette;
 
-    /// <summary>Which wheel this is (picks the citrus and the hub chip); set before <see cref="SetItems"/>.</summary>
+    /// <summary>Which wheel this is (picks the citrus); set before <see cref="SetItems"/>.</summary>
     public WheelMode Mode { get; set; } = WheelMode.Convert;
 
     /// <summary>False renders state changes instantly (the <c>--render</c> harness).</summary>
     public bool Animate { get; set; } = true;
 
     public int PetalCount => _items.Count;
+
+    /// <summary>
+    /// What the hub shows with nothing highlighted: the dragged files' size from <see cref="Zest.Core.Wheel.HubSummary"/>,
+    /// or empty (sizes not read yet, or none to show). Takes effect at once if the hub is idle.
+    /// </summary>
+    public string Summary
+    {
+        get => _summary;
+        set
+        {
+            _summary = value ?? "";
+            if (_items.Count > 0 && _highlight is null) SetCenterText(null);
+        }
+    }
 
     public void SetItems(IReadOnlyList<WheelItem> items)
     {
@@ -93,11 +104,6 @@ public partial class WheelView : UserControl
         Hub.StrokeThickness = S.PetalEdgeThickness;
         Hub.Effect = S.Shadow(Palette);
         Hub.Visibility = Visibility.Visible;
-        Chip.CornerRadius = new CornerRadius(S.HubRadius); // fully round at any text width
-        Chip.Background = Frozen(S.ToColor(citrus.Wash(Palette.Dark)));
-        ChipText.Foreground = Frozen(S.ToColor(citrus.Ink(Palette.Dark)));
-        ChipText.Text = S.ModeChip(Mode);
-        HubContent.Visibility = Visibility.Visible;
         SetCenterText(null);
     }
 
@@ -109,7 +115,7 @@ public partial class WheelView : UserControl
         _petals.Clear();
         Petals.Children.Clear();
         Hub.Visibility = Visibility.Collapsed;
-        HubContent.Visibility = Visibility.Collapsed;
+        CenterText.Visibility = Visibility.Collapsed;
 
         var surface = ZestColors.For(Palette.Dark);
         EmptyPill.Background = Frozen(S.ToColor(surface.Window));
@@ -119,7 +125,7 @@ public partial class WheelView : UserControl
         EmptyPill.Visibility = Visibility.Visible;
     }
 
-    /// <summary>Highlights one petal (null clears) and names it in the hub.</summary>
+    /// <summary>Highlights one petal (null clears) and names it in the hub; with none, the hub shows <see cref="Summary"/>.</summary>
     public void Highlight(int? index)
     {
         if (index is { } i && (i < 0 || i >= _petals.Count)) index = null;
@@ -170,23 +176,50 @@ public partial class WheelView : UserControl
     }
 
     /// <summary>
-    /// The hovered item's name above the chip. With nothing hovered the line keeps its height (hidden), so the chip does not
-    /// jump when a name appears; the font follows the mode then, since a wheel shows either format names or Korean names.
+    /// The hovered item's name (format names in Segoe UI Variable Display Bold, Korean names in Pretendard), or with nothing
+    /// hovered the size summary in the second text color with tabular figures. A long name ("PDF 만들기") shrinks to the
+    /// hub's width instead of being cut off; a summary that would shrink below <see cref="WheelStyle.HubSummaryMinSize"/> on one line
+    /// ("파일 2개 · 폴더 1개") first breaks at " · " into two lines.
     /// </summary>
     void SetCenterText(WheelItem? item)
     {
-        var format = item is null ? Mode == WheelMode.Convert : item.Operation is ConvertOp;
-        CenterText.Text = item is null ? " " : format ? item.Label.ToUpperInvariant() : item.Label;
-        CenterText.FontFamily = format ? S.FormatFont : S.KoreanFont;
-        CenterText.FontSize = format ? S.HubFormatSize : S.HubKoreanSize;
-        CenterText.FontWeight = format ? S.FormatWeight : S.LabelWeight;
-        CenterText.Foreground = Frozen(Palette.HubText);
-        CenterText.Visibility = item is null ? Visibility.Hidden : Visibility.Visible;
-        // A long name ("PDF 만들기") shrinks to the hub's width instead of being cut off.
-        CenterText.MaxWidth = double.PositiveInfinity;
-        CenterText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        if (CenterText.DesiredSize.Width > S.HubTextWidth) CenterText.FontSize *= S.HubTextWidth / CenterText.DesiredSize.Width;
+        if (item is null)
+        {
+            CenterText.Text = _summary;
+            CenterText.FontFamily = S.SummaryFont;
+            CenterText.FontSize = S.HubSummarySize;
+            CenterText.FontWeight = S.LabelWeight;
+            CenterText.Foreground = Frozen(Palette.HubSummaryText);
+            System.Windows.Documents.Typography.SetNumeralAlignment(CenterText, FontNumeralAlignment.Tabular);
+            CenterText.Visibility = _summary.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            // One line while it fits at a readable size ("3개 · 12.4 MB"); a longer one ("파일 2개 · 폴더 1개") breaks at " · ".
+            var shrunk = S.HubSummarySize * S.HubTextWidth / NaturalWidth(CenterText);
+            if (shrunk < S.HubSummaryMinSize && _summary.Contains(" · ")) CenterText.Text = _summary.Replace(" · ", "\n");
+        }
+        else
+        {
+            var format = item.Operation is ConvertOp;
+            CenterText.Text = format ? item.Label.ToUpperInvariant() : item.Label;
+            CenterText.FontFamily = format ? S.FormatFont : S.KoreanFont;
+            CenterText.FontSize = format ? S.HubFormatSize : S.HubKoreanSize;
+            CenterText.FontWeight = format ? S.FormatWeight : S.LabelWeight;
+            CenterText.Foreground = Frozen(Palette.HubText);
+            System.Windows.Documents.Typography.SetNumeralAlignment(CenterText, FontNumeralAlignment.Normal);
+            CenterText.Visibility = Visibility.Visible;
+        }
+        var width = NaturalWidth(CenterText);
+        if (width > S.HubTextWidth) CenterText.FontSize *= S.HubTextWidth / width;
+        // Glyph advances snap to pixels, so the scaled text can still come out a hair too wide (and would be cut to "…").
+        for (var i = 0; i < 8 && NaturalWidth(CenterText) > S.HubTextWidth; i++) CenterText.FontSize -= 0.25;
         CenterText.MaxWidth = S.HubTextWidth;
+    }
+
+    /// <summary>Natural one-line width of <paramref name="text"/>, ignoring its current <see cref="FrameworkElement.MaxWidth"/>.</summary>
+    static double NaturalWidth(TextBlock text)
+    {
+        text.MaxWidth = double.PositiveInfinity;
+        text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return text.DesiredSize.Width;
     }
 
     /// <summary>A petal's label (format petals: uppercase text; tools and actions: icon above Korean text), centred on the label radius.</summary>

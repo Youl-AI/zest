@@ -15,6 +15,7 @@ using Zest.Core.Catalog;
 using Zest.Core.Design;
 using Zest.Core.Jobs;
 using Zest.Core.Tools;
+using Zest.Core.Wheel;
 using Wpf.Ui.Appearance;
 using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
 
@@ -39,17 +40,17 @@ public static class RenderHarness
         foreach (var palette in new[] { WheelStyle.LightPalette, WheelStyle.DarkPalette })
         {
             var theme = palette.Dark ? "dark" : "light";
-            foreach (var (count, mode, items, highlight) in Sets())
+            foreach (var (count, mode, items, highlight, summary) in Sets())
             {
                 if (items.Count != count) throw new InvalidOperationException($"expected {count} items, catalog gave {items.Count}");
                 var name = $"wheel-{theme}-{ModeName(mode)}-{count}petals";
-                Save(Wheel(backdrop, palette, mode, items, null), folder, $"{name}-plain.png", log);
-                Save(Wheel(backdrop, palette, mode, items, highlight), folder, $"{name}-hl.png", log);
+                Save(Wheel(backdrop, palette, mode, items, null, summary), folder, $"{name}-plain.png", log);
+                Save(Wheel(backdrop, palette, mode, items, highlight, summary), folder, $"{name}-hl.png", log);
                 // Worst cases for floating petals: a blank white page and a black screen behind the wheel.
-                Save(Wheel(white, palette, mode, items, highlight), folder, $"{name}-on-white.png", log);
-                Save(Wheel(black, palette, mode, items, highlight), folder, $"{name}-on-black.png", log);
+                Save(Wheel(white, palette, mode, items, highlight, summary), folder, $"{name}-on-white.png", log);
+                Save(Wheel(black, palette, mode, items, highlight, summary), folder, $"{name}-on-black.png", log);
             }
-            Save(Wheel(backdrop, palette, WheelMode.Convert, [], null), folder, $"wheel-{theme}-empty.png", log);
+            Save(Wheel(backdrop, palette, WheelMode.Convert, [], null, ""), folder, $"wheel-{theme}-empty.png", log);
         }
 
         foreach (var dark in new[] { false, true })
@@ -173,16 +174,22 @@ public static class RenderHarness
         return (items, steps);
     }
 
-    /// <summary>The petal each README wheel shows highlighted: JPG, 메타데이터, 선반.</summary>
-    static (IReadOnlyList<WheelItem> Items, int Highlight) ReadmeWheel(WheelMode mode)
+    /// <summary>The sample photo.png the README wheels are drawn for, as its hub summary shows it (5.6 MB).</summary>
+    static readonly string PhotoSummary = HubSummary.For([new HubEntry(IsFolder: false, 5_600_000)]);
+
+    /// <summary>
+    /// The petal each README wheel shows highlighted: none on the convert wheel (its hub shows the photo's size, as a wheel
+    /// does when it opens), 메타데이터 and 선반 on the others (their hubs name the petal).
+    /// </summary>
+    static (IReadOnlyList<WheelItem> Items, int? Highlight) ReadmeWheel(WheelMode mode)
     {
         var (items, steps) = mode switch
         {
-            WheelMode.Convert => PhotoWheel(mode, "jpg"),
+            WheelMode.Convert => PhotoWheel(mode),
             WheelMode.Tools => PhotoWheel(mode, ZestTool.Metadata),
             _ => PhotoWheel(mode, DropAction.Shelf),
         };
-        return (items, steps[0]);
+        return (items, steps.Length == 0 ? null : steps[0]);
     }
 
     /// <summary>
@@ -321,7 +328,7 @@ public static class RenderHarness
 
     /// <summary>
     /// The three wheels side by side on a plain stage (<c>Zest.Sunken</c> on light, the window colour on dark), each with its
-    /// README petal highlighted and its key name under it in a chip of the wheel's citrus.
+    /// README hub (the photo's size, or a highlighted petal's name) and its key name under it in a chip of the wheel's citrus.
     /// </summary>
     static FrameworkElement Wheels(bool dark)
     {
@@ -331,7 +338,7 @@ public static class RenderHarness
         {
             var (items, highlight) = ReadmeWheel(mode);
             var column = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            column.Children.Add(Wheel(null, palette, mode, items, highlight));
+            column.Children.Add(Wheel(null, palette, mode, items, highlight, PhotoSummary));
             var chip = KeyChip(mode, dark, active: true, size: 16);
             chip.Margin = new Thickness(0, -14, 0, 0); // the wheel's canvas keeps 32 DIP of shadow room under the petals
             column.Children.Add(chip);
@@ -350,7 +357,7 @@ public static class RenderHarness
 
     /// <summary>
     /// The modifier key of <paramref name="mode"/> alone ("Shift", "Alt", "Ctrl"), so both READMEs can share it: active, in the
-    /// wheel's ink on its wash like the hub chip; inactive, in the third text colour on nothing.
+    /// wheel's ink on its wash; inactive, in the third text colour on nothing.
     /// </summary>
     static Border KeyChip(WheelMode mode, bool dark, bool active, double size)
     {
@@ -364,7 +371,7 @@ public static class RenderHarness
             HorizontalAlignment = HorizontalAlignment.Center,
             Child = new TextBlock
             {
-                Text = WheelStyle.ModeChip(mode).Split(' ')[0],
+                Text = KeyName(mode),
                 FontFamily = WheelStyle.FormatFont,
                 FontWeight = WheelStyle.FormatWeight,
                 FontSize = size,
@@ -373,10 +380,17 @@ public static class RenderHarness
         };
     }
 
+    static string KeyName(WheelMode mode) => mode switch
+    {
+        WheelMode.Convert => "Shift",
+        WheelMode.Tools => "Alt",
+        _ => "Ctrl",
+    };
+
     /// <summary>
-    /// The demo: each wheel opens, the highlight steps across its petals (PDF, JPG, WEBP; 압축, 메타데이터; 복사, 선반) at
-    /// half a second a step and rests on the last, then the next wheel opens; the three key names under the wheel show which
-    /// key is down. Frames go to a temporary folder and ffmpeg (from PATH) encodes them into a looping animated WebP.
+    /// The demo: each wheel opens with the photo's size in the hub (held a second), then the highlight steps across its petals
+    /// (PDF, JPG, WEBP; 압축, 메타데이터; 복사, 선반) at half a second a step, the hub naming each, and rests on the last; then
+    /// the next wheel opens. The three key names under the wheel show which key is down. Frames go to a temporary folder and ffmpeg (from PATH) encodes them into a looping animated WebP.
     /// </summary>
     static void Demo(string folder, StringBuilder log)
     {
@@ -387,10 +401,11 @@ public static class RenderHarness
             (WheelMode.Tools, PhotoWheel(WheelMode.Tools, ZestTool.Compress, ZestTool.Metadata)),
             (WheelMode.Actions, PhotoWheel(WheelMode.Actions, DropAction.Copy, DropAction.Shelf)),
         };
-        // Per scene: the open wheel for one step, each highlight for one step, the last one held for three more.
+        // Per scene: the open wheel (the hub showing the size) for two steps, each highlight for one, the last held for three more.
         var frames = new List<(WheelMode Mode, IReadOnlyList<WheelItem> Items, int? Highlight)>();
         foreach (var (mode, (items, steps)) in scenes)
         {
+            frames.Add((mode, items, null));
             frames.Add((mode, items, null));
             foreach (var step in steps) frames.Add((mode, items, step));
             for (var i = 0; i < 3; i++) frames.Add((mode, items, steps[^1]));
@@ -437,7 +452,7 @@ public static class RenderHarness
     /// <summary>One demo frame: the wheel on the flat <c>Zest.Sunken</c> stage, the three key names under it, the wheel's lit.</summary>
     static FrameworkElement DemoFrame(WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
     {
-        var wheel = Wheel(null, palette, mode, items, highlight);
+        var wheel = Wheel(null, palette, mode, items, highlight, PhotoSummary);
         wheel.HorizontalAlignment = HorizontalAlignment.Center;
         wheel.VerticalAlignment = VerticalAlignment.Top;
         wheel.Margin = new Thickness(0, -6, 0, 0);
@@ -531,18 +546,26 @@ public static class RenderHarness
     /// Petal counts with real catalog items, each drawn in the citrus of the wheel it comes from. 9 is a stress set (all tools
     /// plus three actions) since no single wheel has that many, so it is drawn as both the tools and the actions wheel.
     /// </summary>
-    static IEnumerable<(int Count, WheelMode Mode, IReadOnlyList<WheelItem> Items, int Highlight)> Sets()
+    static IEnumerable<(int Count, WheelMode Mode, IReadOnlyList<WheelItem> Items, int Highlight, string Summary)> Sets()
     {
         var noOcr = Capabilities.All with { Ocr = false, BackgroundRemoval = false };
         var ocr = Capabilities.All with { BackgroundRemoval = false };
-        yield return (2, WheelMode.Tools, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0); // split + metadata
-        yield return (5, WheelMode.Tools, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 2); // "PDF 만들기": the longest hub name
-        yield return (5, WheelMode.Actions, WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All), 2);
-        yield return (7, WheelMode.Convert, WheelCatalog.Items(["photo.png"], WheelMode.Convert, Capabilities.All), 1);
+        // The plain renders show each hub summary shape: one file, several files, a lone folder, files with a folder.
+        static HubEntry Sized(long bytes) => new(IsFolder: false, bytes);
+        var folder = new HubEntry(IsFolder: true, null);
+        var report = HubSummary.For([Sized(1_240_000)]); // 1.2 MB
+        var photo = HubSummary.For([Sized(5_600_000)]); // 5.6 MB
+        var three = HubSummary.For([Sized(5_600_000), Sized(4_300_000), Sized(2_500_000)]); // 3개 · 12.4 MB
+        var lone = HubSummary.For([folder]); // 폴더 1개
+        var mixed = HubSummary.For([Sized(5_600_000), Sized(4_300_000), folder]); // 파일 2개 · 폴더 1개, the longest
+        yield return (2, WheelMode.Tools, WheelCatalog.Items(["report.pdf"], WheelMode.Tools, noOcr), 0, report); // split + metadata
+        yield return (5, WheelMode.Tools, WheelCatalog.Items(["photo.png"], WheelMode.Tools, ocr), 2, three); // "PDF 만들기": the longest hub name
+        yield return (5, WheelMode.Actions, WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All), 2, lone);
+        yield return (7, WheelMode.Convert, WheelCatalog.Items(["photo.png"], WheelMode.Convert, Capabilities.All), 1, photo);
         var nine = WheelCatalog.Items(["photo.png"], WheelMode.Tools, Capabilities.All)
             .Concat(WheelCatalog.Items(["photo.png"], WheelMode.Actions, Capabilities.All).Take(3)).ToList();
-        yield return (9, WheelMode.Tools, nine, 3);
-        yield return (9, WheelMode.Actions, nine, 3);
+        yield return (9, WheelMode.Tools, nine, 3, mixed);
+        yield return (9, WheelMode.Actions, nine, 3, mixed);
     }
 
     static string ModeName(WheelMode mode) => mode switch
@@ -556,12 +579,13 @@ public static class RenderHarness
     /// The wheel over <paramref name="backdrop"/> (review renders), or over nothing, so the stage it is placed on shows
     /// through (README images).
     /// </summary>
-    static FrameworkElement Wheel(BitmapSource? backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight)
+    static FrameworkElement Wheel(BitmapSource? backdrop, WheelPalette palette, WheelMode mode, IReadOnlyList<WheelItem> items, int? highlight, string summary)
     {
         var view = new WheelView { Animate = false, Palette = palette, Mode = mode };
         AsOnHighDpiScreen(view);
         if (items.Count == 0) view.ShowEmpty();
         else view.SetItems(items);
+        view.Summary = summary;
         view.Highlight(highlight);
 
         var root = new Grid { Width = Side, Height = Side };

@@ -144,7 +144,7 @@ public static class ImageCompressor
             }
             if (best is not null) return best;
         }
-        throw new ZestException($"{FormatSize(smallest)}까지 줄였지만 더 작게는 안 됩니다.");
+        throw new ZestException($"{SizeText.Format(smallest)}까지 줄였지만 더 작게는 안 됩니다.");
     }
 
     static bool HasDroppableMetadata(MagickImage image) =>
@@ -196,12 +196,4 @@ public static class ImageCompressor
         }
         return ms.ToArray();
     }
-
-    /// <summary>"182 KB" / "1.4 MB" with decimal units like the target field.</summary>
-    public static string FormatSize(long bytes) => bytes switch
-    {
-        < 1_000 => $"{bytes} B",
-        < 1_000_000 => $"{Math.Round(bytes / 1_000.0):0} KB",
-        _ => $"{bytes / 1_000_000.0:0.#} MB",
-    };
 }

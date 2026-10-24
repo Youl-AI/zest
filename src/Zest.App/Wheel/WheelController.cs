@@ -10,6 +10,8 @@ namespace Zest.App.Wheel;
 /// <summary>
 /// Owns the drop overlay and the small wheel window for one drag. When to close is decided by <see cref="OverlayCloseRules"/>
 /// (tested in Core); this class only feeds it events, a monotonic clock and the polled button state, and acts on the answer.
+/// The hub's size summary is read off the UI thread once the drag's file list is known (a file can sit on an offline network
+/// share), so the wheel never waits for it; the hub stays empty until it arrives.
 /// </summary>
 public sealed class WheelController
 {
@@ -29,6 +31,7 @@ public sealed class WheelController
     IReadOnlyList<WheelItem> _items = [];
     bool _fallbackArmed;
     bool _droppedOnPetal; // decides between an instant close (drop) and the cancel fade
+    CancellationTokenSource? _sizes; // the running size read for _files, cancelled when the wheel closes or the files change
 
     /// <summary>An item was dropped on: the item, the dropped files, and the drop point in physical screen pixels.</summary>
     public event Action<WheelItem, IReadOnlyList<string>, Point>? ItemDropped;
@@ -93,6 +96,7 @@ public sealed class WheelController
         _fallbackArmed = false;
         _droppedOnPetal = false;
         HideWheel(); // a previous wheel may still be fading out
+        _view.Summary = "";
         _view.Mode = _mode;
         _view.Palette = WheelStyle.SystemPalette();
         _overlay.ShowOverVirtualScreen();
@@ -122,6 +126,7 @@ public sealed class WheelController
         IsOpen = false;
         _safety.Stop();
         _dropFallback.Stop();
+        CancelSizes();
         _files = null;
         _items = [];
         _overlay.Hide();
@@ -165,9 +170,55 @@ public sealed class WheelController
     void OnFilesEntered(IReadOnlyList<string> files)
     {
         if (!IsOpen) return;
+        var known = _files is not null && _files.SequenceEqual(files, StringComparer.OrdinalIgnoreCase);
         _files = files;
+        if (!known) ReadSizes(files);
         DrawWheel();
         Apply(_rules.FileDragEntered());
+    }
+
+    /// <summary>
+    /// Reads the size of <paramref name="files"/> on the thread pool and hands the hub its summary on the UI thread, unless the
+    /// wheel closed or another file list arrived in the meantime. A read blocked on an offline share cannot be interrupted,
+    /// but its late result is dropped.
+    /// </summary>
+    async void ReadSizes(IReadOnlyList<string> files)
+    {
+        CancelSizes();
+        _view.Summary = "";
+        var cts = _sizes = new CancellationTokenSource();
+        var token = cts.Token;
+        string summary;
+        try
+        {
+            summary = await Task.Run(() =>
+            {
+                var entries = new List<HubEntry>(files.Count);
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    entries.Add(HubEntry.Read(file));
+                }
+                return HubSummary.For(entries);
+            }, token);
+        }
+        catch (Exception)
+        {
+            return; // cancelled, or an unexpected read failure: the hub stays empty
+        }
+        finally
+        {
+            if (_sizes == cts) _sizes = null;
+            cts.Dispose();
+        }
+        if (token.IsCancellationRequested || !IsOpen || !ReferenceEquals(_files, files)) return;
+        _view.Summary = summary;
+    }
+
+    void CancelSizes()
+    {
+        _sizes?.Cancel();
+        _sizes = null;
     }
 
     void DrawWheel()

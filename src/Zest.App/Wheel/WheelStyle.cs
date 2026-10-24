@@ -13,6 +13,7 @@ namespace Zest.App.Wheel;
 /// <param name="Label">Petal label and icon color.</param>
 /// <param name="Hub">Round readout in the hole.</param>
 /// <param name="HubText">Hovered label in the hub.</param>
+/// <param name="HubSummaryText">The dragged files' size in the hub when nothing is hovered (the second text color).</param>
 /// <param name="ShadowColor">Drop shadow under the petals and the hub, so they stay distinct over a page of their own color.</param>
 /// <param name="ShadowOpacity">Opacity of that shadow.</param>
 public sealed record WheelPalette(
@@ -21,6 +22,7 @@ public sealed record WheelPalette(
     Color Label,
     Color Hub,
     Color HubText,
+    Color HubSummaryText,
     Color ShadowColor,
     double ShadowOpacity);
 
@@ -34,6 +36,7 @@ public static class WheelStyle
         Label: Hex(0xFF, 0x2A, 0x26, 0x22),
         Hub: Hex(0xFF, 0xFF, 0xFF, 0xFF),
         HubText: ToColor(ZestColors.Light.Text),
+        HubSummaryText: ToColor(ZestColors.Light.Text2),
         ShadowColor: Hex(0xFF, 0x1D, 0x1B, 0x16),
         ShadowOpacity: 0.16);
 
@@ -43,6 +46,7 @@ public static class WheelStyle
         Label: Hex(0xFF, 0xEC, 0xE7, 0xD8),
         Hub: Hex(0xFF, 0x1D, 0x1B, 0x16),
         HubText: ToColor(ZestColors.Dark.Text),
+        HubSummaryText: ToColor(ZestColors.Dark.Text2),
         ShadowColor: Hex(0xFF, 0x1D, 0x1B, 0x16),
         ShadowOpacity: 0.45);
 
@@ -57,15 +61,6 @@ public static class WheelStyle
     /// <summary>1 px line around every petal and the hub: the citrus fill at alpha 0x38 on dark, its ink at 0x59 on light.</summary>
     public static Color PetalEdge(Citrus citrus, bool dark) =>
         dark ? WithAlpha(citrus.Fill, 0x38) : WithAlpha(citrus.InkLight, 0x59);
-
-    /// <summary>Text of the mode chip under the hub label.</summary>
-    public static string ModeChip(WheelMode mode) => mode switch
-    {
-        WheelMode.Convert => "Shift 변환",
-        WheelMode.Tools => "Alt 도구",
-        WheelMode.Actions => "Ctrl 액션",
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
-    };
 
     public static Color ToColor(Argb c) => Color.FromArgb(c.A, c.R, c.G, c.B);
 
@@ -100,9 +95,6 @@ public static class WheelStyle
     /// <summary>Horizontal room a label may use, as a fraction of the petal chord at <see cref="LabelRadius"/>.</summary>
     public const double LabelChordFraction = 0.8;
     public const double HubTextWidth = 72;
-    /// <summary>Mode chip under the hub label: 10 px bold, padding 2 x 8, fully round.</summary>
-    public static readonly Thickness ChipPadding = new(8, 2, 8, 2);
-    public const double ChipSize = 10, ChipGap = 2;
 
     // ── Empty state ─────────────────────────────────────────────────────────
     public const string NothingToDo = "할 수 있는 작업 없음";
@@ -113,16 +105,23 @@ public static class WheelStyle
     public const double FormatSize = 15;
     public static readonly FontFamily KoreanFont = new(new Uri("pack://application:,,,/Zest;component/"), "./Assets/Fonts/#Pretendard");
     public const double KoreanSize = 12;
-    /// <summary>Mode chip ("Shift 변환"): the modifier in Segoe UI Variable Display, the Hangul in Pretendard.</summary>
+    /// <summary>Mixed Latin and Hangul text (card titles, chips, tool windows): Latin in Segoe UI Variable Display, the Hangul in Pretendard.</summary>
     public static readonly FontFamily ChipFont = new(new Uri("pack://application:,,,/Zest;component/"), "Segoe UI Variable Display, ./Assets/Fonts/#Pretendard");
+    /// <summary>Hub size summary ("3개 · 12.4 MB"): numbers and units in Segoe UI Variable Display, the Hangul in Pretendard.</summary>
+    public static FontFamily SummaryFont => ChipFont;
     public static readonly FontFamily IconFont = new("Segoe Fluent Icons");
     public const double IconSize = 20;
     /// <summary>Hovered label in the hub: format names, Korean names.</summary>
     public const double HubFormatSize = 18, HubKoreanSize = 15;
+    /// <summary>
+    /// Hub size summary with nothing hovered (tabular figures, SemiBold). Too wide for the hub, it shrinks to fit on one line
+    /// down to <see cref="HubSummaryMinSize"/>; below that it breaks at " · " into two lines instead.
+    /// </summary>
+    public const double HubSummarySize = 13, HubSummaryMinSize = 11;
     public const double EmptySize = 13;
     /// <summary>Korean text (the embedded Pretendard is SemiBold only).</summary>
     public static readonly FontWeight LabelWeight = FontWeights.SemiBold;
-    /// <summary>Format names and the mode chip.</summary>
+    /// <summary>Format names.</summary>
     public static readonly FontWeight FormatWeight = FontWeights.Bold;
 
     /// <summary>Segoe Fluent Icons glyph shown above a tool or action label (null for format petals, which are text only).</summary>
