@@ -119,6 +119,49 @@ internal static class FixtureFactory
         File.WriteAllBytes(jpgPath, [.. jpg[..2], .. app1, .. jpg[2..]]);
     }
 
+    /// <summary>
+    /// Writes a 64 x 48 jpg carrying an EXIF profile with <paramref name="tags"/>, optionally EXIF GPS (33°29'59.88" N,
+    /// 126°31'30" E, 12 m), an XMP packet that repeats the latitude as <c>exif:GPSLatitude</c>, an Orientation other than 1
+    /// and the sRGB ICC profile.
+    /// </summary>
+    public static string JpegWithTags(string dir, string name, IReadOnlyDictionary<ExifTag<string>, string> tags,
+        bool withGps = false, bool withXmpGps = false, ushort orientation = 1, bool withIcc = false)
+    {
+        var path = Path.Combine(dir, name);
+        using var image = new MagickImage(new MagickColor("#3366cc"), 64, 48);
+        using (var patch = new MagickImage(MagickColors.OrangeRed, 32, 24)) image.Composite(patch, 0, 0, CompositeOperator.Over);
+        if (withIcc) image.SetProfile(ColorProfiles.SRGB);
+        var exif = new ExifProfile();
+        foreach (var (tag, value) in tags) exif.SetValue(tag, value);
+        if (orientation != 1)
+        {
+            exif.SetValue(ExifTag.Orientation, orientation);
+            image.Orientation = (Orientation)orientation; // ImageMagick syncs the EXIF value from this on write
+        }
+        if (withGps)
+        {
+            exif.SetValue(ExifTag.GPSLatitudeRef, "N");
+            exif.SetValue(ExifTag.GPSLatitude, [new Rational(33, 1), new Rational(29, 1), new Rational(5988, 100)]);
+            exif.SetValue(ExifTag.GPSLongitudeRef, "E");
+            exif.SetValue(ExifTag.GPSLongitude, [new Rational(126, 1), new Rational(31, 1), new Rational(30, 1)]);
+            exif.SetValue(ExifTag.GPSAltitude, new Rational(12, 1));
+        }
+        if (exif.Values.Any()) image.SetProfile(exif);
+        if (withXmpGps)
+        {
+            var xmp = """
+                <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+                <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                <rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" exif:GPSLatitude="33,29.998N"/>
+                </rdf:RDF></x:xmpmeta>
+                <?xpacket end="w"?>
+                """;
+            image.SetProfile(new XmpProfile(System.Text.Encoding.UTF8.GetBytes(xmp)));
+        }
+        image.Write(path, MagickFormat.Jpeg);
+        return path;
+    }
+
     /// <summary>Writes a two-frame animated webp.</summary>
     public static string AnimatedWebp(string dir, string name)
     {
