@@ -68,7 +68,6 @@ internal static class PdfMetadata
             if (value is string text) doc.Info.Elements.SetString("/" + key, text);
         // The catalog never references an XMP stream: the source's repeats the old Info and PDFsharp's own names PDFsharp.
         doc.Internals.Catalog.Elements.Remove("/Metadata");
-        const bool dropXmp = true;
 
         byte[] saved;
         using (var stream = new MemoryStream())
@@ -76,7 +75,7 @@ internal static class PdfMetadata
             doc.Save(stream, closeStream: false);
             saved = stream.ToArray();
         }
-        var result = WithInfo(saved, entries, dropXmp);
+        var result = WithInfo(saved, entries);
         ctx.Token.ThrowIfCancellationRequested();
         ctx.Report(0.8);
 
@@ -143,10 +142,10 @@ internal static class PdfMetadata
 
     /// <summary>
     /// Appends a revision to a PDFsharp-written file that replaces its Info object (same number) with <paramref name="entries"/>
-    /// and, with <paramref name="dropXmp"/>, its catalog with a copy that has no /Metadata (PDFsharp puts the entry back on every save).
+    /// and its catalog with a copy that has no /Metadata (PDFsharp puts the entry back on every save).
     /// PDFsharp writes a classic xref table and an uncompressed trailer, which is all this needs to read back.
     /// </summary>
-    static byte[] WithInfo(byte[] saved, Dictionary<string, object> entries, bool dropXmp)
+    static byte[] WithInfo(byte[] saved, Dictionary<string, object> entries)
     {
         var text = Encoding.Latin1.GetString(saved);
         var startxref = text.LastIndexOf("startxref", StringComparison.Ordinal);
@@ -163,17 +162,17 @@ internal static class PdfMetadata
             body.Append('/').Append(key).Append(value is NameValue n ? n.Name : Literal((string)value));
         body.Append(">>");
 
-        // Objects of the new revision, in order: the Info and, when asked, the catalog without its /Metadata entry.
-        var revision = new List<(string Number, string Generation, string Body)> { (info.Groups[1].Value, info.Groups[2].Value, body.ToString()) };
-        if (dropXmp)
+        // Objects of the new revision, in order: the Info and the catalog without its /Metadata entry.
+        var root = Regex.Match(trailer, @"/Root\s+(\d+)\s+(\d+)\s+R");
+        if (!root.Success) throw new ZestException(Unreadable);
+        var catalog = Regex.Match(text, $@"(?<![0-9]){root.Groups[1].Value}\s+{root.Groups[2].Value}\s+obj\s*(<<.*?>>)\s*endobj", RegexOptions.Singleline);
+        if (!catalog.Success) throw new ZestException(Unreadable);
+        var withoutXmp = Regex.Replace(catalog.Groups[1].Value, @"/Metadata\s+\d+\s+\d+\s+R", "");
+        var revision = new List<(string Number, string Generation, string Body)>
         {
-            var root = Regex.Match(trailer, @"/Root\s+(\d+)\s+(\d+)\s+R");
-            if (!root.Success) throw new ZestException(Unreadable);
-            var catalog = Regex.Match(text, $@"(?<![0-9]){root.Groups[1].Value}\s+{root.Groups[2].Value}\s+obj\s*(<<.*?>>)\s*endobj", RegexOptions.Singleline);
-            if (!catalog.Success) throw new ZestException(Unreadable);
-            var withoutXmp = Regex.Replace(catalog.Groups[1].Value, @"/Metadata\s+\d+\s+\d+\s+R", "");
-            revision.Add((root.Groups[1].Value, root.Groups[2].Value, withoutXmp));
-        }
+            (info.Groups[1].Value, info.Groups[2].Value, body.ToString()),
+            (root.Groups[1].Value, root.Groups[2].Value, withoutXmp),
+        };
 
         using var result = new MemoryStream();
         result.Write(saved);
