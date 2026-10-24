@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Zest.Core.Catalog;
-using Microsoft.Win32;
+using Zest.App.Theme;
 
 namespace Zest.App.Wheel;
 
@@ -70,10 +70,7 @@ public static class WheelStyle
 
     /// <summary>Palette for the current Windows app theme (<c>AppsUseLightTheme</c>; light when unset).</summary>
     public static WheelPalette SystemPalette()
-    {
-        const string key = @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-        return Registry.GetValue(key, "AppsUseLightTheme", 1) is int light && light == 0 ? DarkPalette : LightPalette;
-    }
+        => ZestTheme.IsDark ? DarkPalette : LightPalette;
 
     // ── Geometry (canvas units = DIP; the wheel canvas is 320 x 320) ───────
     /// <summary>Tinted disc behind the petals (original: outer + 8).</summary>

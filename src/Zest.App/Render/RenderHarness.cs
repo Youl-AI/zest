@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Zest.App.Jobs;
+using Zest.App.Theme;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
@@ -53,6 +54,7 @@ public static class RenderHarness
             foreach (var dark in new[] { false, true })
             {
                 ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
+                ZestTheme.Apply(dark);
                 var suffix = dark ? "-dark" : "";
                 Save(Card("running", dark), folder, $"progress-card-running{suffix}.png", log);
                 Save(Card("done", dark), folder, $"progress-card-done{suffix}.png", log);

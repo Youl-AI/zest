@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Zest.App.Actions;
 using Zest.App.Input;
 using Zest.App.Render;
+using Zest.App.Theme;
 using Zest.App.Tools;
 using Zest.App.Tray;
 using Zest.App.Wheel;
@@ -83,7 +84,8 @@ public partial class App : Application
         LegacyMigration.MoveDataFolder(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
         LoginItem.MigrateLegacy();
         ApplicationThemeManager.ApplySystemTheme();
-        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        ZestTheme.Apply();
+        SystemEvents.UserPreferenceChanged +=OnUserPreferenceChanged;
 
         Services.Start();
         // Work folders a crashed or killed run left in %TEMP%\Zest; best effort, off the UI thread.
@@ -238,6 +240,7 @@ public partial class App : Application
             Dispatcher.BeginInvoke(() =>
             {
                 ApplicationThemeManager.ApplySystemTheme();
+                ZestTheme.Apply();
                 _tray?.RefreshIcon(); // the taskbar may have switched between light and dark
             });
         }
