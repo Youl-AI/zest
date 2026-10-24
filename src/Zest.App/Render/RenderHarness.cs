@@ -79,6 +79,10 @@ public static class RenderHarness
                 Save(ToolWindows.ModelDownload(dark, "ask"), folder, $"model-download{suffix}.png", log);
                 Save(ToolWindows.ModelDownload(dark, "progress"), folder, $"model-download-progress{suffix}.png", log);
                 Save(ToolWindows.ModelDownload(dark, "failed"), folder, $"model-download-failed{suffix}.png", log);
+                Save(ToolWindows.Metadata(dark), folder, $"metadata{suffix}.png", log);
+                Save(ToolWindows.Metadata(dark, locationOff: true), folder, $"metadata-location-off{suffix}.png", log);
+                Save(ToolWindows.Metadata(dark, wipe: true), folder, $"metadata-wipe{suffix}.png", log);
+                Save(ToolWindows.MetadataBatch(dark), folder, $"metadata-batch{suffix}.png", log);
             }
 
             Save(TraySheet(), folder, "tray-icons.png", log);

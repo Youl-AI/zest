@@ -1,0 +1,158 @@
+<theme:ZestWindow x:Class="Zest.App.Tools.MetadataWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  xmlns:theme="clr-namespace:Zest.App.Theme"
+                  xmlns:wheel="clr-namespace:Zest.App.Wheel"
+                  Heading="메타데이터" Width="508" SizeToContent="Height">
+    <!-- Width = the page's 460 px frame + 2 x ZestWindow.ShadowMargin. -->
+    <theme:ZestWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ToolStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- A group's heading ("카메라"): 11.5 Bold text-2. -->
+            <Style x:Key="GroupHeading" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{DynamicResource Zest.Text2}" />
+            </Style>
+
+            <!-- A read-only value: 13 px text, one line with an ellipsis (the full value is the tooltip). -->
+            <Style x:Key="TagValue" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.TextFont}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+            </Style>
+
+            <!-- A row's remove ×: 28 px, radius 7, text-3; hover = seg fill with the danger colour. -->
+            <Style x:Key="RemoveButton" TargetType="Button">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Foreground" Value="{DynamicResource Zest.Text3}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Box" CornerRadius="7" Background="{TemplateBinding Background}">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons" FontSize="10"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.Seg}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Zest.Danger}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.LineStrong}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- The banner's 위치 지우기 / 되돌리기: 28 px, radius 8, seg fill (line-strong on hover), 13 SemiBold. -->
+            <Style x:Key="BannerButton" TargetType="Button">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontFamily" Value="{x:Static wheel:WheelStyle.ChipFont}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource Zest.Text}" />
+                <Setter Property="Background" Value="{DynamicResource Zest.Seg}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource Zest.FocusRing}" />
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform />
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Box" CornerRadius="8" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Box" Property="Background" Value="{DynamicResource Zest.LineStrong}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                            <Condition Binding="{Binding Path=(SystemParameters.ClientAreaAnimation)}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <MultiDataTrigger.EnterActions>
+                            <BeginStoryboard Storyboard="{StaticResource Zest.PressIn}" />
+                        </MultiDataTrigger.EnterActions>
+                        <MultiDataTrigger.ExitActions>
+                            <BeginStoryboard Storyboard="{StaticResource Zest.PressOut}" />
+                        </MultiDataTrigger.ExitActions>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+        </ResourceDictionary>
+    </theme:ZestWindow.Resources>
+
+    <theme:ZestWindow.Footer>
+        <DockPanel Style="{StaticResource Zest.FooterBar}">
+            <ui:Button x:Name="SaveButton" Appearance="Primary" IsDefault="True" Content="새 파일로 저장" />
+            <ui:Button x:Name="CancelButton" IsCancel="True" Content="취소" />
+            <!-- Left: the wipe switch (one file only; the batch picks it with the segments). -->
+            <CheckBox x:Name="WipeBox" Content="태그 모두 지우기" HorizontalAlignment="Left" FontFamily="{x:Static wheel:WheelStyle.ChipFont}" />
+        </DockPanel>
+    </theme:ZestWindow.Footer>
+
+    <StackPanel>
+        <!-- ── One file ─────────────────────────────────────────────────── -->
+        <StackPanel x:Name="SinglePanel">
+            <!-- Only when a tag is a location tag: tangerine warning, lime once 위치 지우기 is on. -->
+            <Border x:Name="Banner" Margin="20,0,20,6" Padding="12,10" CornerRadius="10" Background="{DynamicResource Zest.Tangerine.Wash}">
+                <DockPanel>
+                    <!-- The page's map pin: 16 x 16, stroke 1.4, a filled dot; tangerine ink, lime ink once on (set in code). -->
+                    <!-- Top-aligned with the first text line, which sits centred on the 28 px button. -->
+                    <Canvas DockPanel.Dock="Left" Width="16" Height="16" Margin="0,6,10,0" VerticalAlignment="Top">
+                        <Path x:Name="PinPath" Data="M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14Z"
+                              StrokeThickness="1.4" StrokeLineJoin="Round" />
+                        <Ellipse x:Name="PinDot" Canvas.Left="6.4" Canvas.Top="4.9" Width="3.2" Height="3.2" />
+                    </Canvas>
+                    <Button x:Name="LocationButton" DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Top"
+                            Style="{StaticResource BannerButton}" Content="위치 지우기" />
+                    <TextBlock x:Name="BannerText" Margin="0,5,0,0" VerticalAlignment="Top" TextWrapping="Wrap" LineHeight="18"
+                               FontFamily="{x:Static wheel:WheelStyle.ChipFont}" FontSize="12.5" Foreground="{DynamicResource Zest.Text}" />
+                </DockPanel>
+            </Border>
+
+            <ScrollViewer x:Name="ListScroll" MaxHeight="420" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Focusable="False">
+                <StackPanel x:Name="GroupsPanel" Margin="20,0,20,8" />
+            </ScrollViewer>
+        </StackPanel>
+
+        <!-- ── Several files: only the two clean-ups ────────────────────── -->
+        <Border x:Name="BatchPanel" Margin="20,6,20,4" Style="{StaticResource Zest.SegmentPanel}">
+            <UniformGrid Rows="1">
+                <RadioButton x:Name="LocationOnlyRadio" GroupName="Batch" Content="위치만 지우기" Style="{StaticResource Zest.Segment}" />
+                <RadioButton x:Name="EverythingRadio" GroupName="Batch" Content="태그 모두 지우기" Style="{StaticResource Zest.Segment}" />
+            </UniformGrid>
+        </Border>
+
+        <!-- What gets written, above the bottom bar (mostly Hangul, so the chip font). -->
+        <TextBlock x:Name="CaptionText" Margin="20,6,20,12" Style="{StaticResource Zest.Hint}" TextWrapping="Wrap" TextTrimming="None"
+                   LineHeight="17" FontFamily="{x:Static wheel:WheelStyle.ChipFont}" />
+    </StackPanel>
+</theme:ZestWindow>

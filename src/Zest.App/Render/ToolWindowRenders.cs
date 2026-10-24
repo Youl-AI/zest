@@ -7,6 +7,7 @@ using Zest.App.Shelf;
 using Zest.App.Theme;
 using Zest.App.Tools;
 using Zest.App.Wheel;
+using Zest.Core.Metadata;
 using Zest.Core.Tools;
 using Wpf.Ui.Controls;
 
@@ -64,6 +65,41 @@ internal static class ToolWindows
     {
         var text = empty ? "" : "── 회의록 스캔.png ──\n오늘 회의에서 논의한 내용을 정리합니다.\n1. 다음 분기 일정: 2026년 11월 3일\n2. Quarterly report 검토 담당: 김하늘\n\n── 견적서.pdf ──\n견적 번호 2026-1022\n합계 금액 1,250,000원";
         var window = new TextResultWindow([@"C:\Users\me\Documents\회의록 스캔.png", @"C:\Users\me\Documents\견적서.pdf"], text, copied, _ => { });
+        return Shot(window, dark);
+    }
+
+    /// <summary>
+    /// A phone photo's tags (camera, date, GPS, empty 작성자/저작권, read-only and removable extras): as opened, with the
+    /// banner's 위치 지우기 on and 모델 struck (<paramref name="locationOff"/>), or with 태그 모두 지우기 on (<paramref name="wipe"/>).
+    /// </summary>
+    public static FrameworkElement Metadata(bool dark, bool locationOff = false, bool wipe = false)
+    {
+        MetadataTag[] tags =
+        [
+            new("file:format", "파일", "형식", "JPG", false, false),
+            new("file:size", "파일", "크기", "4032 × 3024 · 5.6 MB", false, false),
+            new("exif:Make", "카메라", "제조사", "Apple", true, true),
+            new("exif:Model", "카메라", "모델", "iPhone 15 Pro", true, true),
+            new("exif:LensModel", "카메라", "렌즈", "iPhone 15 Pro back triple camera 6.765mm f/1.78", true, true),
+            new("exif:DateTimeOriginal", "촬영", "촬영 일시", "2026:10:20 15:12:08", true, true),
+            new("exif:GPSLatitude", "위치", "위도", "33.4996° N", false, true),
+            new("exif:GPSLongitude", "위치", "경도", "126.5312° E", false, true),
+            new("exif:Artist", "설명", "작성자", "", true, true),
+            new("exif:Copyright", "설명", "저작권", "", true, true),
+            new("exif:Orientation", "기타", "방향", "6", false, true),
+            new("xmp:packet", "기타", "XMP 데이터 있음", "2.1 KB", false, true),
+        ];
+        var window = new MetadataWindow([@"C:\Users\me\Pictures\제주 바다.jpg"], tags, _ => { });
+        if (locationOff) window.Preview(removeLocation: true, struck: "exif:Model");
+        if (wipe) window.Preview(removeAll: true);
+        return Shot(window, dark);
+    }
+
+    /// <summary>Five photos: the batch's two clean-ups, 위치만 지우기 picked.</summary>
+    public static FrameworkElement MetadataBatch(bool dark)
+    {
+        var files = Enumerable.Range(1, 5).Select(i => $@"C:\Users\me\Pictures\여행 {i}.jpg").ToList();
+        var window = new MetadataWindow(files, null, _ => { });
         return Shot(window, dark);
     }
 

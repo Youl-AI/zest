@@ -7,13 +7,15 @@ using Zest.App.Actions;
 using Zest.App.Jobs;
 using Zest.Core.Catalog;
 using Zest.Core.Jobs;
+using Zest.Core.Metadata;
 using Zest.Core.Tools;
 
 namespace Zest.App.Tools;
 
 /// <summary>
 /// Turns a drop on a tool petal into either a tool window (compress, crop, order, the model download for background removal)
-/// or jobs started at once (split, a single image to PDF, background removal once the model is there). Every tool job runs through <see cref="Jobs.JobRunner"/> with a Korean title. Call on the UI thread.
+/// or jobs started at once (split, a single image to PDF, background removal once the model is there). Metadata reads one
+/// file's tags first and opens the editor, or opens the batch clean-up for several files. Every tool job runs through <see cref="Jobs.JobRunner"/> with a Korean title. Call on the UI thread.
 /// </summary>
 public static class ToolDispatcher
 {
@@ -57,7 +59,47 @@ public static class ToolDispatcher
             case ZestTool.RemoveBackground:
                 _ = RemoveBackgroundAsync(files, at);
                 break;
+
+            case ZestTool.Metadata when files.Count == 1:
+                _ = OpenMetadataAsync(files[0], at);
+                break;
+
+            case ZestTool.Metadata:
+                Present(new MetadataWindow(files, null, edit => SaveMetadata(files, edit)), at);
+                break;
         }
+    }
+
+    /// <summary>Reads the one file's tags off the UI thread, then opens the editor; a file that cannot be read gets a failed card.</summary>
+    static async Task OpenMetadataAsync(string file, Native.POINT at)
+    {
+        IReadOnlyList<MetadataTag> tags;
+        try
+        {
+            var caps = Services.Capabilities;
+            tags = await Task.Run(() => MetadataReader.ReadAsync(file, caps, CancellationToken.None));
+        }
+        catch (Exception e)
+        {
+            FailedCard("메타데이터", Name(file), e);
+            return;
+        }
+        try
+        {
+            Present(new MetadataWindow([file], tags, edit => SaveMetadata([file], edit)), at);
+        }
+        catch (Exception e)
+        {
+            // This method's task is discarded, so nothing after the read may throw unseen.
+            FailedCard("메타데이터", Name(file), e);
+        }
+    }
+
+    /// <summary>One "메타데이터" card per file, each writing its own copy with the same edit.</summary>
+    static void SaveMetadata(IReadOnlyList<string> files, MetadataEdit edit)
+    {
+        foreach (var file in files)
+            Run("메타데이터", Name(file), ctx => MetadataWriter.ApplyAsync(file, edit, ctx));
     }
 
     static ModelDownloadWindow? _download;
