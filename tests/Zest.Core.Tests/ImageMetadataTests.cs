@@ -200,6 +200,19 @@ public class ImageMetadataTests : IDisposable
     }
 
     [Fact]
+    public async Task Tiff_IsRefused_LeavesNothing()
+    {
+        var src = FixtureFactory.Image(Dir, "photo.tiff");
+
+        var read = await Assert.ThrowsAsync<ZestException>(() => Read(src));
+        var write = await Assert.ThrowsAsync<ZestException>(() => MetadataWriter.ApplyAsync(src, MetadataEdit.Everything, Ctx));
+
+        Assert.Equal("이 형식은 메타데이터를 바꿀 수 없습니다.", read.Message);
+        Assert.Equal("이 형식은 메타데이터를 바꿀 수 없습니다.", write.Message);
+        Assert.Equal([src], Directory.GetFiles(Dir));
+    }
+
+    [Fact]
     public async Task SameNameExists_GetsNumbered()
     {
         var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags);

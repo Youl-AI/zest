@@ -66,12 +66,15 @@ public static class MetadataLabels
 
 public static class MetadataFormats
 {
-    /// <summary>Formats whose metadata can be read and rewritten here; media needs both ffmpeg and ffprobe.</summary>
+    /// <summary>
+    /// Formats whose metadata can be read and rewritten here; media needs both ffmpeg and ffprobe. Not TIFF: Magick.NET
+    /// exposes no TIFF EXIF profile, so a rewrite would silently drop the camera tags (docs/decisions.md).
+    /// </summary>
     public static bool Supports(string format, Capabilities caps)
     {
         switch (format)
         {
-            case "jpg" or "png" or "webp" or "tiff" or "pdf": return true;
+            case "jpg" or "png" or "webp" or "pdf": return true;
             case "avif": return caps.AvifWrite;
             case "heic": return caps.HeicWrite;
         }

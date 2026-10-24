@@ -19,9 +19,9 @@ internal static class ImageMetadata
     const string Unreadable = "메타데이터를 읽을 수 없습니다.";
     const string NotEditable = "이 형식은 메타데이터를 바꿀 수 없습니다.";
 
-    static readonly HashSet<string> Writable = ["jpg", "png", "webp", "tiff", "avif", "heic"];
+    static readonly HashSet<string> Writable = ["jpg", "png", "webp", "avif", "heic"]; // no tiff: see MetadataFormats.Supports
     /// <summary>Formats whose profiles Magick reports on a ping; WebP (and HEIC, unverified here) only show them on a full read.</summary>
-    static readonly HashSet<string> PingShowsProfiles = ["jpg", "png", "tiff", "avif"];
+    static readonly HashSet<string> PingShowsProfiles = ["jpg", "png", "avif"];
     static readonly string[] GroupOrder = ["파일", "카메라", "촬영", "위치", "설명", "기타"];
 
     /// <summary>Every EXIF text tag Magick knows, by the name used in ids ("Artist", "ImageDescription"...).</summary>

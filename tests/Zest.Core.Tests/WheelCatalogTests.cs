@@ -28,6 +28,7 @@ public class WheelCatalogTests
     [Fact] public void Tools_Audio_MetadataOnly() => Assert.Equal(new[] { "메타데이터" }, Labels(Items(["song.mp3"], WheelMode.Tools)));
     [Fact] public void Tools_Video_WithoutFfprobe_Empty() => Assert.Empty(WheelCatalog.Items(["clip.mp4"], WheelMode.Tools, Capabilities.All with { Ffprobe = false }));
     [Fact] public void Tools_Bmp_NoMetadata() => Assert.DoesNotContain("메타데이터", Labels(Items(["a.bmp"], WheelMode.Tools)));
+    [Fact] public void Tools_Tiff_NoMetadata() => Assert.DoesNotContain("메타데이터", Labels(Items(["a.tiff"], WheelMode.Tools)));
     [Fact] public void Tools_HeicWithoutHeicWrite_NoMetadata() => Assert.DoesNotContain("메타데이터", Labels(WheelCatalog.Items(["a.heic"], WheelMode.Tools, Capabilities.All with { HeicWrite = false })));
     [Fact] public void Actions_AlwaysFive() => Assert.Equal(new[] { "선반", "복사", "이동", "경로 복사", "터미널" }, Labels(Items(["a.xyz"], WheelMode.Actions)));
 

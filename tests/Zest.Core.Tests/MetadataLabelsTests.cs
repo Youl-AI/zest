@@ -35,6 +35,7 @@ public class MetadataLabelsTests
         Assert.True(MetadataFormats.Supports("jpg", all));
         Assert.True(MetadataFormats.Supports("pdf", all));
         Assert.False(MetadataFormats.Supports("bmp", all));
+        Assert.False(MetadataFormats.Supports("tiff", all)); // Magick.NET exposes no TIFF EXIF profile (docs/decisions.md)
         Assert.False(MetadataFormats.Supports("gif", all));
         Assert.False(MetadataFormats.Supports("avif", all with { AvifWrite = false }));
         Assert.True(MetadataFormats.Supports("mp4", all));
