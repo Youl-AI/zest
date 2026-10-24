@@ -118,6 +118,8 @@ Get-FileHash .\Zest-1.0.0-win-x64.zip -Algorithm SHA256
 
 Zest는 아직 코드 서명이 되어 있지 않아서, 처음 실행할 때 Windows가 "Windows의 PC 보호" 창을 띄울 수 있습니다. 이때 **추가 정보**를 누른 뒤 **실행**을 누릅니다. 이 저장소의 Releases 페이지에서 받은 파일에만 이렇게 하고, 그 전에 SHA256을 먼저 비교하세요.
 
+1.0.0 zip의 [VirusTotal 검사 결과](https://www.virustotal.com/gui/file/23bc4833c98d9cee84e412b36edc1662c2a071a10bdd93f55a361ea59e0b86c9)도 볼 수 있습니다. 위의 SHA256과 같은 파일입니다.
+
 요구 사항:
 
 - Windows 10 1903 이상 / Windows 11, x64

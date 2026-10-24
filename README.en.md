@@ -120,6 +120,8 @@ Get-FileHash .\Zest-1.0.0-win-x64.zip -Algorithm SHA256
 
 Zest is not code-signed yet, so on the first run Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. Only do this for files downloaded from this repository's Releases page, and compare the SHA256 first.
 
+The 1.0.0 zip's [VirusTotal report](https://www.virustotal.com/gui/file/23bc4833c98d9cee84e412b36edc1662c2a071a10bdd93f55a361ea59e0b86c9) is public too; it is the same file as the SHA256 above.
+
 Requirements:
 
 - Windows 10 1903 or later / Windows 11, x64
