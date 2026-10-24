@@ -1,6 +1,5 @@
 using System.IO;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Zest.App.Actions;
@@ -263,17 +262,11 @@ public static class ToolDispatcher
 
     /// <summary>
     /// Centres the window on the drop monitor's work area (placed before it is shown, so it never flashes elsewhere),
-    /// shows it, brings it to the front (see <see cref="Native.BringToFront"/>) and lets Esc close it.
+    /// shows it and brings it to the front (see <see cref="Native.BringToFront"/>). Esc is handled by
+    /// <see cref="Theme.ZestWindow"/> itself.
     /// </summary>
     static void Present(Window window, Native.POINT at)
     {
-        // Bubbling KeyDown, not Preview: an open combo dropdown handles its own Esc first and only closes itself.
-        window.KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            window.Close();
-        };
         // SizeToContent is applied only during Show, so the handle would be created (and centred) at the default height.
         // Measure the content first and start at the final height; SizeToContent still follows later changes.
         if (window.SizeToContent == SizeToContent.Height && window.Content is FrameworkElement content)

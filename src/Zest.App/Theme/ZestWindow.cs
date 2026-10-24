@@ -164,6 +164,18 @@ public class ZestWindow : Window
         else base.OnPreviewKeyDown(e);
     }
 
+    /// <summary>
+    /// Esc closes the window. Bubbling KeyDown, not Preview: an open combo dropdown handles its own Esc first and only
+    /// closes itself.
+    /// </summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || e.Key != Key.Escape) return;
+        e.Handled = true;
+        Close();
+    }
+
     protected override IEnumerator LogicalChildren
     {
         get
