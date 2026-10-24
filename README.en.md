@@ -5,7 +5,7 @@
 
 [한국어](README.md) · **English**
 
-A Windows tray app: while you drag a file in Explorer, tap a key once and a round menu (the wheel) opens around the file; drop it on a petal to convert it, open a tool or run an action.
+**Zest** is a Windows tray app: while you drag a file in Explorer, tap a key once and a round menu (the wheel) opens around the file; drop it on a petal to convert it, open a tool or run an action.
 
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
 ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
@@ -54,7 +54,7 @@ The app's interface is in Korean. Korean labels are quoted below with their mean
    - **Alt** = tools wheel
    - **Ctrl** = actions wheel
 3. When the wheel appears, drop the file on the petal you want.
-4. Dropping **outside** the wheel or on the **hole in the middle**, or pressing Esc, does nothing. The original is never moved, deleted or overwritten; the result is a new file next to it.
+4. Dropping **outside** the wheel or on the **hole in the middle**, or pressing Esc, does nothing. Convert, the tools and metadata never change the original; the result is a new file next to it. Only the **Move** action moves the file itself.
 
 Dragging without tapping a key works as usual.
 
@@ -64,7 +64,7 @@ Dragging without tapping a key works as usual.
 - **Tools (Alt)**: compress (presets, target size, ratio, maximum size), crop (fixed ratio, numeric input), make PDF (images in order into one PDF), merge and split PDFs, copy text, remove background, metadata.
   - Copy text uses Windows OCR. The Korean and English OCR languages must be installed (Settings > Time & language > Language).
   - Remove background downloads a model of about 973 MB (BiRefNet matting) on first use and keeps it in `%LOCALAPPDATA%\Zest\models`; images are processed only on this PC. One image takes about 7 seconds on the CPU.
-  - Metadata shows the tags of one file and lets you change values or remove tags. **위치 지우기** (remove location) removes GPS data and, for photos, also XMP and extra embedded images such as HDR gain maps. **태그 모두 지우기** (remove all tags) removes every tag and keeps a photo's color profile (ICC) and orientation. When you drop several files, you choose between **위치만 지우기** (remove location only) and **태그 모두 지우기**. The original is not changed; the result is a new file next to it named `name (edited).ext` or `name (no metadata).ext`.
+  - Metadata shows the tags of one file and lets you change values or remove tags. **위치 지우기** (remove location) removes GPS data and, for photos, also XMP and extra embedded images such as HDR gain maps, and for videos the data tracks that can hold a GPS log. **태그 모두 지우기** (remove all tags) removes every tag and keeps a photo's color profile (ICC) and orientation. When you drop several files, you choose between **위치만 지우기** (remove location only) and **태그 모두 지우기**. The original is not changed; the result is a new file next to it named `name (edited).ext` or `name (no metadata).ext`.
 - **Actions (Ctrl)**: shelf (a small card that holds files for a while), copy, move, copy path, terminal.
 
 Petals for combinations that cannot be converted do not appear. Without Office or ffmpeg, those conversions are left off the wheel.
@@ -117,7 +117,7 @@ You build and run it from source. Building needs the .NET 10 SDK.
 dist\Zest.exe
 ```
 
-`build.ps1` empties `dist`, publishes with `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`, then deletes the debug symbols (`.pdb`) and the unused `DirectML.dll` (about 110 MB). Running the app adds a tray icon.
+`build.ps1` empties `dist`, publishes with `dotnet publish src/Zest.App -c Release -r win-x64 --self-contained false -o dist`, then deletes the debug symbols (`.pdb`), the unused `DirectML.dll` and the unused PDFsharp helper assemblies (about 110 MB). Running the app adds a tray icon.
 
 Tests: `dotnet test --project tests/Zest.Core.Tests`
 
@@ -142,6 +142,9 @@ Developer docs: [implementation decisions](docs/decisions.md), [manual checklist
 
 - Zest does not accept files dragged out of an archiver window (Bandizip and the like). Bandizip deletes the entry from the archive when Shift is held on drop, so do not hold Shift when dragging out of an archiver.
 - Changing or removing EXIF tags in metadata can drop or break maker notes and some other tags in the new file. EXIF you do not change is copied as is.
+- Changing or removing EXIF tags also leaves XMP and extra embedded images (HDR gain maps and the like) out of the new file, so the old value does not survive there.
+- Editing metadata re-encodes images other than jpg (webp, avif and heic at quality 97). An animated webp keeps only its first frame.
+- **위치 지우기** (remove location) on a video does not remove a location log carried inside a subtitle track (DJI drone footage, for example).
 - A PDF saved from the metadata tool carries no XMP metadata.
 
 ## Credits and license
