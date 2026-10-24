@@ -5,9 +5,12 @@ namespace Zest.Core.Metadata;
 /// <summary>How much more than EXIF/XMP/IPTC a rewrite takes out of a JPEG.</summary>
 internal enum JpegCleanup
 {
-    /// <summary>Plain edits: every other segment and everything after SOS stay as they are.</summary>
+    /// <summary>Edits that leave EXIF alone (only XMP or IPTC struck): every other segment and everything after SOS stay as they are.</summary>
     None,
-    /// <summary>위치 지우기: also APP11 (JUMBF/C2PA), APP2 MPF and whatever follows the primary image's EOI (gain maps, MPF images).</summary>
+    /// <summary>
+    /// 위치 지우기 and any EXIF edit: also APP11 (JUMBF/C2PA), APP2 MPF and whatever follows the primary image's EOI (gain maps,
+    /// MPF images, which carry their own EXIF).
+    /// </summary>
     Location,
     /// <summary>태그 모두 지우기: <see cref="Location"/> plus COM, every APP segment except APP0, APP2 ICC and APP14, and APP13.</summary>
     Everything,

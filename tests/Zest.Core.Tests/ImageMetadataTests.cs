@@ -304,6 +304,53 @@ public class ImageMetadataTests : IDisposable
         Assert.Equal("홍길동", Assert.Single(await Read(output), t => t.Id == "exif:Artist").Value);
     }
 
+    [Fact]
+    public async Task Jpeg_RemoveExifTag_AlsoDropsXmpCopy()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", new Dictionary<ExifTag<string>, string>
+        {
+            [ExifTag.Make] = "Google",
+            [ExifTag.Artist] = "홍길동",
+        });
+        var xmp = """
+            <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+            <x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <dc:creator><rdf:Seq><rdf:li>홍길동</rdf:li></rdf:Seq></dc:creator></rdf:Description>
+            </rdf:RDF></x:xmpmeta>
+            <?xpacket end="w"?>
+            """;
+        FixtureFactory.InsertJpegSegments(src,
+            FixtureFactory.JpegSegment(0xE1, [.. "http://ns.adobe.com/xap/1.0/\0"u8, .. System.Text.Encoding.UTF8.GetBytes(xmp)]));
+        Assert.Contains(await Read(src), t => t.Id == "xmp:packet");
+
+        var output = await MetadataWriter.ApplyAsync(src, Edit(removed: ["exif:Artist"]), Ctx);
+
+        var bytes = File.ReadAllBytes(output);
+        Assert.True(bytes.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes("홍길동")) < 0);
+        Assert.True(bytes.AsSpan().IndexOf(System.Text.Encoding.Unicode.GetBytes("홍길동")) < 0);
+        Assert.True(bytes.AsSpan().IndexOf(System.Text.Encoding.BigEndianUnicode.GetBytes("홍길동")) < 0);
+        Assert.Equal("Google", Assert.Single(await Read(output), t => t.Id == "exif:Make").Value);
+    }
+
+    [Fact]
+    public async Task Jpeg_ExifEdit_DropsMpfAndTrailer()
+    {
+        var src = FixtureFactory.JpegWithTags(Dir, "photo.jpg", CameraTags);
+        FixtureFactory.InsertJpegSegments(src, FixtureFactory.JpegSegment(0xE2, [.. "MPF\0"u8, .. "MM\0*\0\0\0\b"u8]));
+        var primary = File.ReadAllBytes(src);
+        File.WriteAllBytes(src, [.. primary, 0xFF, 0xD8, .. " second image Artist old "u8, 0xFF, 0xD9]);
+
+        var output = await MetadataWriter.ApplyAsync(src, Edit(changed: new() { ["exif:Artist"] = "홍길동" }), Ctx);
+
+        var bytes = File.ReadAllBytes(output);
+        Assert.DoesNotContain(Segments(bytes), s => s.Marker == 0xE2 && s.Body.AsSpan().StartsWith("MPF\0"u8));
+        Assert.False(Has(bytes, "second image"));
+        Assert.Equal(primary[SosOffset(primary)..], bytes[SosOffset(bytes)..]); // the scans, ending at the primary EOI
+        Assert.Equal(PixelHash(src), PixelHash(output));
+        Assert.Equal("홍길동", Assert.Single(await Read(output), t => t.Id == "exif:Artist").Value);
+    }
+
     /// <summary>The marker segments before the first SOS, with their offsets.</summary>
     static List<(byte Marker, int Offset, byte[] Body)> Segments(byte[] jpeg)
     {
@@ -316,6 +363,12 @@ public class ImageMetadataTests : IDisposable
             pos += 2 + length;
         }
         return list;
+    }
+
+    static int SosOffset(byte[] jpeg)
+    {
+        var last = Segments(jpeg)[^1];
+        return last.Offset + 4 + last.Body.Length;
     }
 
     /// <summary>The fixture's GPS latitude seconds as stored (5988/100 or 1497/25), in either byte order, as found in the file.</summary>

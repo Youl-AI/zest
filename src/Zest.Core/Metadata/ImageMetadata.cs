@@ -119,15 +119,20 @@ internal static class ImageMetadata
         var format = FormatCatalog.FormatOf(source);
         if (format is null || !Writable.Contains(format) || !CapabilityProbe.CanWrite(format)) throw new ZestException(NotEditable);
 
-        var dropXmp = edit.RemoveAll || edit.RemoveLocation || edit.Removed.Contains(XmpId);
+        // XMP repeats EXIF (dc:creator, photoshop:DateCreated, tiff:Make...), so a removed or changed EXIF value would survive
+        // there; and MPF secondary images carry their own EXIF. Any EXIF edit drops both (docs/decisions.md F1).
+        var exifEdited = edit.Removed.Any(IsExifId) || edit.Changed.Keys.Any(IsExifId);
+        var dropXmp = edit.RemoveAll || edit.RemoveLocation || exifEdited || edit.Removed.Contains(XmpId);
         var dropIptc = edit.RemoveAll || edit.Removed.Contains(IptcId);
         var tag = edit.RemoveAll ? "no metadata" : "edited";
         return format == "jpg"
-            ? WriteJpeg(source, edit, dropXmp, dropIptc, tag, ctx)
+            ? WriteJpeg(source, edit, dropXmp, dropIptc, exifEdited, tag, ctx)
             : WriteThroughMagick(source, format, edit, dropXmp, dropIptc, tag, ctx);
     }
 
-    static string WriteJpeg(string source, MetadataEdit edit, bool dropXmp, bool dropIptc, string tag, OperationContext ctx)
+    static bool IsExifId(string id) => id.StartsWith("exif:", StringComparison.Ordinal);
+
+    static string WriteJpeg(string source, MetadataEdit edit, bool dropXmp, bool dropIptc, bool exifEdited, string tag, OperationContext ctx)
     {
         var bytes = File.ReadAllBytes(source);
         byte[]? payload;
@@ -149,7 +154,7 @@ internal static class ImageMetadata
         if (payload is not null) payload = WithExifHeader(payload);
         ctx.Report(0.4);
 
-        var cleanup = edit.RemoveAll ? JpegCleanup.Everything : edit.RemoveLocation ? JpegCleanup.Location : JpegCleanup.None;
+        var cleanup = edit.RemoveAll ? JpegCleanup.Everything : edit.RemoveLocation || exifEdited ? JpegCleanup.Location : JpegCleanup.None;
         var rewritten = JpegSegments.Rewrite(bytes, payload, dropXmp, dropIptc, cleanup);
         ctx.Token.ThrowIfCancellationRequested();
         var output = OutputNaming.ToolOutput(source, tag, "jpg", ctx);
