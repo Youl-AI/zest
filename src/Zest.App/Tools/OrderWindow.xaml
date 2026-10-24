@@ -13,11 +13,11 @@
     <theme:ZestWindow.Footer>
         <!-- Right to left: the verb (8 px more air before it, as on the page), then ↓ and ↑. -->
         <DockPanel Style="{StaticResource Zest.FooterBar}">
-            <ui:Button x:Name="GoButton" Margin="16,0,0,0" Appearance="Primary" IsDefault="True" Content="만들기" />
-            <ui:Button x:Name="DownButton" Width="32" Padding="0" ToolTip="아래로" AutomationProperties.Name="아래로">
+            <ui:Button x:Name="GoButton" TabIndex="2" Margin="16,0,0,0" Appearance="Primary" IsDefault="True" Content="만들기" />
+            <ui:Button x:Name="DownButton" TabIndex="1" Width="32" Padding="0" ToolTip="아래로" AutomationProperties.Name="아래로">
                 <TextBlock Text="&#xE74B;" FontFamily="Segoe Fluent Icons" FontSize="14" Foreground="{DynamicResource Zest.Text}" />
             </ui:Button>
-            <ui:Button x:Name="UpButton" Width="32" Padding="0" ToolTip="위로" AutomationProperties.Name="위로">
+            <ui:Button x:Name="UpButton" TabIndex="0" Width="32" Padding="0" ToolTip="위로" AutomationProperties.Name="위로">
                 <TextBlock Text="&#xE74A;" FontFamily="Segoe Fluent Icons" FontSize="14" Foreground="{DynamicResource Zest.Text}" />
             </ui:Button>
         </DockPanel>

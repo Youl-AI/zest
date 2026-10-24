@@ -110,10 +110,10 @@
 
     <theme:ZestWindow.Footer>
         <DockPanel Style="{StaticResource Zest.FooterBar}">
-            <ui:Button x:Name="SaveButton" Appearance="Primary" IsDefault="True" Content="새 파일로 저장" />
-            <ui:Button x:Name="CancelButton" IsCancel="True" Content="취소" />
+            <ui:Button x:Name="SaveButton" TabIndex="2" Appearance="Primary" IsDefault="True" Content="새 파일로 저장" />
+            <ui:Button x:Name="CancelButton" TabIndex="1" IsCancel="True" Content="취소" />
             <!-- Left: the wipe switch (one file only; the batch picks it with the segments). -->
-            <CheckBox x:Name="WipeBox" Content="태그 모두 지우기" HorizontalAlignment="Left" FontFamily="{x:Static wheel:WheelStyle.ChipFont}" />
+            <CheckBox x:Name="WipeBox" TabIndex="0" Content="태그 모두 지우기" HorizontalAlignment="Left" FontFamily="{x:Static wheel:WheelStyle.ChipFont}" />
         </DockPanel>
     </theme:ZestWindow.Footer>
 

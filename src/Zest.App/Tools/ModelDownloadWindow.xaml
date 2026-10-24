@@ -12,14 +12,14 @@
 
     <theme:ZestWindow.Footer>
         <DockPanel Style="{StaticResource Zest.FooterBar}">
-            <ui:Button x:Name="DownloadButton" Appearance="Primary" IsDefault="True" Content="내려받기">
+            <ui:Button x:Name="DownloadButton" TabIndex="1" Appearance="Primary" IsDefault="True" Content="내려받기">
                 <!-- Disabled while downloading: stays tangerine (faded), not WPF-UI's grey disabled fill. -->
                 <ui:Button.Resources>
                     <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{x:Static theme:ZestTheme.PrimaryFill}" />
                     <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{x:Static theme:ZestTheme.PrimaryOnFill}" />
                 </ui:Button.Resources>
             </ui:Button>
-            <ui:Button x:Name="CancelButton" IsCancel="True" Content="취소" />
+            <ui:Button x:Name="CancelButton" TabIndex="0" IsCancel="True" Content="취소" />
             <TextBlock x:Name="ErrorText" Style="{StaticResource ErrorText}" />
         </DockPanel>
     </theme:ZestWindow.Footer>

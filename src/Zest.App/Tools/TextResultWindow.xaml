@@ -11,15 +11,15 @@
 
     <theme:ZestWindow.Footer>
         <DockPanel Style="{StaticResource Zest.FooterBar}">
-            <ui:Button x:Name="CopyButton" Appearance="Primary" Content="복사">
+            <ui:Button x:Name="CopyButton" TabIndex="2" Appearance="Primary" Content="복사">
                 <!-- Disabled when no text was found: stays tangerine (faded), not WPF-UI's grey disabled fill. -->
                 <ui:Button.Resources>
                     <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{x:Static theme:ZestTheme.PrimaryFill}" />
                     <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{x:Static theme:ZestTheme.PrimaryOnFill}" />
                 </ui:Button.Resources>
             </ui:Button>
-            <ui:Button x:Name="SaveButton" Content="텍스트로 저장" />
-            <ui:Button x:Name="CloseButton" IsCancel="True" Content="닫기" />
+            <ui:Button x:Name="SaveButton" TabIndex="1" Content="텍스트로 저장" />
+            <ui:Button x:Name="CloseButton" TabIndex="0" IsCancel="True" Content="닫기" />
         </DockPanel>
     </theme:ZestWindow.Footer>
 

@@ -174,10 +174,12 @@
     <!--
         The bottom bar: <DockPanel Style="{StaticResource Zest.FooterBar}">. Buttons (WPF-UI or plain) dock right with
         8 px between them, the first one rightmost, so write the primary first. The last child fills the left: a hint or
-        error TextBlock (Zest.Hint applies by itself) or a CheckBox.
+        error TextBlock (Zest.Hint applies by itself) or a CheckBox. Because the children run right to left, give the focusable
+        ones TabIndex ascending left to right (the left side first, the primary last): Tab then moves as the eye reads.
     -->
     <Style x:Key="Zest.FooterBar" TargetType="DockPanel">
         <Setter Property="LastChildFill" Value="True" />
+        <Setter Property="KeyboardNavigation.TabNavigation" Value="Local" />
         <Style.Resources>
             <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
                 <Setter Property="DockPanel.Dock" Value="Right" />
