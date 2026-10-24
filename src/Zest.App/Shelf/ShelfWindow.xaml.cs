@@ -4,23 +4,24 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Automation;
 using System.Windows.Media;
-using Zest.App.Wheel;
-using Zest.Core.Design;
+using Zest.App.Theme;
 using Zest.Core.Input;
 using Zest.Core.Output;
 
 namespace Zest.App.Shelf;
 
 /// <summary>One file or folder on a shelf.</summary>
-public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : INotifyPropertyChanged
+public sealed class ShelfItem(string path, ImageSource? icon, ImageSource? largeIcon, bool missing) : INotifyPropertyChanged
 {
     bool _missing = missing;
-    ImageSource? _icon = icon;
+    ImageSource? _icon = icon, _largeIcon = largeIcon;
 
     public string Path { get; } = path;
     public string Name { get; } = OutputNaming.DisplayName(path);
 
+    /// <summary>The list row's small icon.</summary>
     public ImageSource? Icon
     {
         get => _icon;
@@ -29,6 +30,18 @@ public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : IN
             if (ReferenceEquals(_icon, value)) return;
             _icon = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+        }
+    }
+
+    /// <summary>The grid tile's large icon.</summary>
+    public ImageSource? LargeIcon
+    {
+        get => _largeIcon;
+        set
+        {
+            if (ReferenceEquals(_largeIcon, value)) return;
+            _largeIcon = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LargeIcon)));
         }
     }
 
@@ -50,38 +63,52 @@ public sealed class ShelfItem(string path, ImageSource? icon, bool missing) : IN
     /// A row shown at once without touching the disk (a slow or offline network path must never block a drop): the generic
     /// icon for the name's type. The real icon and whether it exists follow from <see cref="ShellIcon.LoadLater"/>.
     /// </summary>
-    public static ShelfItem Placeholder(string path) =>
-        new(path, ShellIcon.ForName(path, isFolder: !System.IO.Path.HasExtension(path)), missing: false);
+    public static ShelfItem Placeholder(string path) => ForName(path, isFolder: !System.IO.Path.HasExtension(path));
+
+    /// <summary>An item with the generic icons for its name's type (also the render harness's samples).</summary>
+    internal static ShelfItem ForName(string path, bool isFolder) =>
+        new(path, ShellIcon.ForName(path, isFolder), ShellIcon.ForName(path, isFolder, large: true), missing: false);
 
     public static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 }
 
 /// <summary>
-/// A small floating card that holds files (original <c>Shelf.swift</c>, list view only). Drag the header to move it,
-/// × or Esc closes it (the files stay where they are). Rows drag out as a file drop (copy or move, the target decides),
-/// files dragged in are added once each, Delete takes the selected rows off the shelf. Topmost, opens without taking focus.
+/// A small floating card that holds files (original <c>Shelf.swift</c>): a grid of icon tiles, or a list of rows (the
+/// header's view button; the choice holds for the rest of the session). Drag the header to move it, × or Esc closes it
+/// (the files stay where they are). Items drag out as a file drop (copy or move, the target decides), files dragged in
+/// are added once each, Delete takes the selected items off the shelf. Topmost, opens without taking focus. Lime throughout.
 /// </summary>
 public partial class ShelfWindow : Window
 {
+    const string ListGlyph = "", GridGlyph = ""; // BulletedList, GridView: the view the button switches to
+    static bool _listView; // grid first; the last choice holds for this app session
+
     readonly ObservableCollection<ShelfItem> _items = [];
     Point _pressAt;
     ListBoxItem? _pressed;
-    bool _keepSelectionOnPress; // pressed on an already selected row: a drag takes the whole selection
+    bool _keepSelectionOnPress; // pressed on an already selected item: a drag takes the whole selection
     bool _draggingOut;
 
     public ShelfWindow(IReadOnlyList<string> paths)
-        : this(paths.Select(ShelfItem.Placeholder), WheelStyle.SystemPalette())
+        : this(paths.Select(ShelfItem.Placeholder), _listView)
     {
         foreach (var item in _items) LoadDetails(item);
     }
 
-    internal ShelfWindow(IEnumerable<ShelfItem> items, WheelPalette palette)
+    /// <param name="listView">Grid or list; the render harness draws both, the app passes the session's choice.</param>
+    internal ShelfWindow(IEnumerable<ShelfItem> items, bool listView)
     {
         InitializeComponent();
-        Resources["ShelfAccentBrush"] = Frozen(new SolidColorBrush(WheelStyle.ToColor(ZestColors.Lime.Ink(palette.Dark))));
+        CardShadow.Attach(ShadowLayer);
         List.ItemsSource = _items;
         foreach (var item in items) AddUnique(item);
         UpdateHeader();
+        ShowView(listView);
+        ViewButton.Click += (_, _) =>
+        {
+            _listView = !IsListView;
+            ShowView(_listView);
+        };
 
         SourceInitialized += (_, _) => Native.MakeToolWindow(this);
         // Rows added near the bottom edge grow the window (SizeToContent) past the work area; pull it back in.
@@ -108,7 +135,7 @@ public partial class ShelfWindow : Window
         Drop += OnDrop;
     }
 
-    /// <summary>Selects rows for the render harness.</summary>
+    /// <summary>Selects items for the render harness.</summary>
     internal void Select(params int[] indexes)
     {
         foreach (var i in indexes) List.SelectedItems.Add(_items[i]);
@@ -146,20 +173,32 @@ public partial class ShelfWindow : Window
         return true;
     }
 
-    /// <summary>Fills in a placeholder row's real icon and existence once the background reader has them.</summary>
-    void LoadDetails(ShelfItem item) => ShellIcon.LoadLater(item.Path, Dispatcher, (icon, exists) =>
+    /// <summary>Fills in a placeholder's real icons and existence once the background reader has them.</summary>
+    void LoadDetails(ShelfItem item) => ShellIcon.LoadLater(item.Path, Dispatcher, (icon, large, exists) =>
     {
         if (icon is not null) item.Icon = icon;
+        if (large is not null) item.LargeIcon = large;
         item.Missing = !exists;
-        if (_items.Count > 0 && ReferenceEquals(_items[0], item)) PileIcon.Source = item.Icon;
     });
 
-    void UpdateHeader()
+    void UpdateHeader() => TitleText.Text = $"파일 {_items.Count}개";
+
+    bool IsListView => ReferenceEquals(List.ItemTemplate, Resources["ListRow"]);
+
+    /// <summary>
+    /// Grid: three columns of tiles. List: one row per item. Same ListBox and selection either way; the view button shows
+    /// (and names) the view it switches to.
+    /// </summary>
+    void ShowView(bool list)
     {
-        TitleText.Text = _items.Count == 1 ? _items[0].Name : $"항목 {_items.Count}개";
-        TitleText.ToolTip = TitleText.Text;
-        PileIcon.Source = _items.Count > 0 ? _items[0].Icon : null;
-        PileBack.Visibility = _items.Count > 1 ? Visibility.Visible : Visibility.Hidden;
+        List.ItemsPanel = (ItemsPanelTemplate)Resources[list ? "ListPanel" : "GridPanel"];
+        List.ItemContainerStyle = (Style)Resources[list ? "ListItem" : "GridItem"];
+        List.ItemTemplate = (DataTemplate)Resources[list ? "ListRow" : "GridTile"];
+        List.Margin = list ? new Thickness(4) : new Thickness(6, 4, 6, 8);
+        ViewButton.Content = list ? GridGlyph : ListGlyph;
+        var name = list ? "격자로 보기" : "목록으로 보기";
+        ViewButton.ToolTip = name;
+        AutomationProperties.SetName(ViewButton, name);
     }
 
     /// <summary>Re-checks which rows still exist where they were.</summary>
@@ -299,11 +338,5 @@ public partial class ShelfWindow : Window
     {
         DropRing.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         HintText.Text = on ? "여기에 놓기" : "끌어서 꺼내기";
-    }
-
-    static SolidColorBrush Frozen(SolidColorBrush brush)
-    {
-        brush.Freeze();
-        return brush;
     }
 }

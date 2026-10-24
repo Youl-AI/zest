@@ -5,10 +5,12 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
+using Zest.App.Jobs;
 using Zest.App.Shelf;
 using Zest.Core;
 using Zest.Core.Actions;
 using Zest.Core.Catalog;
+using Zest.Core.Jobs;
 using Zest.Core.Output;
 using Microsoft.Win32;
 
@@ -57,23 +59,23 @@ public static class ActionRunner
         data.SetFileDropList(list);
         // "Preferred DropEffect" tells the paste target copy (DROPEFFECT_COPY = 1) rather than cut.
         data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes((int)DragDropEffects.Copy)));
-        SetClipboard(data, $"{Several(files)} 복사");
+        SetClipboard(data, "복사", Several(files));
     }
 
     static void CopyPaths(IReadOnlyList<string> files)
     {
         var data = new DataObject();
         data.SetText(string.Join("\r\n", files));
-        SetClipboard(data, $"{Several(files)} 경로 복사");
+        SetClipboard(data, "경로 복사", Several(files));
     }
 
     /// <summary>
     /// Another program may hold the clipboard open for a moment (CLIPBRD_E_CANT_OPEN). WPF already retries for about a
     /// second inside each call; one more attempt after a short pause, then a failed card.
     /// </summary>
-    static void SetClipboard(DataObject data, string title)
+    static void SetClipboard(DataObject data, string title, string detail)
     {
-        if (!TrySetClipboard(data)) FailedCard(title, ClipboardBusyMessage);
+        if (!TrySetClipboard(data)) FailedCard(title, detail, ClipboardBusyMessage);
     }
 
     internal const string ClipboardBusyMessage = "클립보드를 쓸 수 없습니다. 다른 프로그램이 사용 중입니다.";
@@ -120,7 +122,7 @@ public static class ActionRunner
 
         var destination = dialog.FolderName;
         var dispatcher = Application.Current.Dispatcher;
-        Services.Jobs.Run($"{files.Count}개 옮기는 중", ctx =>
+        Services.Jobs.Run("이동", Several(files), JobKind.Action, ctx =>
         {
             try
             {
@@ -168,7 +170,7 @@ public static class ActionRunner
             return;
         var powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
         if (TryStart(powershell, TerminalLaunch.PowerShellArgs(folder), folder)) return;
-        FailedCard($"{Name(folder)} 터미널", "터미널을 열지 못했습니다.");
+        FailedCard("터미널", Name(folder), "터미널을 열지 못했습니다.");
     }
 
     /// <summary>wt.exe's App Execution Alias, else wt.exe on PATH, else null.</summary>
@@ -194,12 +196,12 @@ public static class ActionRunner
         }
     }
 
-    static void FailedCard(string title, string message) =>
-        Services.Jobs.Run(title, _ => Task.FromException<IReadOnlyList<string>>(new ZestException(message)));
+    /// <summary>A failed card titled with the action's own word ("복사", "터미널") over the message.</summary>
+    static void FailedCard(string title, string detail, string message) =>
+        Services.Jobs.Run(title, detail, JobKind.Action, _ => Task.FromException<IReadOnlyList<string>>(new ZestException(message)));
 
     static string Name(string path) => OutputNaming.DisplayName(path);
 
     /// <summary>"보고서.pdf" or "보고서.pdf 외 2개".</summary>
-    static string Several(IReadOnlyList<string> files) =>
-        files.Count == 1 ? Name(files[0]) : $"{Name(files[0])} 외 {files.Count - 1}개";
+    static string Several(IReadOnlyList<string> files) => JobDetail.Of(files);
 }

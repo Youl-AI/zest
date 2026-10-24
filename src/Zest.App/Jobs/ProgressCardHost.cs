@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
+using Zest.App.Theme;
+using Zest.App.Wheel;
+using Zest.Core.Jobs;
 
 namespace Zest.App.Jobs;
 
@@ -12,11 +14,11 @@ namespace Zest.App.Jobs;
 /// </summary>
 public sealed class ProgressCardHost
 {
-    // Each card carries 12 DIP of transparent padding for its shadow, which also keeps it 12 DIP off the work-area edge.
+    // Each card carries transparent padding for its shadow (ProgressCard.ShadowRoom), which also keeps it off the work-area edge.
     const double MarginDip = 0;
     const int MaxVisibleCards = 6;
 
-    readonly StackPanel _root = new() { Margin = new Thickness(0, 12, 0, 0) }; // shadow room above the top card
+    readonly StackPanel _root = new() { Margin = new Thickness(0, 14, 0, 4) }; // shadow room above the top card and under the last
     readonly StackPanel _stack = new();
     readonly List<ProgressCard> _overflow = []; // added beyond the cap, oldest first
     readonly FrameworkElement _summary;
@@ -52,9 +54,9 @@ public sealed class ProgressCardHost
         _window.SizeChanged += (_, _) => Reposition();
     }
 
-    public ProgressCard Add(string title, Action cancel)
+    public ProgressCard Add(string title, string detail, JobKind kind, Action cancel)
     {
-        var card = new ProgressCard(title, cancel);
+        var card = new ProgressCard(title, detail, kind, cancel);
         card.CloseRequested += Remove;
         if (_stack.Children.Count >= MaxVisibleCards)
         {
@@ -117,43 +119,64 @@ public sealed class ProgressCardHost
         _summaryText.Text = $"외 {_overflow.Count}개 작업";
     }
 
-    /// <summary>The "외 N개 작업" card, styled like a progress card (same width, surface, stroke and shadow).</summary>
-    static (FrameworkElement Card, TextBlock Text) BuildSummary(Action cancelAll)
+    /// <summary>
+    /// The "외 N개 작업" card, built like a progress card (same width, radius 12, window colour, line, shadow layer and
+    /// type): the count over "위 카드가 닫히면 차례로 올라옵니다", and a ghost "모두 취소" for the waiting jobs.
+    /// </summary>
+    internal static (FrameworkElement Card, TextBlock Text) BuildSummary(Action cancelAll)
     {
-        var text = new TextBlock
+        var title = new TextBlock
         {
-            FontFamily = new FontFamily("Segoe UI Variable Text"),
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
+            FontFamily = WheelStyle.ChipFont,
+            FontSize = 13.5,
+            FontWeight = FontWeights.Bold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        text.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        var button = new Wpf.Ui.Controls.Button
+        System.Windows.Documents.Typography.SetNumeralAlignment(title, FontNumeralAlignment.Tabular);
+        title.SetResourceReference(TextBlock.ForegroundProperty, "Zest.Text");
+        var detail = new TextBlock
+        {
+            Text = "위 카드가 닫히면 차례로 올라옵니다",
+            Margin = new Thickness(0, 1, 0, 0),
+            FontFamily = WheelStyle.TextFont,
+            FontSize = 12,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        detail.SetResourceReference(TextBlock.ForegroundProperty, "Zest.Text2");
+        var text = new StackPanel { MinHeight = 32, VerticalAlignment = VerticalAlignment.Center, Children = { title, detail } };
+
+        var button = new Button
         {
             Content = "모두 취소",
-            FontSize = 12,
-            Padding = new Thickness(12, 4, 12, 4),
-            Margin = new Thickness(10, 0, 0, 0),
+            Margin = new Thickness(6, 0, 0, 0),
             Cursor = System.Windows.Input.Cursors.Arrow,
+            Focusable = false,
         };
+        button.SetResourceReference(FrameworkElement.StyleProperty, "Zest.GhostButton");
         button.Click += (_, _) => cancelAll();
-        var row = new DockPanel();
-        DockPanel.SetDock(button, Dock.Right);
-        row.Children.Add(button);
+
+        var row = new Grid { ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
+        Grid.SetColumn(button, 1);
         row.Children.Add(text);
+        row.Children.Add(button);
+
+        var shadow = new Border { CornerRadius = new CornerRadius(12) };
+        shadow.SetResourceReference(Border.BackgroundProperty, "Zest.Window");
+        CardShadow.Attach(shadow);
         var surface = new Border
         {
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(12),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(14, 10, 12, 10),
+            Padding = new Thickness(14, 12, 12, 12),
             Child = row,
-            Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Direction = 270, Opacity = 0.16, Color = Colors.Black },
         };
-        surface.SetResourceReference(Border.BackgroundProperty, "ApplicationBackgroundBrush");
-        surface.SetResourceReference(Border.BorderBrushProperty, "SurfaceStrokeColorFlyoutBrush");
-        TextOptions.SetTextFormattingMode(surface, TextFormattingMode.Display);
-        var card = new Border { Width = 344, Padding = new Thickness(12, 0, 12, 12), Child = surface, Visibility = Visibility.Collapsed };
-        return (card, text);
+        surface.SetResourceReference(Border.BackgroundProperty, "Zest.Window");
+        surface.SetResourceReference(Border.BorderBrushProperty, "Zest.Line");
+        var layers = new Grid { Children = { shadow, surface } };
+        TextOptions.SetTextFormattingMode(layers, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(layers, TextRenderingMode.Grayscale);
+        var card = new Border { Width = ProgressCard.OuterWidth, Padding = ProgressCard.ShadowRoom, Child = layers, Visibility = Visibility.Collapsed };
+        return (card, title);
     }
 
     void Reposition()

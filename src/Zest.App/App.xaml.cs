@@ -4,12 +4,14 @@ using System.Windows;
 using System.Windows.Threading;
 using Zest.App.Actions;
 using Zest.App.Input;
+using Zest.App.Jobs;
 using Zest.App.Render;
 using Zest.App.Theme;
 using Zest.App.Tools;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
+using Zest.Core.Jobs;
 using Zest.Core.Migration;
 using Zest.Core.Office;
 using Microsoft.Win32;
@@ -189,8 +191,9 @@ public partial class App : Application
         switch (item.Operation)
         {
             case ConvertOp convert:
+                // One card per file ("PNG 변환" over "사진.jpg"), so each shows and cancels on its own.
                 foreach (var file in files)
-                    Services.Jobs.Run($"{Path.GetFileName(file)} → {item.Label}", ctx => Services.Router.ConvertAsync(file, convert.Target, ctx));
+                    Services.Jobs.Run($"{item.Label} 변환", JobDetail.Of(file), JobKind.Convert, ctx => Services.Router.ConvertAsync(file, convert.Target, ctx));
                 break;
             case ToolOp tool:
                 ToolDispatcher.Handle(tool.Tool, files, at);

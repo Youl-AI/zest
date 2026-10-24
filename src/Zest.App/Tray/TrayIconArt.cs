@@ -4,20 +4,21 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Zest.App.Wheel;
+using Zest.Core.Design;
 using Microsoft.Win32;
 
 namespace Zest.App.Tray;
 
 /// <summary>
-/// The tray glyph: a monochrome lime slice (rind ring around six rounded segments, cut like the wheel's petals), drawn with
-/// WPF geometry at each icon size so every size is pixel-tuned rather than scaled. Dark glyph for a light taskbar, white for a dark one.
+/// The tray glyph: the three wheels as one ring of three segments, lemon, tangerine and lime clockwise from 12 o'clock
+/// (cut like the wheel's petals, with the same gutters), drawn with WPF geometry at each icon size so every size is
+/// pixel-tuned rather than scaled. The fills are the same on both taskbars; on a light one each segment also gets a thin
+/// edge in its ink, so the pale lemon keeps its shape against the near-white bar.
 /// </summary>
 public static class TrayIconArt
 {
     public static readonly int[] Sizes = [16, 20, 24, 32];
-    const int Segments = 6;
-    static readonly Color OnLight = Color.FromRgb(0x1F, 0x1F, 0x1F);
-    static readonly Color OnDark = Colors.White;
+    static readonly Citrus[] Segments = [ZestColors.Lemon, ZestColors.Tangerine, ZestColors.Lime];
 
     /// <summary>True when the taskbar uses the light theme (<c>SystemUsesLightTheme</c>; dark when unset, as on older Windows).</summary>
     public static bool LightTaskbar()
@@ -29,36 +30,54 @@ public static class TrayIconArt
     /// <summary>The glyph at one pixel size.</summary>
     public static BitmapSource Render(int size, bool lightTaskbar)
     {
-        var brush = new SolidColorBrush(lightTaskbar ? OnLight : OnDark);
-        brush.Freeze();
-
         var center = new Point(size / 2.0, size / 2.0);
-        var outer = size / 2.0 - size / 32.0;           // 15.5 of 32: keeps the antialiased edge inside the square
-        var rind = Math.Max(1.25, size * 0.09);         // rind thickness
-        var pith = Math.Max(1.0, size * 0.06);          // gap between rind and segments
-        var segmentOuter = outer - rind - pith;
+        var outer = size / 2.0 - size / 32.0;   // 15.5 of 32: keeps the antialiased edge inside the square
+        var band = size * 0.21;                 // ring thickness (3.4 px at 16, 6.7 at 32)
+        var inner = outer - band;
         var gutter = Math.Max(1.0, size * 0.07);
-        // At 16 and 20 px rounded teardrops blur into dots: draw plain wedges that meet near the centre instead.
-        var small = size <= 20;
-        var segmentInner = small ? gutter * 1.2 : size * 0.08; // six gutters of width g close up at radius g
-        var segmentOuterCorner = small ? size * 0.04 : size * 0.08;
-        var segmentInnerCorner = small ? 0.01 : size * 0.02;
+        var outerCorner = size * 0.06;
+        var innerCorner = size * 0.03;
+        var edge = size <= 20 ? 0.75 : 1.0;
 
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
-            var ring = new CombinedGeometry(GeometryCombineMode.Exclude,
-                new EllipseGeometry(center, outer, outer),
-                new EllipseGeometry(center, outer - rind, outer - rind));
-            dc.DrawGeometry(brush, null, ring);
-            for (var i = 0; i < Segments; i++)
-                dc.DrawGeometry(brush, null, PetalPath.Petal(center, i, Segments, segmentInner, segmentOuter, gutter, segmentOuterCorner, segmentInnerCorner));
+            for (var i = 0; i < Segments.Length; i++)
+            {
+                var citrus = Segments[i];
+                var fill = Frozen(new SolidColorBrush(WheelStyle.ToColor(citrus.Fill)));
+                var petal = PetalPath.Petal(center, i, Segments.Length, inner, outer, gutter, outerCorner, innerCorner);
+                if (!lightTaskbar)
+                {
+                    dc.DrawGeometry(fill, null, petal);
+                    continue;
+                }
+                // The edge sits inside the outline (the fill drawn over the stroke's outer half), so the size stays the same.
+                var ink = Frozen(new SolidColorBrush(WheelStyle.ToColor(citrus.InkLight)));
+                dc.DrawGeometry(ink, null, petal);
+                dc.DrawGeometry(fill, null, Inset(petal, edge));
+            }
         }
 
         var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    /// <summary><paramref name="g"/> shrunk by <paramref name="by"/> on every side.</summary>
+    static Geometry Inset(Geometry g, double by)
+    {
+        var outline = g.GetWidenedPathGeometry(new Pen(Brushes.Black, 2 * by));
+        var inset = new CombinedGeometry(GeometryCombineMode.Exclude, g, outline);
+        inset.Freeze();
+        return inset;
+    }
+
+    static SolidColorBrush Frozen(SolidColorBrush brush)
+    {
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>A multi-size .ico (PNG entries, 16/20/24/32 px).</summary>

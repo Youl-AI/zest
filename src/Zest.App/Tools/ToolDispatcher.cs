@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Zest.App.Actions;
+using Zest.App.Jobs;
 using Zest.Core.Catalog;
 using Zest.Core.Jobs;
 using Zest.Core.Tools;
@@ -46,7 +47,7 @@ public static class ToolDispatcher
 
             case ZestTool.SplitPdf:
                 foreach (var pdf in files)
-                    Run($"{Name(pdf)} 나누기", ctx => PdfTools.SplitAsync(pdf, ctx));
+                    Run("나누기", Name(pdf), ctx => PdfTools.SplitAsync(pdf, ctx));
                 break;
 
             case ZestTool.CopyText:
@@ -92,24 +93,24 @@ public static class ToolDispatcher
         catch (Exception e)
         {
             // This method's task is discarded, so nothing may throw unseen.
-            FailedCard($"{Several(files, "장")} 배경 제거", e);
+            FailedCard("배경 제거", Several(files, "장"), e);
         }
     }
 
     /// <summary>
-    /// One "배경 제거 중" card per image (they take turns on the one model session). The first time, a "모델 불러오는 중" card
-    /// loads the session first (including the process's single attempt to fetch a Windows ML accelerator).
+    /// One "배경 제거" card per image (they take turns on the one model session). The first time, a "배경 제거 · 모델 불러오는 중"
+    /// card loads the session first (including the process's single attempt to fetch a Windows ML accelerator).
     /// </summary>
     static void RemoveBackground(IReadOnlyList<string> files)
     {
         if (BackgroundRemover.IsLoaded)
         {
             foreach (var file in files)
-                Run($"{Name(file)} 배경 제거 중", ctx => BackgroundRemover.RemoveAsync(file, ctx));
+                Run("배경 제거", Name(file), ctx => BackgroundRemover.RemoveAsync(file, ctx));
             return;
         }
         var dispatcher = Application.Current.Dispatcher;
-        Services.Jobs.Run("배경 제거 모델 불러오는 중", async ctx =>
+        Services.Jobs.Run("배경 제거", "모델 불러오는 중", JobKind.Tool, async ctx =>
         {
             await BackgroundRemover.LoadAsync(ctx);
             ctx.Token.ThrowIfCancellationRequested(); // cancelled while loading: no image jobs
@@ -118,11 +119,11 @@ public static class ToolDispatcher
         });
     }
 
-    /// <summary>Reads every file in one job ("글자 인식 중"), then copies the text and opens the result window on the UI thread.</summary>
+    /// <summary>Reads every file in one job ("글자 복사"), then copies the text and opens the result window on the UI thread.</summary>
     static void CopyText(IReadOnlyList<string> files, Native.POINT at)
     {
         var dispatcher = Application.Current.Dispatcher;
-        Services.Jobs.Run($"{Several(files, "개")} 글자 인식 중", async ctx =>
+        Services.Jobs.Run("글자 복사", Several(files, "개"), JobKind.Tool, async ctx =>
         {
             var results = new List<(string Path, string Text)>();
             for (var i = 0; i < files.Count; i++)
@@ -149,7 +150,7 @@ public static class ToolDispatcher
             copied = ActionRunner.TrySetClipboard(data);
         }
         var window = new TextResultWindow(files, text, copied,
-            edited => Run($"{Name(files[0])} 텍스트 저장", ctx => OcrService.SaveTextAsync(files[0], edited, ctx)));
+            edited => Run("텍스트 저장", Name(files[0]), ctx => OcrService.SaveTextAsync(files[0], edited, ctx)));
         Present(window, at);
     }
 
@@ -162,7 +163,7 @@ public static class ToolDispatcher
     static void Compress(IReadOnlyList<string> files, CompressOptions options)
     {
         foreach (var file in files)
-            Run($"{Name(file)} 압축", ctx => ImageCompressor.CompressAsync(file, options, ctx));
+            Run("압축", Name(file), ctx => ImageCompressor.CompressAsync(file, options, ctx));
     }
 
     static async Task OpenCropAsync(string file, Native.POINT at)
@@ -181,25 +182,25 @@ public static class ToolDispatcher
         }
         catch (Exception e)
         {
-            FailedCard($"{Name(file)} 자르기", e);
+            FailedCard("자르기", Name(file), e);
             return;
         }
         try
         {
             var window = new CropWindow(file, bitmap, preview.SourceWidth, preview.SourceHeight,
-                rect => Run($"{Name(file)} 자르기", ctx => ImageCropper.CropAsync(file, rect, ctx)));
+                rect => Run("자르기", Name(file), ctx => ImageCropper.CropAsync(file, rect, ctx)));
             Present(window, at);
         }
         catch (Exception e)
         {
             // This method's task is discarded, so nothing after the decode may throw unseen.
-            FailedCard($"{Name(file)} 자르기", e);
+            FailedCard("자르기", Name(file), e);
         }
     }
 
     /// <summary>Shows an error that happened outside a job on a failed card, like a job failure.</summary>
-    static void FailedCard(string title, Exception e) =>
-        Services.Jobs.Run(title, _ => Task.FromException<IReadOnlyList<string>>(e));
+    static void FailedCard(string title, string detail, Exception e) =>
+        Services.Jobs.Run(title, detail, JobKind.Tool, _ => Task.FromException<IReadOnlyList<string>>(e));
 
     static void OpenOrder(OrderMode mode, IReadOnlyList<string> files, Action<IReadOnlyList<string>> go, Native.POINT at)
     {
@@ -209,13 +210,14 @@ public static class ToolDispatcher
     }
 
     static void ImagesToPdf(IReadOnlyList<string> images) =>
-        Run($"{Several(images, "장")} PDF 만들기", ctx => PdfTools.ImagesToPdfAsync(images, ctx));
+        Run("PDF 만들기", Several(images, "장"), ctx => PdfTools.ImagesToPdfAsync(images, ctx));
 
     static void Merge(IReadOnlyList<string> pdfs) =>
-        Run($"{Several(pdfs, "개")} 합치기", ctx => PdfTools.MergeAsync(pdfs, ctx));
+        Run("합치기", Several(pdfs, "개"), ctx => PdfTools.MergeAsync(pdfs, ctx));
 
-    static void Run(string title, Func<Core.Jobs.OperationContext, Task<string>> work) =>
-        Services.Jobs.Run(title, async ctx => (IReadOnlyList<string>)[await work(ctx)]);
+    /// <summary>A tool job: the tool as the card's title ("압축"), the file(s) as its detail.</summary>
+    static void Run(string title, string detail, Func<Core.Jobs.OperationContext, Task<string>> work) =>
+        Services.Jobs.Run(title, detail, JobKind.Tool, async ctx => (IReadOnlyList<string>)[await work(ctx)]);
 
     /// <summary>
     /// Centres the window on the drop monitor's work area (placed before it is shown, so it never flashes elsewhere),
@@ -250,11 +252,10 @@ public static class ToolDispatcher
         return bitmap;
     }
 
-    static string Name(string path) => Path.GetFileName(path);
+    static string Name(string path) => JobDetail.Of(path);
 
     /// <summary>"사진.jpg" or "사진.jpg 외 2장".</summary>
-    static string Several(IReadOnlyList<string> files, string counter) =>
-        files.Count == 1 ? Name(files[0]) : $"{Name(files[0])} 외 {files.Count - 1}{counter}";
+    static string Several(IReadOnlyList<string> files, string counter) => JobDetail.Of(files, counter);
 
     static long? LengthOrNull(string path)
     {

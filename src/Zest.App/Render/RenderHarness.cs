@@ -11,6 +11,7 @@ using Zest.App.Theme;
 using Zest.App.Tray;
 using Zest.App.Wheel;
 using Zest.Core.Catalog;
+using Zest.Core.Jobs;
 using Zest.Core.Tools;
 using Wpf.Ui.Appearance;
 using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
@@ -59,11 +60,10 @@ public static class RenderHarness
                 ApplicationThemeManager.Apply(dark ? ApplicationTheme.Dark : ApplicationTheme.Light, WindowBackdropType.None, true);
                 ZestTheme.Apply(dark);
                 var suffix = dark ? "-dark" : "";
-                Save(Card("running", dark), folder, $"progress-card-running{suffix}.png", log);
-                Save(Card("done", dark), folder, $"progress-card-done{suffix}.png", log);
-                Save(Card("failed", dark), folder, $"progress-card-failed{suffix}.png", log);
+                foreach (var state in new[] { "running", "waiting", "done", "failed", "cancelled" })
+                    Save(Cards(state, dark), folder, $"progress-card-{state}{suffix}.png", log);
+                Save(SummaryCard(dark), folder, $"progress-card-summary{suffix}.png", log);
 
-                var palette = WheelStyle.Palette(dark);
                 Save(ToolWindows.ZestWindowSample(dark), folder, $"zest-window{suffix}.png", log);
                 Save(ToolWindows.ZestControlsSample(dark), folder, $"zest-controls{suffix}.png", log);
                 Save(ToolWindows.Compress(dark, SizeGoal.Percentage), folder, $"compress-options{suffix}.png", log);
@@ -71,7 +71,8 @@ public static class RenderHarness
                 Save(ToolWindows.Compress(dark, SizeGoal.FileSize), folder, $"compress-options-target{suffix}.png", log);
                 Save(ToolWindows.Crop(dark), folder, $"crop{suffix}.png", log);
                 Save(ToolWindows.Order(dark), folder, $"order{suffix}.png", log);
-                Save(ToolWindows.Shelf(dark, palette), folder, $"shelf{suffix}.png", log);
+                Save(ToolWindows.Shelf(dark, list: false), folder, $"shelf{suffix}.png", log);
+                Save(ToolWindows.Shelf(dark, list: true), folder, $"shelf-list{suffix}.png", log);
                 Save(ToolWindows.TextResult(dark, copied: true), folder, $"text-result{suffix}.png", log);
                 Save(ToolWindows.TextResult(dark, copied: false), folder, $"text-result-busy{suffix}.png", log);
                 Save(ToolWindows.TextResult(dark, copied: false, empty: true), folder, $"text-result-empty{suffix}.png", log);
@@ -169,26 +170,68 @@ public static class RenderHarness
     static BitmapSource Plain(Color color) =>
         Snapshot(new Border { Width = Side, Height = Side, Background = new SolidColorBrush(color) }, Side, Side);
 
-    static FrameworkElement Card(string state, bool dark)
+    /// <summary>
+    /// One state as the host stacks it: a convert (lemon), a tool (tangerine) and an action (lime) card, top to bottom.
+    /// The tool card carries a long Korean name, which must end in an ellipsis without pushing 취소 off the card, and an
+    /// error longer than three lines, which must stop at the third with an ellipsis.
+    /// </summary>
+    static FrameworkElement Cards(string state, bool dark)
     {
-        var card = new ProgressCard(state == "failed" ? "scan.heic → JPG" : "vacation-photo.png → JPG", () => { });
-        AsOnHighDpiScreen(card);
-        switch (state)
+        const string Pictures = @"C:\Users\me\Pictures\";
+        const string LongName = "2026 제주 가족 여행 바다 사진 원본.jpg";
+        (string Title, string Detail, JobKind Kind, double? Progress, string[] Results, string Error)[] jobs =
+        [
+            ("PNG 변환", "사진.jpg", JobKind.Convert, 0.42, [Pictures + "사진.png"],
+                "메모.png를 이미지로 읽을 수 없습니다. 확장자만 .png인 파일일 수 있습니다."),
+            ("압축", LongName, JobKind.Tool, 0.7, [Pictures + "2026 제주 가족 여행 바다 사진 원본 (compressed).jpg"],
+                "목표 크기까지 줄이지 못했습니다. 품질을 가장 낮춰도 2 MB보다 큽니다. 크기를 조금 더 크게 잡거나 해상도를 줄여 보세요. 원본은 그대로 있고, 만들던 파일은 지웠습니다. 다시 시도하려면 파일을 휠에 다시 놓으세요."),
+            ("이동", "보고서.pdf 외 2개", JobKind.Action, null, [@"D:\보관\보고서.pdf", @"D:\보관\견적서.pdf", @"D:\보관\메모.txt"],
+                "클립보드를 쓸 수 없습니다. 다른 프로그램이 사용 중입니다."),
+        ];
+        var stack = new StackPanel { Margin = new Thickness(0, 14, 0, 4) };
+        foreach (var job in jobs)
         {
-            case "running":
-                card.SetProgress(0.42);
-                break;
-            case "done":
-                card.ShowDone([@"C:\Users\me\Pictures\vacation-photo.jpg"]);
-                break;
-            default:
-                card.ShowFailed("이미지를 읽을 수 없습니다.");
-                break;
+            var card = new ProgressCard(job.Title, job.Detail, job.Kind, () => { });
+            switch (state)
+            {
+                case "running":
+                    if (job.Progress is { } p) card.SetProgress(p); // the action stays indeterminate (no percent)
+                    break;
+                case "waiting":
+                    card.SetWaiting(true);
+                    break;
+                case "done":
+                    card.ShowDone(job.Results);
+                    break;
+                case "failed":
+                    card.ShowFailed(job.Error);
+                    break;
+                case "cancelled":
+                    card.ShowCancelled();
+                    break;
+            }
+            stack.Children.Add(card);
         }
+        return OnDesktop(stack, dark);
+    }
 
-        // A plain desktop-ish surface so the card's edge and shadow read as they would on screen.
+    /// <summary>The "외 N개 작업" card under a running one, as the host shows it past six cards.</summary>
+    static FrameworkElement SummaryCard(bool dark)
+    {
+        var card = new ProgressCard("MKV 변환", "영상 3.mp4", JobKind.Convert, () => { });
+        card.SetProgress(0.18);
+        var (summary, text) = ProgressCardHost.BuildSummary(() => { });
+        summary.Visibility = Visibility.Visible;
+        text.Text = "외 4개 작업";
+        return OnDesktop(new StackPanel { Margin = new Thickness(0, 14, 0, 4), Children = { card, summary } }, dark);
+    }
+
+    /// <summary>A plain desktop-ish surface so the card's edge and shadow read as they would on screen.</summary>
+    static FrameworkElement OnDesktop(FrameworkElement content, bool dark)
+    {
+        AsOnHighDpiScreen(content);
         var root = new Grid { Background = new SolidColorBrush(dark ? Color.FromRgb(0x2B, 0x2B, 0x2B) : Color.FromRgb(0xDD, 0xE3, 0xE8)) };
-        root.Children.Add(new Border { Padding = new Thickness(0, 12, 0, 0), Child = card });
+        root.Children.Add(content);
         return root;
     }
 

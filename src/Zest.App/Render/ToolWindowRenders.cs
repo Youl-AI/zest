@@ -198,13 +198,17 @@ internal static class ToolWindows
         };
     }
 
-    /// <summary>A shelf holding five sample items (two selected) with Explorer's icons for their types, on a plain desktop colour.</summary>
-    public static FrameworkElement Shelf(bool dark, WheelPalette palette)
+    /// <summary>
+    /// A shelf holding six sample items (two selected, one with a long Korean name) with Explorer's icons for their types,
+    /// in the grid or the list view, on a plain desktop colour.
+    /// </summary>
+    public static FrameworkElement Shelf(bool dark, bool list)
     {
         (string Name, bool Folder)[] samples =
-            [("여행 사진", true), ("제주 바다.jpg", false), ("회의록 2026-10.docx", false), ("견적서.pdf", false), ("bgm.mp3", false)];
-        var items = samples.Select(s => new ShelfItem($@"C:\Users\me\Desktop\{s.Name}", ShellIcon.ForName(s.Name, s.Folder), missing: false));
-        var window = new ShelfWindow(items, palette);
+            [("여행 사진", true), ("제주 바다.jpg", false), ("2026 제주 가족 여행 바다 사진 원본.jpg", false),
+             ("회의록 2026-10.docx", false), ("견적서.pdf", false), ("bgm.mp3", false)];
+        var items = samples.Select(s => ShelfItem.ForName($@"C:\Users\me\Desktop\{s.Name}", s.Folder));
+        var window = new ShelfWindow(items, list);
         window.Select(1, 2);
         var content = (FrameworkElement)window.Content;
         window.Content = null;

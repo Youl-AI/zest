@@ -1,7 +1,18 @@
 using Zest.Core;
 using Zest.Core.Jobs;
+using Zest.Core.Output;
 
 namespace Zest.App.Jobs;
+
+/// <summary>A card's detail line for the files a job works on.</summary>
+public static class JobDetail
+{
+    /// <summary>"사진.jpg", or "사진.jpg 외 2개" (<paramref name="counter"/> "장" for images where the copy counts sheets).</summary>
+    public static string Of(IReadOnlyList<string> files, string counter = "개") =>
+        files.Count == 1 ? OutputNaming.DisplayName(files[0]) : $"{OutputNaming.DisplayName(files[0])} 외 {files.Count - 1}{counter}";
+
+    public static string Of(string file) => OutputNaming.DisplayName(file);
+}
 
 /// <summary>Runs operations in the background, each with its own progress card. Call on the UI thread.</summary>
 public sealed class JobRunner(ProgressCardHost host)
@@ -9,10 +20,13 @@ public sealed class JobRunner(ProgressCardHost host)
     /// <summary>Running jobs (the work itself, which needs no UI thread to finish) and their cancel sources. UI thread only.</summary>
     readonly Dictionary<Task, CancellationTokenSource> _live = [];
 
-    public void Run(string title, Func<OperationContext, Task<IReadOnlyList<string>>> work)
+    /// <param name="title">The task ("PNG 변환", "압축", "복사").</param>
+    /// <param name="detail">What it works on ("사진.jpg", "사진.jpg 외 2개").</param>
+    /// <param name="kind">The wheel it came from; the card takes that wheel's citrus.</param>
+    public void Run(string title, string detail, JobKind kind, Func<OperationContext, Task<IReadOnlyList<string>>> work)
     {
         var cts = new CancellationTokenSource();
-        var card = host.Add(title, cts.Cancel);
+        var card = host.Add(title, detail, kind, cts.Cancel);
         // Progress<T> captures the UI SynchronizationContext here, so reports from worker threads land on the card safely.
         var ctx = new OperationContext(cts.Token, new Progress<double>(card.SetProgress), new Progress<bool>(card.SetWaiting));
         var job = Task.Run(() => work(ctx), cts.Token);

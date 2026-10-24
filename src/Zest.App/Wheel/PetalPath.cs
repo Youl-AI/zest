@@ -29,7 +29,7 @@ public static class PetalPath
     public static Geometry Outline(int index, int count) =>
         Petal(Center, index, count, G.Inner, G.Outer, G.Gap, WheelStyle.OuterCorner, WheelStyle.InnerCorner);
 
-    /// <summary>A rounded ring-sector petal around <paramref name="center"/>; also used for the tray icon's lime segments.</summary>
+    /// <summary>A rounded ring-sector petal around <paramref name="center"/>; also used for the tray icon's three ring segments.</summary>
     public static Geometry Petal(Point center, int index, int count, double inner, double outer, double gap, double outerCorner, double innerCorner)
     {
         Geometry result;
