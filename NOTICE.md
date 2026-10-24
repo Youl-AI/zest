@@ -35,7 +35,9 @@ Libraries are listed here as later tasks add them (name, version, license).
 
 - Magick.NET-Q8-AnyCPU 15.0.0 — Apache-2.0 (Magick.NET); bundles ImageMagick under the ImageMagick License
 - PdfPig 0.1.16 — Apache-2.0 (writes image-to-PDF output, extracts PDF text)
-- PDFsharp 6.2.4 — MIT, © 2026 empira (edits PDF document info; also used by tests to build fixtures). 6.5.0+ is AGPL-3.0-only and must not be used.
+- PDFsharp 6.2.4 — MIT, © 2026 empira (edits PDF document info; also used by tests to build fixtures). 6.5.0+ is AGPL-3.0-only and must not be used. Ships PdfSharp, PdfSharp.Shared, PdfSharp.System and PdfSharp.Cryptography; the package's other assemblies (WPFonts, Snippets, Quality, Charting, BarCodes) are removed by build.ps1.
+- Microsoft.Extensions.Logging.Abstractions 8.0.3 — MIT, Copyright (c) .NET Foundation and Contributors (transitive via PDFsharp)
+- Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 — MIT, Copyright (c) .NET Foundation and Contributors (transitive via PDFsharp)
 - PDFtoImage 5.4.0 — MIT (renders PDF pages)
 - PDFium (bblanchon.PDFium.Win32 152.0.7961 binaries, pulled in by PDFtoImage) — BSD-3-Clause (upstream PDFium, https://pdfium.googlesource.com/pdfium/+/main/LICENSE). The binary package's NuGet metadata states Apache-2.0 (for the bblanchon/pdfium-binaries build).
 - SkiaSharp 4.150.1 — MIT (transitive via PDFtoImage; encodes rendered pages)
