@@ -74,10 +74,13 @@ internal static class FixtureFactory
     }
 
     /// <summary>
-    /// Like <see cref="Media"/> with <c>-metadata key=value</c> per tag (mp4/mov/m4a also get <c>-movflags +use_metadata_tags</c>
-    /// so QuickTime keys are kept as they are).
+    /// Like <see cref="Media"/> with <c>-metadata key=value</c> per tag and <c>-metadata:s:a:0 key=value</c> per
+    /// <paramref name="audioStreamTags"/> entry. mov, and mp4/m4a with a reverse-DNS key ("com.apple..."), also get
+    /// <c>-movflags +use_metadata_tags</c> so QuickTime keys are kept as they are; other mp4/m4a stay iTunes-style (ilst ©nam...)
+    /// like real files.
     /// </summary>
-    public static string TaggedMedia(string dir, string name, IReadOnlyDictionary<string, string> tags, int seconds = 2)
+    public static string TaggedMedia(string dir, string name, IReadOnlyDictionary<string, string> tags, int seconds = 2,
+        IReadOnlyDictionary<string, string>? audioStreamTags = null)
     {
         var ffmpeg = FfmpegLocator.Locate() ?? throw new InvalidOperationException("ffmpeg is not on PATH.");
         var path = Path.Combine(dir, name);
@@ -94,7 +97,12 @@ internal static class FixtureFactory
         foreach (var a in args) psi.ArgumentList.Add(a);
         if (AudioExtensions.Contains(ext)) psi.ArgumentList.Add("-vn");
         foreach (var (k, v) in tags) { psi.ArgumentList.Add("-metadata"); psi.ArgumentList.Add($"{k}={v}"); }
-        if (ext is "mp4" or "mov" or "m4a") { psi.ArgumentList.Add("-movflags"); psi.ArgumentList.Add("+use_metadata_tags"); }
+        foreach (var (k, v) in audioStreamTags ?? new Dictionary<string, string>()) { psi.ArgumentList.Add("-metadata:s:a:0"); psi.ArgumentList.Add($"{k}={v}"); }
+        if (ext == "mov" || ext is "mp4" or "m4a" && tags.Keys.Any(k => k.Contains('.')))
+        {
+            psi.ArgumentList.Add("-movflags");
+            psi.ArgumentList.Add("+use_metadata_tags");
+        }
         psi.ArgumentList.Add(path);
         using var p = System.Diagnostics.Process.Start(psi)!;
         var err = p.StandardError.ReadToEndAsync();
