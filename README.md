@@ -170,3 +170,5 @@ README 이미지는 `dist\Zest.exe --render-readme docs/images`로 다시 그립
 ## 라이선스
 
 MIT 라이선스입니다([LICENSE](LICENSE)). 사용한 라이브러리와 모델의 라이선스는 [NOTICE.md](NOTICE.md)에 있습니다(트레이 메뉴의 "라이선스 보기"에서도 볼 수 있습니다).
+
+<sub>Zest는 macOS 앱 [Lime](https://github.com/LumenJSN/Lime)에서 영감을 받아 Windows용으로 새로 만들었습니다.</sub>

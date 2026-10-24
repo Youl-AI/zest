@@ -172,3 +172,5 @@ Developer docs: [implementation decisions](docs/decisions.md), [manual checklist
 ## License
 
 MIT licensed ([LICENSE](LICENSE)). The licenses of the libraries and model used are in [NOTICE.md](NOTICE.md) (also shown from the tray menu's "라이선스 보기").
+
+<sub>Zest was inspired by the macOS app [Lime](https://github.com/LumenJSN/Lime) and built anew for Windows.</sub>
