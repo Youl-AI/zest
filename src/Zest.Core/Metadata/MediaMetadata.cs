@@ -28,9 +28,10 @@ internal static class MediaMetadata
         foreach (var (stream, key, value) in tags)
         {
             var (group, label) = MetadataLabels.For("media", key);
+            var editable = !MetadataLabels.IsLocationKey("media", key); // like the image GPS rows: removed, never edited
             rows.Add(stream is { } i
-                ? new($"{Family}s{i}:{key}", "미디어", $"{label} · 스트림 {i + 1}", value, Editable: true, Removable: true)
-                : new($"{Family}{key}", group, label, value, Editable: true, Removable: true));
+                ? new($"{Family}s{i}:{key}", "미디어", $"{label} · 스트림 {i + 1}", value, editable, Removable: true)
+                : new($"{Family}{key}", group, label, value, editable, Removable: true));
         }
         return rows;
     }

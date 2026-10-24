@@ -106,6 +106,20 @@ public class MediaMetadataTests : IDisposable
     }
 
     [Fact]
+    public async Task Read_LocationRows_AreNotEditable()
+    {
+        var src = FixtureFactory.TaggedMedia(Dir, "clip.mkv", new Dictionary<string, string> { ["location"] = "+33.4996+126.5312/", ["title"] = "x" },
+            audioStreamTags: new Dictionary<string, string> { ["location"] = "+33.4996+126.5312/" });
+
+        var tags = await Read(src);
+
+        var location = tags.Where(t => t.Id.Contains("location", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Equal(2, location.Count); // the file's and the audio stream's
+        Assert.All(location, t => Assert.Equal((false, true), (t.Editable, t.Removable)));
+        Assert.True(Assert.Single(tags, t => t.Id == "media:title").Editable);
+    }
+
+    [Fact]
     public async Task M4a_EditTitle_StaysItunesStyle()
     {
         var src = FixtureFactory.TaggedMedia(Dir, "a.m4a", new Dictionary<string, string> { ["title"] = "바다", ["artist"] = "제스트" });
